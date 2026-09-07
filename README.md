@@ -52,7 +52,7 @@ Physical robot episodes are recorded and published to
 
 ## Runner conversation
 
-Click **Open runner conversation** in the Interaction log to inspect what was
+Click **Open runner conversation** below **Join Queue** to inspect what was
 sent to the model and what it returned in a chat transcript. Runner messages
 appear on the right and model replies on the left, with camera images and tool
 results inline. Repeated history is shown once. View the full conversation or

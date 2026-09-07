@@ -96,15 +96,16 @@ PAGE = PAGE.replace('</main>', '''<section class="panel interaction-panel" aria-
 <div class="interaction-head"><h2>Interaction log</h2><span id="interactionStage" role="status">No active run</span></div>
 <p>Follow model decisions, requested motion, gateway checks, and measured feedback.</p>
 <div class="interaction-controls"><label>Run<select id="interactionRun"><option value="">Current run</option></select></label>
-<button id="conversationOpen" class="disconnect" aria-expanded="false" aria-controls="runnerConversation">Open runner conversation</button><button id="interactionDownload" class="disconnect">Save log</button><button id="wireDownload" class="disconnect" title="Play the selected run here: left | top | right">Watch replay</button>
+<button id="interactionDownload" class="disconnect">Save log</button><button id="wireDownload" class="disconnect" title="Play the selected run here: left | top | right">Watch replay</button>
 <a id="datasetLink" href="https://huggingface.co/datasets/andlyu/Public-YAM-runs/tree/main" target="_blank" rel="noopener">HF dataset ↗</a></div>
 <p>Save log includes model inputs, outputs, input images, and execution errors. Watch replay plays left | top | right here after the run uploads. Save video downloads a copy.</p>
 <p id="interactionPath"></p><p id="interactionError" role="alert"></p>
-<section id="runnerConversation" class="runner-conversation" tabindex="-1" aria-label="Runner conversation" hidden><h2>Runner conversation</h2><p>Follow the chat between your runner and the model. Messages, camera images, and tool results stay on your computer.</p><label>Show <select id="conversationCall" disabled></select></label><p id="conversationStatus" role="status">Choose a run to view its conversation.</p><div id="conversationContent"></div></section><ol id="interactionList"><li>No interactions yet. Join the queue to start a run, or choose a previous recording.</li></ol>
+<ol id="interactionList"><li>No interactions yet. Join the queue to start a run, or choose a previous recording.</li></ol>
 </section></main>''')
 PAGE = PAGE.replace('</body>', '<script src="/static/interactions.js"></script></body>')
 PAGE = PAGE.replace('</head>', '<link rel="stylesheet" href="/static/conversation.css"></head>')
 PAGE = PAGE.replace('</body>', '<script src="/static/conversation.js"></script></body>')
+PAGE = PAGE.replace('<div id="operatorContact"', '''<div class="conversation-launch" style="margin-top:16px"><button id="conversationOpen" class="disconnect" aria-expanded="false" aria-controls="runnerConversation">Open runner conversation</button></div><section id="runnerConversation" class="runner-conversation" tabindex="-1" aria-label="Runner conversation" hidden><h2>Runner conversation</h2><p>Follow the chat between your runner and the model. Messages, camera images, and tool results stay on your computer.</p><label>Show <select id="conversationCall" disabled></select></label><p id="conversationStatus" role="status">Choose a run to view its conversation.</p><div id="conversationContent"></div></section><div id="operatorContact"''', 1)
 
 PAGE = PAGE.replace("$('error').textContent=s.error||s.execution_blocked_reason||'-';", "$('error').textContent=s.server_contact_issue?(s.server_contact_issue.message+(s.server_contact_issue.state==='retrying'?' — retrying ('+s.server_contact_issue.attempt+'/'+s.server_contact_issue.max_attempts+')':'')):s.error||s.execution_blocked_reason||'-';")
 
