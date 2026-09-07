@@ -53,9 +53,11 @@ Physical robot episodes are recorded and published to
 ## Runner conversation
 
 Click **Open runner conversation** in the Interaction log to inspect what was
-sent to the model and what it returned. Choose a run and model call to see the
-full input history, recorded camera images, tool definitions, model output, and
-expandable request/response JSON. The view updates every two seconds while open.
+sent to the model and what it returned in a chat transcript. Runner messages
+appear on the right and model replies on the left, with camera images and tool
+results inline. Repeated history is shown once. View the full conversation or
+filter to one call; expand **Call details** for exact request/response JSON,
+including the full history and tool definitions. The view updates every two seconds while open.
 Built-in policies have no model conversation; a call without a recorded response
 is shown as such. The conversation stays local; **Save log** exports it.
 
