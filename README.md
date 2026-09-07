@@ -95,3 +95,10 @@ PYTHONPATH=src .venv/bin/python -m unittest discover -s tests
   and session transport.
 
 BluPe Remote YAM is an independent BluPe project.
+
+### Replay fetching progress
+
+**Watch replay** shows a fetching bar immediately. Local browser recordings
+open directly. Archived videos are fetched completely before playback: the bar
+shows server preparation first, then received MB and percentage when the response
+provides a total size. Closing the replay cancels the request.

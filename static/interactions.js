@@ -131,9 +131,32 @@ class YamLocalReplay {
     });
   }
 }
-if (typeof module !== 'undefined') module.exports = {YamLocalReplay,LOCAL_REPLAY_FPS,LOCAL_REPLAY_BITRATE,summarizeModelCommand};
+async function fetchReplayVideo(url, {headers, signal, onProgress}) {
+  const response = await fetch(url, {headers, signal, cache:'no-store'});
+  if (!response.ok) throw new Error((await response.json()).error || 'Video unavailable');
+  const size = Number(response.headers.get('Content-Length'));
+  const total = Number.isFinite(size) && size > 0 ? size : null;
+  const reader = response.body.getReader(), chunks = [];
+  let received = 0;
+  onProgress(0, total);
+  try {
+    while (true) {
+      if (signal.aborted) throw new DOMException('Replay closed', 'AbortError');
+      const {done, value} = await reader.read();
+      if (done) break;
+      received += value.byteLength;
+      if (received > 256 * 1024 * 1024) throw new Error('Video exceeds the 256 MB replay limit. Use Save video.');
+      chunks.push(value); onProgress(received, total);
+    }
+    if (signal.aborted) throw new DOMException('Replay closed', 'AbortError');
+    if (total !== null && received !== total) throw new Error('Video download was incomplete. Retry replay.');
+    return new Blob(chunks, {type:'video/mp4'});
+  } catch (error) { await reader.cancel().catch(()=>{}); throw error; }
+  finally { reader.releaseLock(); }
+}
+if (typeof module !== 'undefined') module.exports = {fetchReplayVideo,YamLocalReplay,LOCAL_REPLAY_FPS,LOCAL_REPLAY_BITRATE,summarizeModelCommand};
 
-(() => {
+if (typeof window !== 'undefined') (() => {
   const baseRender = window.render;
   const byId = id => document.getElementById(id);
   const list = byId('interactionList'), selector = byId('interactionRun');
@@ -250,12 +273,12 @@ if (typeof module !== 'undefined') module.exports = {YamLocalReplay,LOCAL_REPLAY
   }
   const replay=document.createElement('section');
   replay.id='runReplay'; replay.className='run-replay'; replay.hidden=true;
-  replay.innerHTML='<div class="replay-heading"><h3>Run replay · left | top | right</h3><button type="button" id="closeReplay">Close</button></div><video id="replayVideo" controls playsinline preload="auto" aria-label="Recorded run, left top and right cameras"></video><div class="replay-load" id="replayLoad" hidden><progress id="replayProgress" max="1"></progress><span id="replayProgressText">Preparing video…</span></div><div class="replay-status"><span id="replayStatus" role="status"></span><button type="button" id="retryReplay" hidden>Retry replay</button></div>';
+  replay.innerHTML='<div class="replay-heading"><h3>Run replay · left | top | right</h3><button type="button" id="closeReplay">Close</button></div><video id="replayVideo" controls playsinline preload="auto" aria-label="Recorded run, left top and right cameras"></video><div class="replay-load" id="replayLoad" hidden><progress id="replayProgress" max="1" aria-label="Fetching video progress"></progress><span id="replayProgressText">Preparing video…</span></div><div class="replay-status"><span id="replayStatus" role="status"></span><button type="button" id="retryReplay" hidden>Retry replay</button></div>';
   byId('interactionList').before(replay);
   const video=byId('replayVideo'), replayStatus=byId('replayStatus'), retry=byId('retryReplay');
   const replayLoad=byId('replayLoad'), replayProgress=byId('replayProgress'), replayProgressText=byId('replayProgressText');
-  let replayVersion=0, replayTimer=null, localUrl=null, localPlaying=null;
-  function resetReplayProgress(label='Preparing video…') {
+  let replayVersion=0, replayTimer=null, localUrl=null, localPlaying=null, replayFetch=null;
+  function resetReplayProgress(label='Fetching video…') {
     replayLoad.hidden=false; replayProgress.removeAttribute('value'); replayProgressText.textContent=label;
   }
   function updateReplayProgress() {
@@ -268,6 +291,7 @@ if (typeof module !== 'undefined') module.exports = {YamLocalReplay,LOCAL_REPLAY
   }
   function closeReplay() {
     replayVersion++; clearTimeout(replayTimer);
+    replayFetch?.abort(); replayFetch=null;
     if (!video) return;
     video.pause(); video.removeAttribute('src'); video.load(); replay.hidden=true; replayLoad.hidden=true;
     if(localUrl) URL.revokeObjectURL(localUrl); localUrl=null; localPlaying=null;
@@ -278,32 +302,43 @@ if (typeof module !== 'undefined') module.exports = {YamLocalReplay,LOCAL_REPLAY
   async function watchReplay(archiveOnly=false) {
     if (!displayed?.run_id) return;
     closeReplay(); const version=replayVersion, runId=displayed.run_id;
-    replay.hidden=false; retry.hidden=true; replayStatus.textContent='Opening replay…'; resetReplayProgress();
+    replay.hidden=false; retry.hidden=true; replayStatus.textContent='Fetching video…'; resetReplayProgress('Fetching video · checking local recording…');
     replay.scrollIntoView({behavior:'smooth', block:'center'});
-    replayTimer=setTimeout(()=>replayIssue('Replay is taking longer than expected. Retry when the upload or connection is ready.'),20000);
+    replayTimer=setTimeout(()=>{replayFetch?.abort();replayIssue('Fetching video timed out. Retry when the upload or connection is ready.');},130000);
     try {
       const local=archiveOnly===true?null:await localReplay.get(runId);
       if(version!==replayVersion || displayed?.run_id!==runId) return;
       if(local) {
         clearTimeout(replayTimer); localPlaying=local;
+        replayProgress.value=1; replayProgressText.textContent='Video ready · loaded from this computer';
         localUrl=URL.createObjectURL(local.blob); video.src=localUrl; video.load();
         replayStatus.textContent=`Local replay · ${Math.round(local.duration)} seconds${local.partial?' · partial capture':''}`;
         video.play().catch(()=>{if(version===replayVersion) replayStatus.textContent+=' · Press Play';});
         return;
       }
-      // Fetch only the small run-to-episode mapping. The video element streams
-      // directly with byte ranges; no full-file Blob download before playback.
-      const artifacts=await (await get(`/api/recordings/${runId}/artifacts`)).json();
+      resetReplayProgress('Fetching video · waiting for the server…');
+      const controller = new AbortController(); replayFetch=controller;
+      const blob = await fetchReplayVideo(`/api/recordings/${runId}/video.mp4`, {
+        headers:{'X-YAM-Runner-Token':CSRF}, signal:controller.signal,
+        onProgress:(received,total)=>{
+          if(version!==replayVersion) return;
+          const mb=(received/1024/1024).toFixed(1);
+          if(total) {
+            replayProgress.value=received/total;
+            replayProgressText.textContent=`Fetching video · ${Math.floor(received/total*100)}% · ${mb} / ${(total/1024/1024).toFixed(1)} MB`;
+          } else {
+            replayProgress.removeAttribute('value');
+            replayProgressText.textContent=`Fetching video · ${mb} MB received`;
+          }
+        },
+      });
       if(version!==replayVersion || displayed?.run_id!==runId) return;
-      if(!artifacts.video_url) throw new Error('No replay was recorded for this older run.');
-      const source=new URL(artifacts.video_url);
-      if(source.origin!=='https://huggingface.co' || !source.pathname.startsWith('/datasets/andlyu/Public-YAM-runs/resolve/')) throw new Error('Unexpected replay source');
-      source.searchParams.delete('download');
-      source.searchParams.set('replay',String(Date.now()));
-      video.src=source.href; video.load();
-      replayStatus.textContent='Loading recorded video…';
+      replayFetch=null; clearTimeout(replayTimer);
+      replayProgress.value=1; replayProgressText.textContent='Video fetched · 100%';
+      localUrl=URL.createObjectURL(blob); video.src=localUrl; video.load();
+      replayStatus.textContent='Video fetched · starting playback…';
       video.play().catch(()=>{if(version===replayVersion && !video.error) replayStatus.textContent='Press Play to watch the replay.';});
-    } catch(error) { if(version===replayVersion) replayIssue(error.message); }
+    } catch(error) { if(version===replayVersion && error.name!=='AbortError') replayIssue(error.message); }
   }
   video.onprogress=updateReplayProgress;
   video.onloadedmetadata=()=>{retry.hidden=true;updateReplayProgress();replayStatus.textContent=localPlaying?`Local replay · ${Math.round(localPlaying.duration)} seconds${localPlaying.partial?' · partial capture':''}`:`Recorded run${Number.isFinite(video.duration)?' · '+Math.round(video.duration)+' seconds':''}`;};
