@@ -29,9 +29,8 @@ if (typeof document !== 'undefined') (() => {
   const status = document.getElementById('conversationStatus');
   const content = document.getElementById('conversationContent');
   let runId = '', calls = [], selected = null, version = 0, pending = false, signature = '';
-  let imageUrls = [];
   const element = (tag, text) => { const node = document.createElement(tag); if (text !== undefined) node.textContent = text; return node; };
-  function clear() { imageUrls.forEach(url => URL.revokeObjectURL(url)); imageUrls = []; content.replaceChildren(); }
+  function clear() { content.replaceChildren(); }
   async function get(path) {
     const response = await fetch(path, {cache: 'no-store', headers: {'X-YAM-Runner-Token': CSRF}});
     if (!response.ok) throw new Error(response.status === 404 ? 'No model conversation recorded for this run. Built-in policies do not call a model.' : 'Conversation unavailable. Try reopening it.');
@@ -73,9 +72,16 @@ if (typeof document !== 'undefined') (() => {
           const caption = element('p', 'Recorded model input image'); block.append(caption);
           if (match) {
             const image = element('img'); image.alt = 'Camera image sent to the model'; block.append(image);
-            get(`/api/recordings/${runId}/blobs/${match[1]}`).then(r => r.blob()).then(blob => {
+            image.onerror = () => { if (currentVersion === version) caption.textContent = 'Recorded image could not be displayed'; };
+            get(`/api/recordings/${runId}/blobs/${match[1]}`).then(r => r.blob()).then(blob => new Promise((resolve, reject) => {
+              // The page permits data: images, but deliberately excludes blob: images.
+              const reader = new FileReader();
+              reader.onload = () => resolve(reader.result);
+              reader.onerror = () => reject(new Error('Cannot read recorded image'));
+              reader.readAsDataURL(blob);
+            })).then(dataUrl => {
               if (currentVersion !== version || panel.hidden) return;
-              const url = URL.createObjectURL(blob); imageUrls.push(url); image.src = url;
+              image.src = dataUrl;
             }).catch(() => { if (currentVersion === version) caption.textContent = 'Recorded image unavailable'; });
           } else raw(block, 'Image reference', part);
         } else raw(block, part.type || 'Content', part);
