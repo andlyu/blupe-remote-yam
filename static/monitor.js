@@ -31,7 +31,11 @@
       const frame = document.createElement("img");
       frame.alt = `${name} camera feedback from the Session API`;
       const proxyUrl = `/api/monitor/cameras/${name}`;
-      frame.onload = () => { tile.classList.remove("failed"); updateFreshness(); };
+      frame.onload = () => {
+        tile.classList.remove("failed"); updateFreshness();
+        // JPEG responses finish loading; MJPEG streams remain open until stopped.
+        setTimeout(() => { if (frame.isConnected) frame.src = proxyUrl; }, 200);
+      };
       frame.onerror = () => {
         tile.classList.add("failed");
         updateFreshness();

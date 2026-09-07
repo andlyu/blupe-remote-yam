@@ -31,13 +31,19 @@ For future launches, run `./run.sh` from this directory. If the key is absent,
 select OpenAI and the terminal requests it privately when joining. A built-in
 raise/lower policy is also available without a model API key.
 
-## Current remote-access limitation
+## Camera access from another computer
 
-The Session API is public, but the current station advertises camera URLs on its
-private network. Astra requires all three live camera views. Off-site Astra runs
-therefore require reachable camera transport; the public camera relay is not yet
-included in this release. Installing and opening this UI does not by itself make
-those private camera URLs reachable.
+All three physical cameras now come through the public Session API over HTTPS.
+Off-site runners need no route to the robot's private network and no camera SSH
+tunnel. The runner trusts the configured Session API origin by default and rejects
+camera redirects or URLs on other origins. `--camera-origin` is an explicit override
+for legacy or local setups.
+
+The API returns only fresh frames; a disconnected or stale camera produces an
+error and prevents image-free inference. The local monitor refreshes JPEG snapshots.
+After updating with `git pull`, restart an already-running runner to load these changes.
+On a headless Ubuntu/AWS server, use `MUJOCO_GL=egl ./run.sh --no-browser`.
+An SSH tunnel to the runner's local web UI is still needed to open that UI remotely.
 
 ## What runs where
 

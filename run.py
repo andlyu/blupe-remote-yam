@@ -272,10 +272,22 @@ def build_handler(
                     return
                 opener = urlrequest.build_opener(_NoRedirect)
                 upstream = opener.open(
-                    urlrequest.Request(upstream_url, headers={"Accept": "multipart/x-mixed-replace"}),
+                    urlrequest.Request(upstream_url, headers={"Accept": "image/jpeg, multipart/x-mixed-replace"}),
                     timeout=2.0,
                 )
                 content_type = upstream.headers.get("Content-Type", "")
+                if content_type.lower().split(";", 1)[0] == "image/jpeg":
+                    body = upstream.read(4 * 1024 * 1024 + 1)
+                    if len(body) > 4 * 1024 * 1024 or not body.startswith(b"\xff\xd8") or not body.endswith(b"\xff\xd9"):
+                        self._no_signal()
+                        return
+                    self.send_response(HTTPStatus.OK)
+                    self.send_header("Content-Type", "image/jpeg")
+                    self.send_header("Content-Length", str(len(body)))
+                    self.send_header("Cache-Control", "no-store")
+                    self.end_headers()
+                    self.wfile.write(body)
+                    return
                 if not content_type.lower().startswith("multipart/x-mixed-replace"):
                     self._no_signal()
                     return
@@ -380,7 +392,7 @@ def main() -> None:
     parser.add_argument("--session-api", default="https://yam-session-api.n5hthc3gj4cqy.us-east-1.cs.amazonlightsail.com", help="Session API base URL; defaults to BluPe")
     parser.add_argument("--mock", action="store_true", help="Use the in-process mock instead of BluPe")
     parser.add_argument("--robot-id", default="yam-1", help="Robot whose read-only live feedback is shown")
-    parser.add_argument("--camera-origin", default="http://10.1.10.185:8089", help="Exact trusted camera relay origin used by the read-only same-origin proxy")
+    parser.add_argument("--camera-origin", default=None, help="Trusted camera origin; defaults to the Session API origin")
     parser.add_argument("--provider", choices=("auto", "local_raise_lower", "openai", "astra"), default="auto", help="Default inference policy/provider")
     parser.add_argument("--no-key-prompt", action="store_true", help="Do not request a missing provider key when Join Queue is invoked")
     parser.add_argument("--no-browser", action="store_true")
@@ -437,7 +449,7 @@ def main() -> None:
     globals()["PAGE"] = page
     server = ThreadingHTTPServer(
         ("127.0.0.1", args.port),
-        build_handler(controller, credentials, csrf_token, args.provider, not args.no_key_prompt, args.camera_origin, twin_viewer),
+        build_handler(controller, credentials, csrf_token, args.provider, not args.no_key_prompt, (args.camera_origin or args.session_api), twin_viewer),
     )
     url = f"http://127.0.0.1:{args.port}/"
     print(f"Public YAM local runner: {url}")

@@ -17,11 +17,12 @@ SPEC.loader.exec_module(APP)
 
 
 class CameraSource(BaseHTTPRequestHandler):
+    content_type = "multipart/x-mixed-replace; boundary=frame"
     payload = b"--frame\r\nContent-Type: image/jpeg\r\n\r\nJPEG\r\n--frame--\r\n"
 
     def do_GET(self) -> None:
         self.send_response(HTTPStatus.OK)
-        self.send_header("Content-Type", "multipart/x-mixed-replace; boundary=frame")
+        self.send_header("Content-Type", self.content_type)
         self.send_header("Content-Length", str(len(self.payload)))
         self.end_headers()
         self.wfile.write(self.payload)
@@ -75,6 +76,22 @@ class CameraProxyTests(unittest.TestCase):
             self.assertEqual(response.status, HTTPStatus.OK)
             self.assertTrue(response.headers["Content-Type"].startswith("multipart/x-mixed-replace"))
             self.assertEqual(response.read(), CameraSource.payload)
+
+    def test_proxies_api_jpeg_and_rejects_invalid_jpeg(self) -> None:
+        original_type, original_payload = CameraSource.content_type, CameraSource.payload
+        try:
+            CameraSource.content_type = "image/jpeg"
+            CameraSource.payload = b"\xff\xd8frame\xff\xd9"
+            with request.urlopen(self.base + "/api/monitor/cameras/left", timeout=2) as response:
+                self.assertEqual(response.headers["Content-Type"], "image/jpeg")
+                self.assertEqual(response.read(), CameraSource.payload)
+            CameraSource.payload = b"invalid"
+            with self.assertRaises(error.HTTPError) as raised:
+                request.urlopen(self.base + "/api/monitor/cameras/left", timeout=2)
+            self.assertEqual(raised.exception.code, HTTPStatus.BAD_GATEWAY)
+            raised.exception.close()
+        finally:
+            CameraSource.content_type, CameraSource.payload = original_type, original_payload
 
     def test_rejects_caller_parameters_unknown_names_and_wrong_origin(self) -> None:
         for path in (
