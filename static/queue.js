@@ -1,5 +1,21 @@
 (() => {
   const baseRender = window.render;
+  const legacyHelp = document.getElementById("repeatHelp");
+  if (legacyHelp) legacyHelp.hidden = true;
+  // Build explanatory copy in the browser so refreshes pick up text updates.
+  let help = document.getElementById("queueHelp");
+  if (!help) {
+    help = document.createElement("p");
+    help.id = "queueHelp";
+    document.getElementById("run").closest(".actions").before(help);
+  }
+  const apiLink = document.createElement("a");
+  apiLink.href = "https://github.com/andlyu/blupe-remote-yam/blob/main/API.md";
+  apiLink.target = "_blank";
+  apiLink.rel = "noopener";
+  apiLink.textContent = "API directly";
+  help.replaceChildren("Click Join Queue to join the queue for controlling the arms. This UI is built around Astra, but you can use the ", apiLink, " for further customization.");
+
   const queueState = document.getElementById("queueState");
   const stationReadout = document.getElementById("stationReadout");
   const queueList = document.getElementById("queueList");

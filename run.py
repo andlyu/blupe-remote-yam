@@ -73,7 +73,6 @@ PAGE = PAGE.replace(
 )
 STATIC_ROOT = PROJECT_ROOT / "static"
 
-PAGE = PAGE.replace('<div class="actions">', '<p id="queueHelp">Click Join Queue to join the queue for controlling the arms. This UI is built around Astra, but you can use the <a href="https://github.com/andlyu/blupe-remote-yam/blob/main/API.md" target="_blank" rel="noopener">API directly</a> for further customization.</p><div class="actions">', 1)
 
 
 PAGE = PAGE.replace('<dt>Next step</dt>', '<dt>Waypoints submitted</dt>')
