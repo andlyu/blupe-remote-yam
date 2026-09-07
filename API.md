@@ -1,8 +1,19 @@
 # BluPe Remote YAM API
 
-Use this API to build your own policy client for BluPe’s shared YAM arms.
-For the ready-made Astra UI, follow the [README quickstart](README.md#download-launch-run).
-You do not need to implement this protocol to use `./run.sh`.
+Run your own AI policy on BluPe’s shared YAM arms, even if you don’t own a robot.
+
+Your program joins the queue and waits for its turn. Once it receives control,
+it reads camera images and arm positions, runs your policy on your computer or
+model service, and sends movement commands to the arms. The robot executes those
+commands and returns fresh observations so your policy can decide what to do next.
+
+Repeat this loop until the task is finished, then end the session to release the
+arms for the next user.
+
+The included Astra UI handles this flow for you. Use the API directly to connect
+your own model or customize the control loop. For the ready-made UI, follow the
+[README quickstart](README.md#download-launch-run); you do not need to implement
+this protocol to use `./run.sh`.
 
 This reference covers the v1 runner-facing API. The live schema bundle was
 checked on September 7, 2026; station availability and deployment limits can change.
