@@ -48,6 +48,12 @@ Model conversations and interaction logs are saved under `recordings/` locally.
 Physical robot episodes are recorded and published to
 [Public-YAM-runs](https://huggingface.co/datasets/andlyu/Public-YAM-runs).
 
+## API documentation
+
+Building your own client or policy? See [API.md](API.md) for endpoints, session
+authentication, queue and observation events, trajectory commands, limits,
+errors, and examples. The normal `./run.sh` flow handles these for you.
+
 ## Development options
 
 `./run.sh --help` lists options. Defaults connect to BluPe’s hosted Session API
