@@ -167,6 +167,7 @@ if (typeof module !== 'undefined') module.exports = {YamLocalReplay,LOCAL_REPLAY
   function renderLog(log) {
     if ((displayed?.run_id || '') !== (log?.run_id || '')) { closeReplay(); nodes.clear(); list.replaceChildren(); }
     displayed = log;
+    window.dispatchEvent(new CustomEvent("runner-recording-selected", {detail: log?.run_id || ""}));
     byId('interactionPath').textContent = log?.path ? `Saved locally: ${log.path}` : 'Interaction history will appear here.';
     if(log?.error) byId('interactionError').textContent = log.error;
     const events = log?.events || [], keys = new Set();

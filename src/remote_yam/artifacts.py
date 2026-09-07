@@ -115,3 +115,24 @@ def log_archive(root, run_id):
     except Exception:
         archive.close()
         raise
+
+
+def recorded_image(root, run_id, digest):
+    """Read only a verified JPEG/PNG blob inside this recording."""
+    if not re.fullmatch(r'[a-f0-9]{64}', digest):
+        raise ValueError('Invalid image reference')
+    directory = recording_directory(root, run_id)
+    blobs = directory / 'blobs'
+    path = blobs / digest
+    if blobs.is_symlink() or path.is_symlink() or not path.is_file():
+        raise ValueError('Recorded image unavailable')
+    if path.stat().st_size > 4 * 1024 * 1024:
+        raise ValueError('Recorded image exceeds size limit')
+    data = path.read_bytes()
+    if hashlib.sha256(data).hexdigest() != digest:
+        raise ValueError('Recorded image checksum mismatch')
+    if data.startswith(b'\xff\xd8') and data.endswith(b'\xff\xd9'):
+        return data, 'image/jpeg'
+    if data.startswith(b'\x89PNG\r\n\x1a\n'):
+        return data, 'image/png'
+    raise ValueError('Unsupported recorded image')

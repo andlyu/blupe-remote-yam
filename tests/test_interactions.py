@@ -174,7 +174,7 @@ class InteractionTests(unittest.TestCase):
                 for suffix in ('/api/recordings',f'/api/recordings/{name}/interactions',f'/api/recordings/{name}/interactions.jsonl', f'/api/recordings/{name}/log.zip', f'/api/recordings/{name}/artifacts'):
                     with urlopen(Request(base+suffix,headers={'X-YAM-Runner-Token':'local-test'})) as result:
                         self.assertEqual(result.status,200)
-                for suffix in ('log.zip', 'video.mp4', 'artifacts'):
+                for suffix in ('log.zip', 'video.mp4', 'artifacts', 'calls.jsonl', 'blobs/'+'a'*64):
                     with self.assertRaises(HTTPError) as error:
                         urlopen(base+f'/api/recordings/{name}/{suffix}')
                     self.assertEqual(error.exception.code, 403)
@@ -182,6 +182,8 @@ class InteractionTests(unittest.TestCase):
                 with urlopen(base) as result:html=result.read().decode()
                 self.assertIn('Interaction log',html)
                 self.assertIn('interactionStage',html)
+                self.assertIn('Open runner conversation',html)
+                self.assertIn('/static/conversation.js',html)
                 with urlopen(base+'/static/interactions.js') as result:
                     self.assertIn('Waiting for Astra',result.read().decode())
             finally:server.shutdown();server.server_close();thread.join()

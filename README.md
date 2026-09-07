@@ -50,6 +50,15 @@ Model conversations and interaction logs are saved under `recordings/` locally.
 Physical robot episodes are recorded and published to
 [Public-YAM-runs](https://huggingface.co/datasets/andlyu/Public-YAM-runs).
 
+## Runner conversation
+
+Click **Open runner conversation** in the Interaction log to inspect what was
+sent to the model and what it returned. Choose a run and model call to see the
+full input history, recorded camera images, tool definitions, model output, and
+expandable request/response JSON. The view updates every two seconds while open.
+Built-in policies have no model conversation; a call without a recorded response
+is shown as such. The conversation stays local; **Save log** exports it.
+
 ## API documentation
 
 Building your own client or policy? See [API.md](API.md) for endpoints, session

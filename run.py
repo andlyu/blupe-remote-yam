@@ -30,7 +30,7 @@ from remote_yam.robocurve_policy import AstraAdapter, OpenAIAdapter
 from remote_yam.session import HttpSessionAPI, MockSessionAPI
 from remote_yam.viewer import YamBimanualViewer
 from remote_yam.interactions import list_recordings, read_recording, recording_directory
-from remote_yam.artifacts import log_archive, video_archive, run_artifacts
+from remote_yam.artifacts import log_archive, video_archive, run_artifacts, recorded_image
 
 
 PAGE = r"""<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>BluPe Remote YAM</title>
@@ -96,13 +96,15 @@ PAGE = PAGE.replace('</main>', '''<section class="panel interaction-panel" aria-
 <div class="interaction-head"><h2>Interaction log</h2><span id="interactionStage" role="status">No active run</span></div>
 <p>Follow model decisions, requested motion, gateway checks, and measured feedback.</p>
 <div class="interaction-controls"><label>Run<select id="interactionRun"><option value="">Current run</option></select></label>
-<button id="interactionDownload" class="disconnect">Save log</button><button id="wireDownload" class="disconnect" title="Play the selected run here: left | top | right">Watch replay</button>
+<button id="conversationOpen" class="disconnect" aria-expanded="false" aria-controls="runnerConversation">Open runner conversation</button><button id="interactionDownload" class="disconnect">Save log</button><button id="wireDownload" class="disconnect" title="Play the selected run here: left | top | right">Watch replay</button>
 <a id="datasetLink" href="https://huggingface.co/datasets/andlyu/Public-YAM-runs/tree/main" target="_blank" rel="noopener">HF dataset ↗</a></div>
 <p>Save log includes model inputs, outputs, input images, and execution errors. Watch replay plays left | top | right here after the run uploads. Save video downloads a copy.</p>
 <p id="interactionPath"></p><p id="interactionError" role="alert"></p>
-<ol id="interactionList"><li>No interactions yet. Join the queue to start a run, or choose a previous recording.</li></ol>
+<section id="runnerConversation" class="runner-conversation" tabindex="-1" aria-label="Runner conversation" hidden><h2>Runner conversation</h2><p>The recorded messages and images sent to the model, and its responses. These stay on your computer.</p><label>Model call <select id="conversationCall" disabled></select></label><p id="conversationStatus" role="status">Choose a run to view its conversation.</p><div id="conversationContent"></div></section><ol id="interactionList"><li>No interactions yet. Join the queue to start a run, or choose a previous recording.</li></ol>
 </section></main>''')
 PAGE = PAGE.replace('</body>', '<script src="/static/interactions.js"></script></body>')
+PAGE = PAGE.replace('</head>', '<link rel="stylesheet" href="/static/conversation.css"></head>')
+PAGE = PAGE.replace('</body>', '<script src="/static/conversation.js"></script></body>')
 
 PAGE = PAGE.replace("$('error').textContent=s.error||s.execution_blocked_reason||'-';", "$('error').textContent=s.server_contact_issue?(s.server_contact_issue.message+(s.server_contact_issue.state==='retrying'?' — retrying ('+s.server_contact_issue.attempt+'/'+s.server_contact_issue.max_attempts+')':'')):s.error||s.execution_blocked_reason||'-';")
 
@@ -197,6 +199,15 @@ def build_handler(
                     parts = self.path.split('/')
                     if self.path == '/api/recordings':
                         self._json(HTTPStatus.OK, {'runs':list_recordings(recordings)})
+                    elif len(parts)==6 and parts[4]=='blobs':
+                        body, content_type = recorded_image(recordings, parts[3], parts[5])
+                        self.send_response(HTTPStatus.OK)
+                        self.send_header('Content-Type', content_type)
+                        self.send_header('Cache-Control', 'no-store')
+                        self.send_header('X-Content-Type-Options', 'nosniff')
+                        self.send_header('Content-Length', str(len(body)))
+                        self.end_headers()
+                        self.wfile.write(body)
                     elif len(parts)==5 and parts[4]=='interactions':
                         self._json(HTTPStatus.OK, read_recording(recordings, parts[3]))
                     elif len(parts)==5 and parts[4]=='artifacts':
@@ -236,7 +247,7 @@ def build_handler(
                         raise ValueError('Unknown recording route')
                 except (OSError, ValueError):
                     self._json(HTTPStatus.NOT_FOUND, {'error':'Recording unavailable'})
-            elif self.path in {"/static/interactions.css", "/static/interactions.js", "/static/monitor.css", "/static/monitor.js", "/static/queue.css", "/static/queue.js", "/static/mock-camera-0.svg", "/static/mock-camera-1.svg", "/static/mock-camera-2.svg"}:
+            elif self.path in {"/static/conversation.js", "/static/conversation.css", "/static/interactions.css", "/static/interactions.js", "/static/monitor.css", "/static/monitor.js", "/static/queue.css", "/static/queue.js", "/static/mock-camera-0.svg", "/static/mock-camera-1.svg", "/static/mock-camera-2.svg"}:
                 path = STATIC_ROOT / self.path.rsplit("/", 1)[-1]
                 body = path.read_bytes()
                 content_type = "text/css; charset=utf-8" if path.suffix == ".css" else "text/javascript; charset=utf-8" if path.suffix == ".js" else "image/svg+xml"
