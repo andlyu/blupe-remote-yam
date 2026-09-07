@@ -1,0 +1,11 @@
+.venv/
+__pycache__/
+*.py[cod]
+.env
+.env.*
+!.env.example
+recordings/
+*.log
+screenlog.*
+.DS_Store
+.pytest_cache/
