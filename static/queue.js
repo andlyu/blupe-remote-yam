@@ -14,7 +14,7 @@
   apiLink.target = "_blank";
   apiLink.rel = "noopener";
   apiLink.textContent = "API directly";
-  help.replaceChildren("Click Join Queue to join the queue for controlling the arms. This UI is built around Astra, but you can use the ", apiLink, " for further customization.");
+  help.replaceChildren("Joining the queue will add you to the queue for controlling the arms. The UI is built around Astra, but feel free to use the ", apiLink, " for further customization.");
 
   const queueState = document.getElementById("queueState");
   const stationReadout = document.getElementById("stationReadout");
