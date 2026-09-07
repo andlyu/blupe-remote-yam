@@ -22,7 +22,9 @@ access to the selected model. Model calls use your provider account and credits.
 Enter a task, such as **place green block on plate**, then click **Join Queue**.
 Keep the terminal open. Opening the UI only monitors the station; joining the
 queue requests a turn. The station operator must ready the arms before motion.
-Use **Leave Queue / Stop** to end your run. Use **Watch replay**, **Save video**,
+Use **Leave Queue / Stop** to end your run. **Call Operator** displays our
+contact details: text/call [7033443837](tel:+17033443837) or email
+[andrew@blupe.io](mailto:andrew@blupe.io). Use **Watch replay**, **Save video**,
 and **Save log** to review it afterward.
 
 For future launches, run `./run.sh` from this directory. If the key is absent,

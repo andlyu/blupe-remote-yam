@@ -63,7 +63,9 @@ client, as the runner does; the browser WebSocket API cannot set that header.
 The legacy `POST .../actions` route is rejected by the current server; use
 `/trajectories`. Although the runner has a `call_operator()` helper, the current
 server router does not implement `POST .../operator`. Do not depend on that
-helper as a working takeover endpoint; `/stop` is the supported stop request.
+helper as a working takeover endpoint; `/stop` is the supported stop request. The
+UI’s **Call Operator** button displays contact information (7033443837 or
+andrew@blupe.io); it does not call this endpoint or change robot control.
 
 ## 1. Inspect the station without joining
 
