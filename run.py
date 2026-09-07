@@ -73,8 +73,6 @@ PAGE = PAGE.replace(
 )
 STATIC_ROOT = PROJECT_ROOT / "static"
 
-PAGE = PAGE.replace('<div class="actions">', '<p id="repeatHelp">Runs 3 cycles: up request → response → down request → response. Stop holds position.</p><div class="actions">', 1)
-PAGE = PAGE.replace("$('step').textContent=s.next_step_id;", "$('step').textContent=s.next_step_id;$('repeatHelp').textContent=s.provider?.repeat?'Completed cycles: '+s.provider.completed_cycles+'/3 — '+(s.provider.completed_cycles>=3?'done':'moving '+s.provider.phase):'Runs 3 cycles: up request → response → down request → response. Stop holds position.';")
 
 PAGE = PAGE.replace('<dt>Next step</dt>', '<dt>Waypoints submitted</dt>')
 PAGE = PAGE.replace('<dt>Latest model command</dt>', '<dt>Packets submitted</dt><dd id="packets">0</dd><dt>Packet progress</dt><dd id="packetProgress">—</dd><dt>Latest model command</dt>')
@@ -89,7 +87,6 @@ PAGE = PAGE.replace('Command format: {"left":{"mode":"joints"|"pose","values":[6
                     'Astra uses RoboCurve’s no-demo policy: camera images and arm state → move_to → completed motion feedback → next decision.')
 PAGE = PAGE.replace('<dt>Latest model command</dt>', '<dt>Astra calls</dt><dd id="modelCalls">0</dd><dt>Latest model note</dt><dd id="modelNote">—</dd><dt>Policy outcome</dt><dd id="modelOutcome">—</dd><dt>Local recording</dt><dd id="modelRecording">—</dd><dt>Latest model command</dt>')
 PAGE = PAGE.replace("$('heartbeat').textContent=", "$('modelCalls').textContent=s.provider?.model_calls||0;$('modelNote').textContent=s.provider?.note||'—';$('modelOutcome').textContent=s.provider?.outcome?JSON.stringify(s.provider.outcome):'—';$('modelRecording').textContent=s.provider?.recording_path||'—';$('heartbeat').textContent=")
-PAGE = PAGE.replace(":'Runs 3 cycles: up request → response → down request → response. Stop holds position.';", ":s.provider?.policy==='robocurve_no_demo'?'Astra observes, moves, and observes again until done, give up, or Stop.':'Built-in policy runs 3 raise/lower cycles. Stop holds position.';")
 
 PAGE = PAGE.replace('</head>', '<link rel="stylesheet" href="/static/interactions.css"></head>')
 PAGE = PAGE.replace('</main>', '''<section class="panel interaction-panel" aria-label="Interaction log">
