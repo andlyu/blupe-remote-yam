@@ -1,0 +1,160 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>BluPe · Run a policy</title><link rel="stylesheet" href="/static/hosted.css">
+  <script src="/static/hls.light.min.js" defer></script>
+  <script src="/synchronized/reader.js" defer></script>
+  <script src="/static/analytics.js" defer></script>
+  <script src="/static/stream-health.js" defer></script>
+  <script src="/static/hosted.js" defer></script>
+</head>
+<body><main><div class="runnerContent">
+  <section class="intro"><p class="eyebrow" hidden>Your model. A real robot.</p><h1>Run a policy.</h1><p><a href="#tryForYourselfTitle">Run via local API — control the model calls</a> · <a href="#pastRunsTitle">See what others did</a></p></section>
+  <div class="runSetup">
+    <section class="panel"><h2>Prompt the arms</h2>
+      <form id="runForm" autocomplete="off">
+        <div class="promptRow"><textarea id="prompt" aria-label="Prompt the arms" rows="2" maxlength="4000" required>place green block on plate</textarea><button class="primary" id="run" type="submit" disabled>Setup keys and run</button></div>
+        <details id="runSettings"><summary>Settings</summary>
+        <label for="runnerName">Your name</label><input id="runnerName" required maxlength="32" autocomplete="nickname" placeholder="Name shown with your run">
+        <p class="help">Your name, task, and readable Astra conversation will be visible to everyone watching.</p>
+        <label for="email">Email (optional)</label><input id="email" type="email" maxlength="254" placeholder="you@example.com" autocomplete="email" autocapitalize="none" spellcheck="false" aria-describedby="emailHelp">
+        <p class="help" id="emailHelp">This project is super new. We'd love to follow up about your experience.</p>
+        <label for="instagramHandle">Instagram (optional)</label><input id="instagramHandle" maxlength="33" placeholder="@yourhandle" autocomplete="off" autocapitalize="none" spellcheck="false">
+        <label for="provider">Policy / provider</label>
+        <select id="provider"><option value="local_raise_lower">Built-in: raise and lower both arms · no key</option><option value="openai" selected>Bring your API key · Astra</option><option value="astra" hidden disabled>Astra · bring your key</option></select>
+        <div id="providerFields">
+          <label for="model" hidden>Model</label><input id="model" hidden value="gpt-6-astra" maxlength="128" spellcheck="false">
+          <label for="apiKey">Your provider API key</label>
+          <p class="help">Generate new key <a href="https://platform.openai.com/api-keys" target="_blank" rel="noopener noreferrer">here</a><br>Make sure you have OpenAI credits <a href="https://platform.openai.com/account/billing/overview" target="_blank" rel="noopener noreferrer">here</a></p>
+          <input id="apiKey" type="password" required autocomplete="off" autocapitalize="none" spellcheck="false" maxlength="4096" placeholder="Paste a dedicated API key" aria-describedby="keyHelp">
+          <p class="help" id="keyHelp">Your provider bills your account for inference. Your key is reused for future runs in this browser session, including after refresh. It stays in server memory, never disk or browser storage. Forget key, ending the session, session expiry, or a server restart clears it. Use a dedicated key you can revoke.</p>
+        </div>
+        <div id="codexSetup" hidden><p id="codexStatus" class="help" role="status"></p><button type="button" id="codexCheck">Check Codex connection</button><p class="help">First-time sign-in: <code>./run.sh --codex-login --provider codex</code></p></div>
+        <label for="runDuration">Run time (minutes)</label><input id="runDuration" type="number" min="1" max="10" step="1" value="3" required>
+
+        <p id="policyHelp" class="help">The model observes the cameras, chooses a move, and waits for robot feedback before deciding again.</p>
+        <p class="disclosure">Physical runs are recorded for the <a href="https://huggingface.co/datasets/andlyu/Public-YAM-runs" target="_blank" rel="noopener noreferrer">public robot dataset</a>. Full downloadable logs remain private to your browser session until it expires.</p>
+        </details>
+      </form>
+      <div class="actions" hidden><button id="stop" class="danger" disabled>Stop run</button><button id="forget" disabled>Forget key &amp; stop</button><button id="operator" disabled>Call operator</button></div>
+      <p id="message" role="status" aria-live="polite">Connecting to your browser session…</p>
+    </section>
+    <aside id="yourQueue" class="panel robotQueue" tabindex="-1">      <span id="queueSummary" role="status">Queue · connecting…</span><ol id="queue" hidden><li>Waiting for queue information</li></ol>
+      <div class="queuePlace" hidden aria-live="polite" aria-atomic="true"><h3>Your place in the queue</h3><strong id="position">—</strong><p id="queueGuidance" hidden>Join the queue to reserve your turn.</p></div>
+
+      <button id="leaveQueue" type="button" hidden disabled>Leave queue</button>
+      <button id="disconnect" hidden disabled>End browser session</button>
+    </aside>
+  </div>
+  <p class="help" id="videoDelayNotice">Four live views, synchronized. <span id="streamHealth" class="streamHealth" role="status">Checking stream</span> <span id="streamHealthDetail" aria-live="off"></span></p>
+  <div class="watchLayout">
+  <section id="liveConversationPanel" class="panel liveConversation" aria-label="Current run conversation">
+    <div class="statusHeader"><h2>Prompt</h2><button id="closeLiveConversation" type="button">Close the convo</button></div>
+    <p id="sideRunner" class="help">Runner: —</p>
+    <p id="sidePrompt">Waiting for someone to run a policy.</p>
+    <div class="statusHeader"><h2>Conversation with Astra</h2><span id="sideConversationState" class="tag">Waiting for a run</span></div>
+    <ol id="sideConversationMessages" tabindex="0" aria-label="Live conversation messages" aria-live="polite" aria-relevant="additions"><li>Astra’s replies and robot feedback from the current run appear here for everyone.</li></ol>
+  </section>
+<div class="watchVisuals">
+  <section class="panel" aria-label="What’s running" hidden>
+    <h2>What’s running</h2><p id="whatsRunning" role="status">Checking the current run…</p>
+  </section>
+  <section id="liveViewer" class="cameras" aria-label="Live robot cameras" tabindex="-1">
+    <div id="viewerCue" class="viewerCue" role="status" aria-live="polite" hidden><strong>Your run is live</strong><span>Watch your robot here. The video may follow with a short delay.</span></div>
+    <figure class="syncTile"><div class="syncTilePicture"><canvas data-sync-tile="0" width="640" height="360" aria-label="Top robot camera"></canvas><button class="expandCamera" data-expand-camera="0" aria-label="Expand top camera">⛶</button></div><figcaption>Top <span data-sync-status>Connecting</span></figcaption></figure>
+    <figure class="syncTile"><div class="syncTilePicture"><canvas data-sync-tile="1" width="640" height="360" aria-label="Observer robot camera"></canvas><button class="expandCamera" data-expand-camera="1" aria-label="Expand observer camera">⛶</button></div><figcaption>Observer <span data-sync-status>Connecting</span></figcaption></figure>
+    <figure class="syncTile"><div class="syncTilePicture"><canvas data-sync-tile="2" width="640" height="360" aria-label="Left robot camera"></canvas><button class="expandCamera" data-expand-camera="2" aria-label="Expand left camera">⛶</button></div><figcaption>Left <span data-sync-status>Connecting</span></figcaption></figure>
+    <figure class="syncTile"><div class="syncTilePicture"><canvas data-sync-tile="3" width="640" height="360" aria-label="Right robot camera"></canvas><button class="expandCamera" data-expand-camera="3" aria-label="Expand right camera">⛶</button></div><figcaption>Right <span data-sync-status>Connecting</span></figcaption></figure>
+    <figure class="syncSource" aria-hidden="true"><img data-camera="synchronized" alt="Synchronized camera source"><figcaption><span>Connecting</span></figcaption></figure>
+    <div class="liveStopwatch" title="Current run time remaining">
+      <span class="stopwatchIcon" aria-hidden="true">⏱</span>
+      <span id="runTimer" role="timer" aria-label="Current run time remaining" aria-live="off">—:—</span>
+      <span id="runTimerDetail" hidden>Waiting for a run</span>
+    </div>
+  </section>
+  <div class="cameraStatusLine"><p id="station">Checking station availability…</p><span id="status" hidden class="tag">Connecting</span><p id="publicRunError" class="publicRunError" role="status" aria-live="polite" hidden></p></div>
+  <section class="panel astraStream" aria-labelledby="astraStreamTitle">
+    <div class="statusHeader"><h2 id="astraStreamTitle">Stream of consciousness</h2><button id="openLiveConversation" type="button" hidden aria-label="Expand prompt and conversation" aria-expanded="true" aria-controls="liveConversationPanel">Expand ↗</button></div>
+    <span id="astraStreamState" hidden>Waiting for a run</span>
+    <div role="status" aria-live="polite" aria-atomic="true">
+      <p id="astraStreamOutput">Astra’s next note will appear here.</p>
+      <time id="astraStreamTime" hidden></time>
+    </div>
+  </section>
+  </div>
+  </div>
+  <div class="liveDashboard"><div class="liveMain" hidden>
+  <section class="panel liveConversation" aria-label="Current run conversation">
+    <h2>Prompt</h2>
+    <p id="currentRunner" class="help">Runner: —</p>
+    <p id="currentPrompt">Waiting for someone to run a policy.</p>
+    <div class="statusHeader"><h2>Conversation with Astra</h2><span id="conversationState" class="tag">Waiting for a run</span></div>
+    <ol id="liveConversationMessages" tabindex="0" aria-label="Live conversation messages" aria-live="polite" aria-relevant="additions"><li>Astra’s replies and robot feedback from the current run appear here for everyone.</li></ol>
+  </section>
+  </div>
+  </div>
+  <section class="panel history" hidden><div class="statusHeader"><h2>Your run logs</h2><select id="runs" aria-label="Choose a recorded run"><option value="">No runs yet</option></select></div>
+    <div class="actions"><button id="conversationToggle" type="button" aria-expanded="false" aria-controls="conversation" disabled>Conversation</button><button id="saveLog" disabled>Download log</button><button id="replay" disabled>Watch replay</button></div>
+    <p class="help" id="replayHelp">Replay becomes available after the robot uploads its video.</p><video id="video" controls playsinline hidden></video>
+    <section id="conversation" hidden aria-label="Run conversation">
+      <h3>Conversation with Astra</h3>
+      <p class="help">Recorded prompts, model replies, and robot feedback for this run. Download the log for full request and response data.</p>
+      <ol id="conversationMessages"><li>No model conversation recorded yet.</li></ol>
+    </section>
+    <ol id="events"><li>Your model decisions and robot feedback will appear here.</li></ol>
+  </section>
+  <section class="panel playgroundResources pastRuns" aria-labelledby="allEpisodesTitle">
+    <h2 id="allEpisodesTitle">All episodes</h2>
+    <details class="episodeViewer">
+      <summary>View Dataset in HF</summary>
+      <iframe src="https://lerobot-visualize-dataset.hf.space/andlyu/Public-YAM-runs/episode_0?t=156" title="Recorded YAM episodes on Hugging Face" loading="lazy" allow="fullscreen" referrerpolicy="strict-origin-when-cross-origin"></iframe>
+    </details>
+    <p><a href="https://huggingface.co/spaces/lerobot/visualize_dataset?path=%2Fandlyu%2FPublic-YAM-runs%2Fepisode_0%3Ft%3D156" target="_blank" rel="noopener noreferrer">Open dataset here</a></p>
+
+        <div class="statusHeader"><h3 id="pastRunsTitle">Past runs</h3><button id="refreshPastRuns" type="button">Refresh</button></div>
+        <p class="help">Select a video to watch it larger.</p>
+        <p id="pastRunsStatus" class="help" role="status">Loading past runs…</p>
+        <ol id="pastRunsList"></ol>
+        <button id="morePastRuns" type="button" hidden>Load more</button>
+      </section>
+  <section class="panel playgroundResources" aria-labelledby="tryForYourselfTitle">
+    <h2 id="tryForYourselfTitle">Try for yourself</h2>
+    <p>A UI also provides a simple setup to start with Astra. Here’s how to launch it:</p>
+    <ol>
+      <li>Go to <a href="https://platform.openai.com/api-keys" target="_blank" rel="noopener noreferrer">OpenAI API keys</a> to create your key.</li>
+      <li>Go to <a href="https://platform.openai.com/account/billing/overview" target="_blank" rel="noopener noreferrer">OpenAI API billing</a> to check your credit balance and add credits if needed.</li>
+      <li>Run these commands in your terminal, replacing <code>xyz</code> with your API key:
+        <pre aria-label="Astra launch commands"><code>git clone https://github.com/andlyu/blupe-remote-yam.git
+cd blupe-remote-yam
+export OPENAI_API_KEY="xyz"
+./run.sh</code></pre>
+      </li>
+    </ol>
+    <p>Don’t hesitate to <a href="mailto:info@blupe.io?subject=Custom%20YAM%20setup">reach out</a> if you want a custom setup.</p>
+  </section>
+  <footer>Keys stay out of logs. Robot controls stay with your session.</footer>
+</div>
+<dialog id="pastRunDialog" aria-labelledby="pastRunTitle">
+  <div class="statusHeader"><h2 id="pastRunTitle">Past run</h2><button id="closePastRun" type="button" aria-label="Close video">Close</button></div>
+  <p id="pastRunPrompt"></p><p id="pastRunDetails" class="help"></p>
+  <video id="pastRunVideo" controls playsinline preload="none"></video>
+  <p id="pastRunError" role="status"></p>
+</dialog>
+<button id="openVisitorChat" class="openVisitorChat" type="button" aria-controls="visitorChatPanel" aria-expanded="false" hidden>Open chat</button>
+<aside id="visitorChatPanel" class="panel visitorChat" aria-label="Visitor chat">
+  <div class="visitorChatHeading"><h2>Visitor chat</h2><button id="closeVisitorChat" type="button" aria-label="Close visitor chat" aria-controls="visitorChatPanel" aria-expanded="true">Close</button></div>
+  <p class="help">Talk with everyone watching. Messages are public; don’t share API keys or private information. Names are chosen by visitors.</p>
+  <ol id="chatMessages" role="log" aria-live="polite" aria-relevant="additions"><li>No messages yet. Say hello!</li></ol>
+  <form id="chatForm" autocomplete="off">
+    <label for="chatName">Your name</label><input id="chatName" maxlength="32" required placeholder="Choose a name">
+    <label for="chatText">Message</label><textarea id="chatText" rows="3" maxlength="1000" required placeholder="Say hello…"></textarea>
+    <button id="chatSend" type="submit" disabled>Send</button>
+  </form>
+  <p id="chatStatus" class="help" role="status">Connecting…</p>
+  <p class="help">Recent messages clear when the server restarts.</p>
+</aside>
+  <div class="coffeeSupport">
+    <a id="buyCoffee" href="https://buymeacoffee.com/andlyu" target="_blank" rel="noopener noreferrer">☕ Buy me a coffee</a>
+  </div>
+</main></body></html>

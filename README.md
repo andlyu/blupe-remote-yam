@@ -1,3 +1,34 @@
+# Run BluPe with your Codex subscription
+
+On macOS or Linux, install Git, Python 3, and Node.js/npm, then run:
+
+```bash
+git clone https://github.com/andlyu/blupe-remote-yam.git
+cd blupe-remote-yam
+./run-codex.sh
+```
+
+Sign in with your ChatGPT subscription account when Codex opens the browser.
+Your account must have access to `gpt-6-astra`. The launcher installs its Python
+requirements and a compatible local Codex runtime, connects to BluPe's public
+robot queue, and opens the local playground. Enter a task and click **Run**.
+Keep the terminal open while it runs. No OpenAI API key is needed.
+
+Command submission is enabled by default. Robot readiness, command validation,
+and gateway execution checks still apply. Closing and reopening the launcher
+reuses the existing Codex login. If the default port is occupied, use
+`./run-codex.sh --port 8792`.
+
+You can also ask Codex: **“Clone https://github.com/andlyu/blupe-remote-yam
+and launch it with my Codex subscription using ./run-codex.sh.”**
+Complete any OpenAI browser login yourself. Each user signs in locally;
+credentials are not shared with BluPe.
+
+The subscription runner is bundled in `codex-runner/` from the tested
+`blupe-evals` runner. The existing API-key runner below remains available.
+
+---
+
 # BluPe Remote YAM
 
 Run Astra on BluPe’s shared robot arms from your computer. No robot required.

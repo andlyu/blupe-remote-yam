@@ -1,0 +1,32 @@
+const fs = require('node:fs');
+const vm = require('node:vm');
+const assert = require('node:assert/strict');
+const source = fs.readFileSync(require('node:path').join(__dirname, '../static/hosted.js'), 'utf8');
+const start = source.indexOf('  // Shared spectator stopwatch');
+const end = source.indexOf('  let attentionSession = null;', start);
+let now = 1000, tick;
+const elements = {runTimer:{},runTimerDetail:{}};
+const context = vm.createContext({$:id=>elements[id],performance:{now:()=>now},setInterval:fn=>{tick=fn;}});
+vm.runInContext(source.slice(start,end),context);
+function render(run) { context.syncStopwatch(run); return elements.runTimer.textContent; }
+assert.equal(render(null), '—:—');
+assert.equal(render({status:'running',run_elapsed_s:0,run_duration_s:300}), '05:00');
+now += 2100; tick();
+assert.equal(elements.runTimer.textContent,'04:58');
+assert.equal(elements.runTimerDetail.textContent,'04:58 remaining');
+// Reopening the page or watching somebody else's run uses its server elapsed time.
+context.state = {status:'queued',run_elapsed_s:999,public_run:{status:'running',run_elapsed_s:61,run_duration_s:600}};
+const syncStart=source.indexOf('    const live = state.public_run;');
+vm.runInContext(source.slice(syncStart,source.indexOf("    $('currentRunner')",syncStart)),context);
+assert.equal(elements.runTimer.textContent,'08:59');
+now += 6000; tick();
+assert.equal(elements.runTimerDetail.textContent,'Reconnecting · timer paused');
+const frozen=elements.runTimer.textContent; now+=10000;tick();assert.equal(elements.runTimer.textContent,frozen);
+assert.equal(render({status:'stopped',run_elapsed_s:72,run_duration_s:600}), '08:48');
+now += 5000;tick();assert.equal(elements.runTimer.textContent,'08:48');
+assert.equal(elements.runTimerDetail.textContent,'Run ended');
+assert.equal(render({status:'running',run_elapsed_s:0,run_duration_s:300}), '05:00');
+assert.equal(render({status:'running',run_elapsed_s:602,run_duration_s:600}), '00:00');
+assert.equal(elements.runTimerDetail.textContent,'00:00 remaining');
+assert.equal(render({run_elapsed_s:null}), '—:—');
+console.log('Shared countdown checks passed');
