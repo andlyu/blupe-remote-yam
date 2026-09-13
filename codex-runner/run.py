@@ -413,6 +413,9 @@ def main() -> None:
     args = parser.parse_args()
     if args.provider == "codex" or args.codex_login:
         ensure_codex_runtime()
+        setup = codex_status()
+        if setup.get('state') == 'storage_unwritable':
+            parser.error(setup['message'])
     if args.codex_login:
         login_codex()
         if args.provider == "auto":

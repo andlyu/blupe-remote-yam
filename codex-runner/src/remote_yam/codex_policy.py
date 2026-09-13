@@ -6,6 +6,7 @@ Codex produces structured decisions; only the runner executes robot commands.
 from __future__ import annotations
 
 import base64
+from datetime import datetime
 import json
 import math
 import os
@@ -27,6 +28,25 @@ PINNED_VERSION = '0.154.0'
 RUNTIME_ROOT = Path(__file__).resolve().parents[2] / '.codex-runtime'
 INSTALL_HELP = 'Run ./run.sh --provider codex to install the compatible local Codex runtime (Node.js/npm required).'
 LOGIN_HELP = 'Run ./run.sh --codex-login --provider codex in the launch terminal.'
+STORAGE_HELP = ('Codex cannot write its local session storage. Launch the runner from your own terminal, '
+                'or grant the launching agent write access to CODEX_HOME (normally ~/.codex), then restart. '
+                'Signing in again will not fix a write-permission problem.')
+
+
+def check_codex_storage():
+    """Probe real writes, including today's session directory, before queue admission."""
+    home = Path(os.environ.get('CODEX_HOME') or Path.home() / '.codex').expanduser()
+    paths = [home, home / 'tmp', home / 'sessions' / datetime.now().strftime('%Y/%m/%d')]
+    for path in paths:
+        path.mkdir(parents=True, exist_ok=True)
+        with tempfile.TemporaryFile(prefix='.blupe-write-check-', dir=path) as probe:
+            probe.write(b'check')
+            probe.flush()
+    # Existing databases may have different permissions from their directory.
+    for database in home.glob('*.sqlite*'):
+        if database.is_file():
+            with database.open('r+b'):
+                pass
 
 
 def codex_binary():
@@ -74,6 +94,11 @@ def codex_status():
         login = subprocess.run([binary, 'login', 'status'], capture_output=True,
                                text=True, timeout=5, env=codex_environment())
         ready = login.returncode == 0 and 'Logged in using ChatGPT' in login.stdout + login.stderr
+        if ready:
+            try:
+                check_codex_storage()
+            except OSError:
+                return {'ready': False, 'state': 'storage_unwritable', 'message': STORAGE_HELP}
         return {'ready': ready, 'state': 'ready' if ready else 'login_required',
                 'version': '.'.join(match.groups()),
                 'message': 'Signed in with ChatGPT. Uses your Codex subscription limits.' if ready else LOGIN_HELP}
@@ -86,8 +111,11 @@ def login_codex():
     binary = codex_binary()
     if not binary:
         raise RuntimeError(INSTALL_HELP)
-    if codex_status()['ready']:
+    setup = codex_status()
+    if setup['ready']:
         return
+    if setup.get('state') == 'storage_unwritable':
+        raise RuntimeError(setup['message'])
     result = subprocess.run([binary, 'login'], env=codex_environment())
     if result.returncode or not codex_status()['ready']:
         raise RuntimeError('Codex ChatGPT sign-in did not complete. ' + LOGIN_HELP)
@@ -135,6 +163,8 @@ def decision_response(value):
 def codex_failure(raw):
     """Actionable categories without reflecting raw account/server diagnostics."""
     text = raw.lower()
+    if any(term in text for term in (b'permission denied', b'operation not permitted', b'read-only file system')):
+        return STORAGE_HELP
     if b'newer version of codex' in text:
         return 'Astra requires a newer Codex runtime. ' + INSTALL_HELP
     if any(term in text for term in (b'usage_limit', b'rate_limit', b'quota', b'usage limit', b'rate limit')):

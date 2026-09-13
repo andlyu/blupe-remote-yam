@@ -1,17 +1,53 @@
 from http.server import ThreadingHTTPServer
 import json
 import threading
+import tempfile
+from pathlib import Path
 import unittest
 from unittest.mock import Mock, patch
 from urllib.error import HTTPError
 from urllib.request import Request, urlopen
 
 import run
-from remote_yam.codex_policy import ensure_codex_runtime, login_codex
+from remote_yam.codex_policy import ensure_codex_runtime, login_codex, check_codex_storage, codex_status, codex_failure
 from remote_yam.credentials import CredentialVault
 
 
 class CodexSetupTests(unittest.TestCase):
+    def test_storage_denied_stops_startup_before_serving_or_login(self):
+        with patch('sys.argv', ['run.py', '--provider', 'codex', '--codex-login']), \
+                patch.object(run, 'ensure_codex_runtime'), \
+                patch.object(run, 'codex_status', return_value={'state':'storage_unwritable', 'message':'Cannot write session storage'}), \
+                patch.object(run, 'login_codex') as login, \
+                patch('local_playground.serve') as serve, patch('sys.stderr'):
+            with self.assertRaises(SystemExit):
+                run.main()
+            login.assert_not_called()
+            serve.assert_not_called()
+
+    def test_storage_probe_uses_selected_home_without_changing_existing_files(self):
+        with tempfile.TemporaryDirectory() as folder, patch.dict('os.environ', {'CODEX_HOME': folder}):
+            database = Path(folder) / 'state_5.sqlite'
+            database.write_bytes(b'unchanged')
+            check_codex_storage()
+            self.assertEqual(database.read_bytes(), b'unchanged')
+            self.assertTrue((Path(folder) / 'sessions').is_dir())
+            self.assertEqual(list(Path(folder).rglob('.blupe-write-check-*')), [])
+
+    def test_signed_in_but_unwritable_is_not_ready_and_does_not_relogin(self):
+        with patch('remote_yam.codex_policy.codex_binary', return_value='/bin/codex'), \
+                patch('remote_yam.codex_policy.subprocess.run') as command, \
+                patch('remote_yam.codex_policy.check_codex_storage', side_effect=PermissionError('private path')):
+            command.side_effect = lambda args, **kw: Mock(returncode=0, stdout='codex-cli 0.154.0' if '--version' in args else 'Logged in using ChatGPT', stderr='')
+            status = codex_status()
+            self.assertFalse(status['ready'])
+            self.assertEqual(status['state'], 'storage_unwritable')
+            self.assertNotIn('private path', status['message'])
+            with self.assertRaisesRegex(RuntimeError, 'cannot write'):
+                login_codex()
+            self.assertFalse(any(call.args[0][-1] == 'login' for call in command.call_args_list))
+        self.assertIn('cannot write', codex_failure(b'Permission denied: private path'))
+
     def test_installs_local_pinned_runtime_only_when_needed(self):
         with patch('remote_yam.codex_policy.codex_status', side_effect=[{'state':'upgrade_required'}, {'state':'ready'}]), \
              patch('remote_yam.codex_policy.shutil.which', return_value='/bin/npm'), \

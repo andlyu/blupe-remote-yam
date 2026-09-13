@@ -6,6 +6,10 @@ When the user asks to run BluPe with a Codex or ChatGPT subscription:
   signs into Codex when needed, and connects to the public BluPe queue.
 - Do not request an OpenAI API key for subscription use.
 - Let the user complete the OpenAI browser login. Do not copy credentials.
+- Codex needs write access to `CODEX_HOME` (normally `~/.codex`) for session
+  files, even when login status succeeds. If your sandbox denies this, request
+  write access using its normal approval flow or have the user launch from their
+  own terminal. Do not work around it by copying credentials or changing ownership.
 - Keep the launcher process running and give the user its localhost URL.
 - If the port is occupied, use `./run-codex.sh --port 8792` (or another free port).
 - Launching opens the playground; the user enters a prompt and clicks Run.

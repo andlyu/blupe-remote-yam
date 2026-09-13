@@ -43,7 +43,7 @@ class CodexPolicyTests(unittest.TestCase):
         def result(args, **kwargs):
             return subprocess.CompletedProcess(args, 0, 'codex-cli 0.154.0' if '--version' in args else '',
                                                '' if '--version' in args else 'Logged in using ChatGPT\nprivate-account@example.com')
-        with patch('remote_yam.codex_policy.codex_binary', return_value='/bin/codex'), patch('remote_yam.codex_policy.subprocess.run', side_effect=result):
+        with patch('remote_yam.codex_policy.codex_binary', return_value='/bin/codex'), patch('remote_yam.codex_policy.subprocess.run', side_effect=result), patch('remote_yam.codex_policy.check_codex_storage'):
             status = codex_status()
         self.assertTrue(status['ready'])
         self.assertNotIn('private-account', json.dumps(status))

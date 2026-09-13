@@ -38,7 +38,13 @@ Select **Codex subscription** and keep model **gpt-6-astra**. This routes Astra
 decisions through local Codex and your ChatGPT subscription limits. It does not
 use the separately billed Responses API. No API key is requested, and there is
 no automatic API-key fallback. **Check Codex connection** checks local setup and
-sign-in without sending a model request or joining the robot queue.
+sign-in and session-storage write access without sending a model request or joining
+the robot queue. A readable login alone is insufficient: the process launching
+the runner must also be able to write `CODEX_HOME` (normally `~/.codex`). When
+launching from a sandboxed coding agent, grant that directory write access through
+its permission flow, or launch from your own terminal. The runner reports this
+separately from login and subscription failures; it does not change permissions
+or copy credentials automatically.
 
 The launcher enables command submission by default. Clicking Run joins the queue;
 execution still requires operator Home/Run authorization and passes the existing
