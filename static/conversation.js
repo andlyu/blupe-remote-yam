@@ -9,7 +9,19 @@ function conversationCalls(text) {
   }
   return [...calls.values()].sort((a, b) => a.number - b.number);
 }
-if (typeof module !== 'undefined') module.exports = {conversationCalls};
+// Remove only the exact history prefix already displayed, retaining new repeated messages.
+function conversationTurns(calls) {
+  let previous = [];
+  return calls.map(call => {
+    const input = Array.isArray(call.request?.input) ? call.request.input : call.request?.input ? [call.request.input] : [];
+    let shared = 0;
+    while (shared < previous.length && shared < input.length && JSON.stringify(previous[shared]) === JSON.stringify(input[shared])) shared++;
+    const output = Array.isArray(call.response?.output) ? call.response.output : [];
+    previous = [...input, ...output];
+    return {...call, messages: input.slice(shared), output};
+  });
+}
+if (typeof module !== 'undefined') module.exports = {conversationCalls, conversationTurns};
 if (typeof document !== 'undefined') (() => {
   const button = document.getElementById('conversationOpen');
   const panel = document.getElementById('runnerConversation');
@@ -28,11 +40,30 @@ if (typeof document !== 'undefined') (() => {
   function raw(parent, label, data) {
     const details = element('details'); details.append(element('summary', label), element('pre', JSON.stringify(data, null, 2))); parent.append(details);
   }
-  function message(parent, item, currentVersion) {
-    if (typeof item === 'string') { parent.append(element('pre', item)); return; }
+  function message(parent, item, currentVersion, fromModel = false) {
+    if (typeof item === 'string') item = {role: 'user', content: item};
     if (!item || typeof item !== 'object') return;
-    const block = element('article'); block.className = 'conversation-message';
-    block.append(element('h4', item.role || item.type || 'Message'));
+    const model = fromModel || item.role === 'assistant' || ['function_call', 'reasoning'].includes(item.type);
+    const system = ['system', 'developer'].includes(item.role);
+    const tool = item.type === 'function_call_output';
+    const block = element('article'); block.className = `conversation-message ${system ? 'chat-system' : model ? 'chat-model' : 'chat-runner'}`;
+    block.append(element('h4', system ? 'Instructions' : tool ? 'Runner · tool result' : model ? 'Model' : 'Runner'));
+    if (system) { raw(block, 'System instructions', item); parent.append(block); return; }
+    if (item.type === 'reasoning') {
+      const summary = (item.summary || []).map(part => part.text || '').filter(Boolean).join('\n');
+      block.append(element('p', summary || 'Reasoning data returned by the model.'));
+      raw(block, 'Details', item); parent.append(block); return;
+    }
+    if (item.type === 'function_call') {
+      block.append(element('p', `Tool call: ${item.name || 'Unknown tool'}`));
+      let args = item.arguments; try { args = JSON.parse(args); } catch {}
+      block.append(element('pre', typeof args === 'string' ? args : JSON.stringify(args, null, 2)));
+      raw(block, 'Details', item); parent.append(block); return;
+    }
+    if (tool) {
+      block.append(element('pre', typeof item.output === 'string' ? item.output : JSON.stringify(item.output, null, 2)));
+      raw(block, 'Details', item); parent.append(block); return;
+    }
     if (typeof item.content === 'string') block.append(element('pre', item.content));
     else if (Array.isArray(item.content)) {
       for (const part of item.content) {
@@ -53,22 +84,29 @@ if (typeof document !== 'undefined') (() => {
     parent.append(block);
   }
   function draw() {
+    const atBottom = content.scrollHeight - content.scrollTop - content.clientHeight < 70;
+    const scrollTop = content.scrollTop;
     const currentVersion = ++version; clear();
-    const call = calls.find(c => c.number === selected); if (!call) return;
-    const sent = element('section'); sent.append(element('h3', 'Sent to model'));
-    if (call.request) {
-      sent.append(element('p', `Model: ${call.request.model || 'Unknown'}`));
-      if (call.request.instructions) message(sent, call.request.instructions, currentVersion);
-      for (const item of Array.isArray(call.request.input) ? call.request.input : [call.request.input]) message(sent, item, currentVersion);
-      if (call.request.tools) raw(sent, 'Tools available to the model', call.request.tools);
-      raw(sent, 'Full request JSON', call.request);
-    } else sent.append(element('p', 'Request was not recorded.'));
-    const reply = element('section'); reply.append(element('h3', 'Model response'));
-    if (call.response) {
-      for (const item of call.response.output || []) message(reply, item, currentVersion);
-      raw(reply, 'Full response JSON', call.response);
-    } else reply.append(element('p', 'No response recorded yet. If the call failed, see the Interaction log.'));
-    content.append(sent, reply);
+    for (const call of conversationTurns(calls)) {
+      if (selected !== null && call.number !== selected) continue;
+      const turn = element('section'); turn.className = 'chat-turn';
+      turn.append(element('p', `Call ${call.number} · ${call.request?.model || 'Model'}`));
+      turn.firstChild.className = 'chat-divider';
+      if (call.request?.instructions) message(turn, {role:'system', content:call.request.instructions}, currentVersion);
+      for (const item of call.messages) message(turn, item, currentVersion);
+      for (const item of call.output) message(turn, item, currentVersion, true);
+      if (!call.response) {
+        const pending = element('article'); pending.className = 'conversation-message chat-model chat-pending';
+        pending.append(element('h4', 'Model'), element('p', 'No reply recorded yet…'), element('small', 'If the call failed, see the Interaction log.'));
+        turn.append(pending);
+      }
+      const details = element('details'); details.className = 'chat-wire';
+      details.append(element('summary', 'Call details'));
+      if (call.request) raw(details, 'Full request JSON · includes history and tools', call.request);
+      if (call.response) raw(details, 'Full response JSON', call.response);
+      turn.append(details); content.append(turn);
+    }
+    content.scrollTop = atBottom ? content.scrollHeight : scrollTop;
   }
   async function refresh() {
     if (panel.hidden || pending || !runId) return;
@@ -78,10 +116,9 @@ if (typeof document !== 'undefined') (() => {
       if (requestedRun !== runId || requestedVersion !== version || panel.hidden) return;
       status.textContent = `Run ${runId.slice(-8)} · saved model requests and responses · updates while open`;
       if (text === signature) return;
-      signature = text; const followLatest = selected === null || selected === calls.at(-1)?.number;
+      signature = text;
       calls = conversationCalls(text);
-      if (followLatest) selected = calls.at(-1)?.number ?? null;
-      selector.replaceChildren(...calls.map(call => new Option(`Call ${call.number}${call.response ? '' : ' — no response yet'}`, String(call.number))));
+      selector.replaceChildren(new Option('Full conversation', ''), ...calls.map(call => new Option(`Call ${call.number}${call.response ? '' : ' — no response yet'}`, String(call.number))));
       selector.disabled = !calls.length; selector.value = selected === null ? '' : String(selected);
       if (!calls.length) { clear(); status.textContent = 'No model calls recorded yet.'; } else draw();
     } catch (error) {
@@ -100,7 +137,7 @@ if (typeof document !== 'undefined') (() => {
     if (panel.hidden) { version++; signature = ''; clear(); }
     else { panel.focus(); refresh(); }
   };
-  selector.onchange = () => { selected = Number(selector.value); draw(); };
+  selector.onchange = () => { selected = selector.value === '' ? null : Number(selector.value); draw(); };
   window.addEventListener('runner-recording-selected', event => changeRun(event.detail || ''));
   setInterval(refresh, 2000);
 })();
