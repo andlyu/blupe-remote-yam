@@ -1,3 +1,4 @@
+import copy
 import math
 import pathlib
 import sys
@@ -95,6 +96,46 @@ class ProgressBeforeAcceptSession(MockSessionAPI):
 
 
 class TrajectoryTransportTests(unittest.TestCase):
+    def running_second_packet(self):
+        provider = TinyTrajectoryProvider()
+        # Continue after the first packet so its completion becomes stale.
+        provider.validate_trajectory_final = lambda observation: None
+        session = MockSessionAPI()
+        controller = RunnerController(session)
+        controller.update_monitor_observation(session.get_robot_observation("yam-1"))
+        controller.join(provider, "Two packets")
+        for _ in range(30):
+            event = controller._events.receive(0.01)
+            controller._handle_event(event)
+            if len(session.trajectory_log) == 2:
+                self.assertEqual("completed", event["payload"]["status"])
+                replay = copy.deepcopy(event)
+                replay["payload"]["replayed"] = True
+                return session, controller, replay
+        self.fail("Second packet was not dispatched")
+
+    def test_replayed_validated_completion_does_not_stop_next_packet(self):
+        session, controller, replay = self.running_second_packet()
+        active = copy.deepcopy(controller._trajectory)
+        controller._handle_event(replay)
+        controller._handle_event(replay)
+        self.assertEqual(active, controller._trajectory)
+        self.assertEqual("running", controller.status()["status"])
+        self.assertEqual(2, len(session.trajectory_log))
+        # The next packet still accepts and executes normally.
+        controller.process_next_event(0.01)
+        self.assertEqual("accepted", controller._trajectory["state"])
+
+    def test_unrecognized_or_changed_completion_still_fails_closed(self):
+        for change in ({"replayed": False}, {"trajectory_id": "unknown"},
+                       {"lease_id": "other"}, {"status": "aborted"},
+                       {"step_id": 999}, {"reported_at": -1}):
+            with self.subTest(change=change):
+                _, controller, replay = self.running_second_packet()
+                replay["payload"].update(change)
+                with self.assertRaisesRegex(RuntimeError, "belongs to another trajectory"):
+                    controller._handle_event(replay)
+
     @staticmethod
     def run_controller(provider, session=None, submit_attempts=2):
         session = session or MockSessionAPI()

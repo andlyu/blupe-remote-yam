@@ -60,6 +60,7 @@ class RunnerController:
         self._submitted_step_ids: list[int] = []
         self._packets_submitted = 0
         self._trajectory: dict[str, Any] | None = None
+        self._last_completed_trajectory_result: dict[str, Any] | None = None
         self._latency: dict[str, dict[str, float | int]] = {}
         self._last_action_submitted_monotonic: float | None = None
         self._last_latency_log_monotonic = time.monotonic()
@@ -109,6 +110,7 @@ class RunnerController:
             self._run_events = []
             self._submitted_step_ids = []
             self._trajectory = None
+            self._last_completed_trajectory_result = None
             self._feedback_checks = []
             self._execution_blocked_reason = None
             self._latency = {}
@@ -914,6 +916,12 @@ class RunnerController:
     def _trajectory_result(self, payload: Mapping[str, Any]) -> None:
         status = payload.get("status")
         with self._lock:
+            result = {key: value for key, value in payload.items() if key != "replayed"}
+            # Reconnecting replays the server's latest result even when we have
+            # already validated that completion and dispatched the next packet.
+            # Only an exact replay is redundant; unknown/changed results fail closed.
+            if payload.get("replayed") is True and result == self._last_completed_trajectory_result:
+                return
             trajectory = self._trajectory
             if trajectory is None:
                 raise RuntimeError("Trajectory result received without a local trajectory")
@@ -948,6 +956,7 @@ class RunnerController:
             if result_step is not None and result_step != trajectory["last_step_id"]:
                 raise RuntimeError("Trajectory completion reported the wrong final step")
             trajectory["state"] = "completed"
+            self._last_completed_trajectory_result = deepcopy_dict(result)
             started = trajectory.get("dispatch_started_monotonic")
         if isinstance(started, (int, float)):
             self._note_latency("trajectory_total", (time.monotonic() - started) * 1000.0)
