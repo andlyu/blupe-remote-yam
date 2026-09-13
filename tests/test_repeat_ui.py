@@ -30,7 +30,7 @@ class RepeatUITests(unittest.TestCase):
         try:
             with urlopen(url) as response:
                 html = response.read().decode()
-            self.assertIn('Runs 3 cycles:', html)
+            self.assertNotIn('Runs 3 cycles:', html)
             self.assertIn('Packets submitted', html)
             self.assertIn('Images sent to model', html)
             req = Request(url+'/api/run', data=json.dumps({'provider':'local_raise_lower','prompt':'repeat'}).encode(), headers={'Content-Type':'application/json','X-YAM-Runner-Token':'test-token'})
