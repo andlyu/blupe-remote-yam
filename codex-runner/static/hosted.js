@@ -168,7 +168,10 @@
       (['openai', 'astra'].includes($('provider').value) &&
        !savedKeyProviders.includes($('provider').value) && !$('apiKey').value.trim());
   }
+  $('openCodexInstructions').onclick = () => $('codexInstructions').showModal();
   function updateRunLabel() {
+    const runParent = $('runSettings').open ? $('setupRunActions') : document.querySelector('.promptRow');
+    if ($('run').parentElement !== runParent) runParent.append($('run'));
     $('runForm').classList.toggle('setupReady', !runSetupNeeded());
     $('runForm').classList.toggle('runActive', active || submitting);
     $('run').textContent = runSetupNeeded() && !$('runSettings').open
@@ -642,7 +645,7 @@
       tile.addEventListener('click', () => video.play().catch(() => {}));
       tile.addEventListener('keydown', event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); video.play().catch(() => {}); } });
     });
-    let callback, lastMediaTime = -1, stopped = false, frame = 0, showingStall = false;
+    let callback, lastMediaTime = -1, stopped = false, frame = 0;
     function paint() {
       if (stopped) return;
       const stale = video.yamHealth?.stale() === true;
@@ -656,15 +659,6 @@
           tile.dataset.presentedFrame = String(frame);
         });
         lastMediaTime = video.currentTime;
-        showingStall = false;
-      }
-      if (stale && !showingStall) {
-        contexts.forEach(ctx => {
-          ctx.fillStyle = '#101714'; ctx.fillRect(0, 0, 640, 360);
-          ctx.fillStyle = '#fff'; ctx.font = '20px system-ui'; ctx.textAlign = 'center';
-          ctx.fillText('Stream stalled — reconnecting', 320, 180);
-        });
-        showingStall = true;
       }
       labels.forEach(label => { label.textContent = stale ? 'Stream stalled' : sourceLabel.textContent; });
       callback = requestAnimationFrame(paint);
@@ -815,12 +809,29 @@
       const figure = document.createElement('figure'), image = document.createElement('img'), caption = document.createElement('figcaption');
       image.alt = name + ' robot camera'; caption.textContent = name + ' · Connecting';
       figure.append(image, caption); $('liveViewer').prepend(figure);
-      const update = () => {
+      const update = async () => {
         if (generation !== robotGeneration || ended) return;
-        image.src = '/api/monitor/cameras/' + encodeURIComponent(name) + '?robot_id=' + encodeURIComponent(selectedRobot) + '&t=' + Date.now();
+        const pending = new Image();
+        const url = '/api/monitor/cameras/' + encodeURIComponent(name) + '?robot_id=' + encodeURIComponent(selectedRobot) + '&t=' + Date.now();
+        let delay = 200, timer;
+        try {
+          await new Promise((resolve, reject) => {
+            timer = setTimeout(() => reject(new Error('Camera timeout')), 5000);
+            pending.onload = resolve; pending.onerror = reject; pending.src = url;
+          });
+          await pending.decode();
+          if (generation !== robotGeneration || ended) return;
+          image.src = pending.src;
+          caption.textContent = name + ' · Live';
+        } catch {
+          // Keep the last successful frame visible while reconnecting.
+          if (generation === robotGeneration) caption.textContent = name + (image.hasAttribute('src') ? ' · Reconnecting (last frame)' : ' · Connecting');
+          delay = 1000;
+        } finally {
+          clearTimeout(timer); pending.onload = pending.onerror = null;
+        }
+        if (generation === robotGeneration && !ended) setTimeout(update, delay);
       };
-      image.onload = () => { caption.textContent = name + ' · Live'; setTimeout(update, 200); };
-      image.onerror = () => { caption.textContent = name + ' · Offline'; image.removeAttribute('src'); setTimeout(update, 1000); };
       update();
     }
   }
@@ -832,7 +843,7 @@
         selectedRobot = robotCatalog.selected || robotCatalog.robots[0]?.id || '';
       }
       selector.replaceChildren(...robotCatalog.robots.map(robot =>
-        Object.assign(document.createElement('option'), {value: robot.id, textContent: robot.name})));
+        Object.assign(document.createElement('option'), {value: robot.id, textContent: robot.id === 'robot-abecb4cd868ab24b' ? 'SO101' : robot.name})));
       if (!robotCatalog.robots.some(robot => robot.hardware === 'makerarm')) {
         selector.append(Object.assign(document.createElement('option'), {value: '', textContent: 'MakerMods MakerArm — setup pending', disabled: true}));
       }
