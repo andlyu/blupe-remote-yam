@@ -169,7 +169,7 @@
        !savedKeyProviders.includes($('provider').value) && !$('apiKey').value.trim());
   }
   $('openCodexInstructions').onclick = () => {
-    $('copyCodexPrompt').textContent = 'Copy prompt';
+    $('copyCodexPrompt').textContent = 'Copy';
     $('codexCopyStatus').textContent = '';
     $('codexInstructions').showModal();
   };

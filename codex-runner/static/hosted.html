@@ -11,7 +11,12 @@
 </head>
 <body><main><div class="runnerContent"><nav class="robotNavigation" aria-label="Robot selection"><label for="robotSelector">Robot / Env</label><select id="robotSelector" disabled><option>YAM</option></select><span id="robotSelectorStatus" class="help" role="status"></span></nav>
   <section class="intro"><p class="eyebrow" hidden>Your model. A real robot.</p><h1>Run a policy.</h1><p><a href="#tryForYourselfTitle">Run via local API — control the model calls</a> · <a href="#pastRunsTitle">See what others did</a> · <a href="https://operator-blupe-yam.100-61-149-60.sslip.io/" target="_blank" rel="noopener noreferrer">Operator dashboard ↗</a></p></section>
-  <dialog id="codexInstructions" aria-labelledby="codexInstructionsTitle"><h2 id="codexInstructionsTitle">Run using Codex</h2><p>Paste this into Codex:</p><p class="codexPrompt">Clone https://github.com/andlyu/blupe-remote-yam.git, and run locally using the Codex subscription.</p><p id="codexCopyStatus" class="help" role="status" aria-live="polite"></p><form method="dialog" class="codexDialogActions"><button>Close</button><button type="button" id="copyCodexPrompt" class="primary">Copy prompt</button></form></dialog>
+  <dialog id="codexInstructions" aria-labelledby="codexInstructionsTitle">
+    <div class="codexDialogHeader"><h2 id="codexInstructionsTitle">Run using Codex</h2><form method="dialog"><button class="codexDialogClose" aria-label="Close Codex instructions"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18"/></svg></button></form></div>
+    <div class="codexPromptLabel"><p>Paste this into Codex</p><button type="button" id="copyCodexPrompt" aria-label="Copy prompt">Copy</button></div>
+    <div class="codexPromptBox"><p class="codexPrompt">Clone https://github.com/andlyu/blupe-remote-yam.git, and run locally using the Codex subscription.</p></div>
+    <p id="codexCopyStatus" class="help" role="status" aria-live="polite"></p>
+  </dialog>
   <div class="runSetup">
     <section class="panel"><h2>Prompt the arms</h2>
       <form id="runForm" autocomplete="off">
