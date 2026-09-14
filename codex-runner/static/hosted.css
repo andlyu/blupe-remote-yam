@@ -157,15 +157,15 @@ main.chatClosed{grid-template-columns:minmax(0,1fr)}.visitorChatHeading{display:
 main > .coffeeSupport{grid-column:1 / -1;margin-top:4px;width:100%}
 
 /* Compact prompt-first entry. Setup opens from the primary action. */
-.promptRow{display:flex;align-items:stretch;gap:12px}
-.promptRow #prompt{flex:1;min-width:0;min-height:68px;margin:0}
-.promptRow #run{width:auto;flex:0 0 auto;align-self:stretch;padding:14px 20px}
+.promptRow{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.promptRow #prompt{flex:1 1 280px;min-width:0;min-height:68px;margin:0}
+
 #runSettings{margin-top:18px}
 #runForm:not(.setupReady) #runSettings:not([open]){display:none}
 .runSetup .actions,.runSetup #message{display:none}
 .runSetup:has(#runSettings[open]) .actions,.runSetup:has(.runActive) .actions,.runSetup:has(.setupReady) .actions{display:flex}
 .runSetup:has(#runSettings[open]) #message,.runSetup:has(.runActive) #message,.runSetup #message.error{display:block}
-@media(max-width:540px){.promptRow{flex-wrap:wrap}.promptRow #prompt{flex-basis:100%}.promptRow #run{margin-left:auto}}
+@media(max-width:540px){.promptRow{flex-wrap:wrap}.promptRow #prompt{flex-basis:100%}}
 
 .runSetup #message:not(.error){display:none}
 
@@ -200,10 +200,12 @@ main > .coffeeSupport{grid-column:1 / -1;margin-top:4px;width:100%}
 #liveViewer[data-layout=single]{grid-template-columns:1fr;max-width:760px;width:100%}
 #liveViewer[data-layout=single] figure img{aspect-ratio:16/9}
 
-#runButtons{display:flex;align-items:stretch;gap:8px;flex-wrap:wrap}
-#runButtons button{margin:0}
-.promptRow:has(#runButtons){flex-wrap:wrap}
-#openCodexInstructions{margin:0;padding:8px 10px;max-width:150px;font-size:12px;line-height:1.2;align-self:center}
+/* One action group: consistent targets and a quiet secondary action. */
+#runButtons{display:flex;align-items:stretch;gap:8px;max-width:100%;margin-left:auto}
+#runButtons button{width:auto;min-height:52px;margin:0;padding:8px 14px;font-size:14px;line-height:1.25;align-self:stretch}
+#openCodexInstructions{flex:0 1 164px}
+#runButtons #run{flex:0 0 auto}
+@media(max-width:600px){#runButtons{width:100%}#runButtons #run,#runButtons #openCodexInstructions{flex:1;min-width:0;padding:8px 10px}}
 #setupRunActions{display:flex;justify-content:flex-end;margin-top:20px}
 #codexInstructions{width:min(580px,calc(100% - 40px));padding:28px;border:1px solid #b8c4bf;border-radius:16px}
 #codexInstructions::backdrop{background:#10231a88}
