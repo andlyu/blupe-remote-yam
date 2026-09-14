@@ -172,6 +172,8 @@
   function updateRunLabel() {
     const runParent = $('runSettings').open ? $('setupRunActions') : document.querySelector('.promptRow');
     if ($('runButtons').parentElement !== runParent) runParent.append($('runButtons'));
+    const firstAction = $('runSettings').open ? $('openCodexInstructions') : $('run');
+    if ($('runButtons').firstElementChild !== firstAction) $('runButtons').prepend(firstAction);
     $('runForm').classList.toggle('setupReady', !runSetupNeeded());
     $('runForm').classList.toggle('runActive', active || submitting);
     $('run').textContent = runSetupNeeded() && !$('runSettings').open

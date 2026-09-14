@@ -206,7 +206,9 @@ main > .coffeeSupport{grid-column:1 / -1;margin-top:4px;width:100%}
 #openCodexInstructions{flex:0 1 164px}
 #runButtons #run{flex:0 0 auto}
 @media(max-width:600px){#runButtons{width:100%}#runButtons #run,#runButtons #openCodexInstructions{flex:1;min-width:0;padding:8px 10px}}
-#setupRunActions{display:flex;justify-content:flex-end;margin-top:20px}
+#setupRunActions{display:flex;justify-content:flex-end;margin-top:24px;padding-top:20px;border-top:1px solid var(--line)}
+#setupRunActions #runButtons{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));width:min(100%,344px);gap:12px}
+@media(max-width:600px){#setupRunActions{margin-top:20px;padding-top:16px}#setupRunActions #runButtons{width:100%;gap:8px}}
 #codexInstructions{width:min(580px,calc(100% - 40px));padding:28px;border:1px solid #b8c4bf;border-radius:16px}
 #codexInstructions::backdrop{background:#10231a88}
 #codexInstructions pre{overflow:auto;padding:16px;background:#edf2ef;border-radius:8px}
