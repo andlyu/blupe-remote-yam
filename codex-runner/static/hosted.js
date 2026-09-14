@@ -889,6 +889,7 @@
     if (!robotCatalog) await loadRobotSelector();
     try {
       const session = await api('/api/session', {}); csrf = session.csrf;
+      $('openCodexInstructions').hidden = !!session.local_runner;
       $('provider').innerHTML = originalProviderMarkup;
       window.yamAnalytics?.init(session.simulation, session.paid_runs);
       if (session.simulation) {

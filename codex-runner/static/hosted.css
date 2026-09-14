@@ -228,3 +228,5 @@ main > .coffeeSupport{grid-column:1 / -1;margin-top:4px;width:100%}
 #codexCopyStatus{margin:12px 0 0}
 #codexCopyStatus:empty{display:none}
 @media(max-width:480px){#codexInstructions{padding:20px}.codexDialogHeader h2{font-size:20px}.codexPromptBox{padding:16px}}
+
+#setupRunActions #runButtons:has(#openCodexInstructions[hidden]){grid-template-columns:1fr}
