@@ -209,3 +209,5 @@ main > .coffeeSupport{grid-column:1 / -1;margin-top:4px;width:100%}
 #codexInstructions::backdrop{background:#10231a88}
 #codexInstructions pre{overflow:auto;padding:16px;background:#edf2ef;border-radius:8px}
 
+
+.runnerContent > .robotNavigation{margin-bottom:16px;justify-content:flex-end}
