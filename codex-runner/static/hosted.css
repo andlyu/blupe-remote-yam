@@ -203,7 +203,7 @@ main > .coffeeSupport{grid-column:1 / -1;margin-top:4px;width:100%}
 #runButtons{display:flex;align-items:stretch;gap:8px;flex-wrap:wrap}
 #runButtons button{margin:0}
 .promptRow:has(#runButtons){flex-wrap:wrap}
-#openCodexInstructions{margin:0}
+#openCodexInstructions{margin:0;padding:8px 10px;max-width:150px;font-size:12px;line-height:1.2;align-self:center}
 #setupRunActions{display:flex;justify-content:flex-end;margin-top:20px}
 #codexInstructions{width:min(580px,calc(100% - 40px));padding:28px;border:1px solid #b8c4bf;border-radius:16px}
 #codexInstructions::backdrop{background:#10231a88}
