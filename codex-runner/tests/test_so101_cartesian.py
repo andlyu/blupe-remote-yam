@@ -109,3 +109,54 @@ def test_so101_packet_passes_http_client_boundary():
     bad=[{**points[0],'left_joints_deg':[0]*6}]
     with pytest.raises(ValueError,match='exactly 5'):api.submit_trajectory('s','e','l','t2',10,bad)
     assert len(captured)==1
+
+def test_bundled_robot_limits_allow_ik_without_calibration_file():
+    from remote_yam.so101_trajectory import load_joint_profile
+    profile=load_joint_profile('robot-abecb4cd868ab24b')
+    assert load_joint_profile('some-other-so101') is None
+    g=SO101Trajectory(joint_profile=profile)
+    home={**obs(),'left_joints_deg':[-3.6483516483516483,-41.97802197802198,16.923076923076923,95.51648351648352,-68.35164835164835]}
+    q,start,_=g.observe(home)
+    points=g.build({'z':float(start[2]+.001)},home,0)
+    assert np.linalg.norm(g.forward(np.deg2rad(points[-1]['left_joints_deg']))-(start[:3]+[0,0,.001]))<.00005
+    assert g.calibration_path is None
+    assert np.rad2deg(g.limits[3,1])==pytest.approx(108.08791208791209)
+    p=SO101OpenAIAdapter('test','test',camera_source=Camera(),joint_profile=profile)
+    roll=p._tools[0]['parameters']['properties']['targets']['properties']['wrist_roll']
+    assert roll['minimum']==pytest.approx(-np.pi) and roll['maximum']==pytest.approx(np.pi)
+    bad={**home,'left_joints_deg':[0,0,0,109,0]}
+    with pytest.raises(RuntimeError):g.observe(bad)
+
+@pytest.mark.parametrize('change',[
+    {'convention':'raw_encoder_ticks'}, {'joint_names':['wrong']*5},
+    {'joint_limits_deg':[[0,0]]*5}, {'joint_limits_deg':[[False,1]]*5},
+    {'joint_limits_deg':[[float('nan'),1]]*5}, {'joint_limits_deg':[[-181,181]]*5},
+])
+def test_invalid_joint_profile_is_rejected(change):
+    from remote_yam.so101_trajectory import load_joint_profile
+    profile=load_joint_profile('robot-abecb4cd868ab24b')
+    with pytest.raises(RuntimeError):SO101Trajectory(joint_profile={**profile,**change})
+
+@pytest.mark.parametrize('provider_name',['openai','codex'])
+def test_hosted_so101_uses_bundled_limits_without_local_calibration(tmp_path,provider_name):
+    from hosted import HostedRunner
+    from remote_yam.session import MockSessionAPI
+    from unittest.mock import Mock
+    app=HostedRunner(public_origin='http://127.0.0.1:8791',session_api='https://api.example',
+        camera_origin='https://camera.example',robot_id='robot-abecb4cd868ab24b',
+        joint_counts=(5,0),camera_names=('front',),local_codex=True,development=True,
+        api_factory=lambda:MockSessionAPI(auto_activate=False))
+    _,visitor=app.new_visitor()
+    app.remember_runner=Mock()
+    visitor.controller.join_and_run=Mock()
+    try:
+        with patch('hosted.ROOT',tmp_path), patch('remote_yam.codex_policy.codex_status',return_value={'ready':True}):
+            app.launch(visitor,{'provider':provider_name,'api_key':'test-key-123','prompt':'test','runner_name':'test'})
+        provider=visitor.controller.join_and_run.call_args.args[0]
+        assert isinstance(provider,SO101CodexAdapter if provider_name=='codex' else SO101OpenAIAdapter)
+        assert provider._geometry.calibration_path is None
+        assert np.rad2deg(provider._geometry.limits[3,1])==pytest.approx(108.08791208791209)
+    finally:
+        visitor.close()
+        import shutil
+        shutil.rmtree(app.root,ignore_errors=True)

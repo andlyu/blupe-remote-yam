@@ -709,12 +709,15 @@ class HostedRunner:
                 provider._urlopen = request.build_opener(NoRedirect).open
             elif self.joint_counts == (5,0) and not self.provider_factory:
                 from remote_yam.so101_policy import SO101OpenAIAdapter, SO101CodexAdapter
-                # Private per-robot calibration, never exposed in the public catalog.
-                calibration_path = Path(__file__).resolve().parent / '.local' / 'robot-calibrations' / (hashlib.sha256(self.robot_id.encode()).hexdigest() + '.json')
-                if not calibration_path.is_file():
-                    raise RequestError(400, 'SO101 Cartesian control requires this robot’s LeRobot calibration on the runner')
+                from remote_yam.so101_trajectory import load_joint_profile
+                # An explicit local calibration overrides the bundled robot-specific limits.
+                calibration_path = ROOT / '.local' / 'robot-calibrations' / (hashlib.sha256(self.robot_id.encode()).hexdigest() + '.json')
+                calibration_path = calibration_path if calibration_path.is_file() else None
+                joint_profile = None if calibration_path else load_joint_profile(self.robot_id)
+                if calibration_path is None and joint_profile is None:
+                    raise RequestError(400, 'No SO101 joint limits configured for this robot. Add a robot-specific joint profile or local LeRobot calibration.')
                 kwargs = {"camera_source": self.camera_source, "recording_root": visitor.directory,
-                          "calibration_path": calibration_path}
+                          "calibration_path": calibration_path, "joint_profile": joint_profile}
                 try:
                     provider = (SO101CodexAdapter(model or 'gpt-6-astra', **kwargs) if name == 'codex'
                                 else SO101OpenAIAdapter(key, model or 'gpt-6-astra', **kwargs))

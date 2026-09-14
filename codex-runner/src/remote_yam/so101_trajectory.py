@@ -20,9 +20,15 @@ HIGH = np.array([.4, .4, .5, 2.841206309382605, 1.])
 STEP = np.array([.002, .002, .002, .01, .01])
 
 
+def load_joint_profile(robot_id):
+    """Named public limits only; never apply one arm's limits to an unknown robot."""
+    path = Path(__file__).resolve().parents[2] / 'models/so101/joint_profiles.json'
+    return json.loads(path.read_text()).get(robot_id)
+
+
 class SO101Trajectory:
     """Validate and solve a complete packet before returning any joint commands."""
-    def __init__(self, calibration_path=None):
+    def __init__(self, calibration_path=None, *, joint_profile=None):
         path = Path(__file__).resolve().parents[2] / 'models/so101/kinematics.xml'
         self.model = mujoco.MjModel.from_xml_path(str(path))
         self.data = mujoco.MjData(self.model)
@@ -46,6 +52,22 @@ class SO101Trajectory:
                 half = math.radians((hi-lo)*180/4095)
                 limits.append([-half, half])
             self.limits = np.asarray(limits)
+            self.model.jnt_range[self.ids] = self.limits
+        if joint_profile is not None:
+            if calibration_path:
+                raise RuntimeError('Provide SO101 joint limits or calibration, not both')
+            if (not isinstance(joint_profile, dict)
+                    or joint_profile.get('schema_version') != 1
+                    or joint_profile.get('joint_names') != list(JOINTS)
+                    or joint_profile.get('convention') != 'lerobot_midpoint_degrees'):
+                raise RuntimeError('Unsupported SO101 joint convention or joint order')
+            limits = joint_profile.get('joint_limits_deg')
+            if (not isinstance(limits, list) or len(limits) != 5 or any(
+                    not isinstance(pair, list) or len(pair) != 2
+                    or any(type(v) not in (int, float) or not math.isfinite(v) for v in pair)
+                    or not -180 <= pair[0] < pair[1] <= 180 for pair in limits)):
+                raise RuntimeError('Invalid SO101 joint limits')
+            self.limits = np.deg2rad(limits)
             self.model.jnt_range[self.ids] = self.limits
         self.low, self.high = LOW.copy(), HIGH.copy()
         self.low[3], self.high[3] = self.limits[4]

@@ -36,12 +36,13 @@ TOOLS[0]['parameters']['properties']['targets'] = {
 
 class SO101PolicyMixin:
     final_joint_tolerance_deg = 5.0
-    def __init__(self, *args, calibration_path=None, **kwargs):
+    def __init__(self, *args, calibration_path=None, joint_profile=None, **kwargs):
         self._calibration_path = calibration_path
+        self._joint_profile = joint_profile
         super().__init__(*args, **kwargs)
 
     def _make_geometry(self):
-        return SO101Trajectory(self._calibration_path)
+        return SO101Trajectory(self._calibration_path, joint_profile=self._joint_profile)
 
     def _initialize_policy(self, recording_root):
         super()._initialize_policy(recording_root)

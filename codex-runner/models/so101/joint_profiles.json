@@ -1,0 +1,37 @@
+{
+  "robot-abecb4cd868ab24b": {
+    "schema_version": 1,
+    "joint_names": [
+      "shoulder_pan",
+      "shoulder_lift",
+      "elbow_flex",
+      "wrist_flex",
+      "wrist_roll"
+    ],
+    "convention": "lerobot_midpoint_degrees",
+    "joint_limits_deg": [
+      [
+        -121.45054945054945,
+        121.45054945054945
+      ],
+      [
+        -106.15384615384616,
+        106.15384615384616
+      ],
+      [
+        -98.94505494505495,
+        98.94505494505495
+      ],
+      [
+        -108.08791208791209,
+        108.08791208791209
+      ],
+      [
+        -180.0,
+        180.0
+      ]
+    ],
+    "source": "https://github.com/andlyu/blupe-playground-robot-controller/blob/a24cde5/examples/so101/dice_06.json",
+    "source_sha256": "106595ed23ed558ed1f615b0021eda569e07e910910a6cbc9d17db99521fab2c"
+  }
+}
