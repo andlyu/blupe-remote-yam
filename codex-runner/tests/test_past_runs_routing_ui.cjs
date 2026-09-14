@@ -1,0 +1,30 @@
+const test = require('node:test');
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const vm = require('node:vm');
+const path = require('node:path');
+const source = fs.readFileSync(path.join(__dirname, '../static/hosted.js'), 'utf8').split('\n})();')[0]+'\n})();';
+test('history waits for robot selection and ignores a previous robot response', async () => {
+  const nodes = new Map(), listeners = {}, requests = [];
+  const element = () => ({addEventListener(){},after(){},replaceChildren(){},removeAttribute(){},dataset:{},open:false});
+  const document = {getElementById(id){if(!nodes.has(id))nodes.set(id,element());return nodes.get(id)},createElement:element};
+  vm.runInNewContext(source, {document,window:{addEventListener(name,fn){listeners[name]=fn}},encodeURIComponent,
+    fetch(url,options){return new Promise(resolve=>requests.push({url,options,resolve}))}});
+  assert.equal(requests.length,0);
+  listeners['blupe-robot-selected']({detail:'robot-3652c537a175cbae'});
+  assert.match(requests[0].url,/robot_id=robot-3652c537a175cbae/);
+  assert.match(nodes.get('datasetViewer').src,/lerobot-visualize-dataset\.hf\.space\/andlyu\/Public-MakerMods-SO101-runs\/episode_0$/);
+  assert.match(nodes.get('datasetLink').href,/visualize_dataset\?path=.*Public-MakerMods-SO101-runs/);
+  assert.equal(requests[0].options.headers['X-Blupe-Robot'],'robot-3652c537a175cbae');
+  listeners['blupe-robot-selected']({detail:'so101'});
+  assert.match(requests[1].url,/offset=0&robot_id=so101/);
+  requests[0].resolve({ok:true,json:async()=>({runs:[],next_offset:12})});
+  await new Promise(setImmediate);
+  assert.equal(nodes.get('pastRunsStatus').textContent,'Loading past runs…');
+  assert.equal(nodes.get('refreshPastRuns').disabled,true);
+  requests[1].resolve({ok:true,json:async()=>({runs:[],next_offset:null})});
+  nodes.get('pastRunsList').children=[];
+  await new Promise(setImmediate);
+  assert.equal(nodes.get('pastRunsStatus').textContent,'No published runs yet.');
+  assert.equal(nodes.get('refreshPastRuns').disabled,false);
+});

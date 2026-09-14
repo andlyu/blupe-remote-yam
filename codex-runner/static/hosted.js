@@ -2,7 +2,7 @@
   'use strict';
   const $ = id => document.getElementById(id);
   if (!$('pastRunsList')) return;
-  let next = 0, loading = false;
+  let next = 0, loading = false, historyRobot = null, historyGeneration = 0;
   const dialog = $('pastRunDialog'), player = $('pastRunVideo');
   const zeroSecondVideo = duration => typeof duration === 'number' && Number.isFinite(duration) && duration >= 0 && duration < 1;
   let selectedRun = null;
@@ -42,13 +42,15 @@
   }});
   player.addEventListener('error', () => { if (player.hasAttribute('src')) $('pastRunError').textContent = 'Video unavailable. Close this player and try again.'; });
   async function load(reset = false) {
-    if (loading) return;
+    if (loading || !historyRobot) return;
+    const generation = historyGeneration;
     loading = true; $('morePastRuns').disabled = $('refreshPastRuns').disabled = true;
     $('pastRunsStatus').textContent = 'Loading past runs…';
     try {
-      const response = await fetch(`/api/past-runs?offset=${reset ? 0 : next}`, {cache:'no-store'});
+      const response = await fetch(`/api/past-runs?offset=${reset ? 0 : next}&robot_id=${encodeURIComponent(historyRobot)}`, {cache:'no-store', headers:{'X-Blupe-Robot':historyRobot}});
       if (!response.ok) throw new Error('Past runs are temporarily unavailable. Select Refresh to retry.');
       const data = await response.json();
+      if (generation !== historyGeneration) return;
       if (reset) $('pastRunsList').replaceChildren();
       for (const run of data.runs) {
         const li = document.createElement('li'), button = document.createElement('button');
@@ -62,7 +64,8 @@
         }, {once:true});
         video.tabIndex = -1; video.setAttribute('aria-hidden', 'true');
         const title = document.createElement('span'); title.className = 'pastRunLabel';
-        title.textContent = `${run.runner_name || 'Name not recorded'} · ${run.episode_index == null ? 'Recent run' : '#'+run.episode_index} · ${new Date(run.started_at*1000).toLocaleString([], {month:'short', day:'numeric', hour:'numeric', minute:'2-digit'})}`;
+        const robotName = {'yam-1':'YAM', 'robot-3652c537a175cbae':'MakerMods SO101', 'robot-abecb4cd868ab24b':'SO101'}[run.robot_id || 'yam-1'] || run.robot_id;
+        title.textContent = `${robotName} · ${run.runner_name || 'Name not recorded'} · ${run.episode_index == null ? 'Recent run' : '#'+run.episode_index} · ${new Date(run.started_at*1000).toLocaleString([], {month:'short', day:'numeric', hour:'numeric', minute:'2-digit'})}`;
         const prompt = document.createElement('span'); prompt.className = 'pastRunPrompt'; prompt.textContent = run.prompt;
         const watch = document.createElement('span'); watch.className = 'pastRunLabel'; watch.textContent = '▶ Watch video';
         const outcome = document.createElement('span'); outcome.className = 'pastRunLabel';
@@ -108,12 +111,37 @@
       next = data.next_offset;
       $('morePastRuns').hidden = next === null;
       $('pastRunsStatus').textContent = data.stale ? 'Showing saved results; the archive is temporarily unavailable.' : $('pastRunsList').children.length ? '' : 'No published runs yet.';
-    } catch (error) { $('pastRunsStatus').textContent = error.message; }
-    finally { loading = false; $('morePastRuns').disabled = $('refreshPastRuns').disabled = false; }
+    } catch (error) { if (generation === historyGeneration) $('pastRunsStatus').textContent = error.message; }
+    finally { if (generation === historyGeneration) { loading = false; $('morePastRuns').disabled = $('refreshPastRuns').disabled = false; } }
   }
   $('refreshPastRuns').addEventListener('click', () => load(true));
   $('morePastRuns').addEventListener('click', () => load());
-  load();
+  window.addEventListener('blupe-robot-selected', event => {
+    historyRobot = event.detail; historyGeneration++; loading = false; next = 0;
+    const selectedName = $('robotSelector')?.selectedOptions?.[0]?.textContent ||
+      {'yam-1':'YAM', 'robot-3652c537a175cbae':'MakerMods Bimanual SO101', 'robot-abecb4cd868ab24b':'SO101'}[historyRobot] || historyRobot;
+    $('allEpisodesTitle').textContent = `All ${selectedName} episodes`;
+    const visualizerRepo = {
+      'yam-1': 'andlyu/Public-YAM-runs',
+      'robot-3652c537a175cbae': 'andlyu/Public-MakerMods-SO101-runs'
+    }[historyRobot];
+    const viewer = $('datasetViewer'), link = $('datasetLink');
+    viewer.hidden = !visualizerRepo;
+    if (visualizerRepo) {
+      viewer.src = `https://lerobot-visualize-dataset.hf.space/${visualizerRepo}/episode_0`;
+      viewer.title = 'Recorded robot episodes on LeRobot visualizer';
+      link.href = 'https://huggingface.co/spaces/lerobot/visualize_dataset?path=' + encodeURIComponent('/' + visualizerRepo + '/episode_0');
+      link.textContent = 'Open episode visualizer';
+    } else {
+      viewer.removeAttribute('src');
+      link.href = 'https://huggingface.co/datasets/andlyu/Public-YAM-runs';
+      link.textContent = 'Episode visualizer not published yet · open raw archive';
+    }
+
+    if (dialog.open) dialog.close();
+    $('pastRunsList').replaceChildren();
+    load(true);
+  });
 })();
 
 (() => {
@@ -121,7 +149,7 @@
   const $ = id => document.getElementById(id);
   let paidRuns = false;
   const originalProviderMarkup = $('provider').innerHTML;
-  let selectedRobot = 'yam-1', robotGeneration = 0, robotCatalog = null, pollingStarted = false;
+  let selectedRobot = new URLSearchParams(location.search).get('robot_id') || 'yam-1', robotGeneration = 0, robotCatalog = null, pollingStarted = false;
   let csrf = '', ended = false, submitting = false, active = false, lastHistory = 0, contactRequested = false;
   function message(text, error = false) { $('message').textContent = text; $('message').classList.toggle('error', error); }
   let contactDismissed = false;
@@ -869,10 +897,14 @@
         selector.append(Object.assign(document.createElement('option'), {value: '', textContent: 'MakerMods MakerArm — setup pending', disabled: true}));
       }
       selector.value = selectedRobot;
+      window.dispatchEvent(new CustomEvent('blupe-robot-selected', {detail:selectedRobot}));
       selector.disabled = robotCatalog.robots.length < 2;
       selector.onchange = async () => {
         if (submitting) { selector.value = selectedRobot; return; }
         selectedRobot = selector.value; robotGeneration++;
+        const robotUrl = new URL(location.href); robotUrl.searchParams.set('robot_id', selectedRobot);
+        history.replaceState(null, '', robotUrl);
+        window.dispatchEvent(new CustomEvent('blupe-robot-selected', {detail:selectedRobot}));
         csrf = ''; active = false; ended = false; lastChatSnapshot = '';
         $('apiKey').value = ''; $('robotSelectorStatus').textContent = 'Connecting…';
         $('station').textContent = 'Checking station availability…';

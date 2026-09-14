@@ -181,7 +181,7 @@ class HostedRunner:
         self.queue = None
         self.operator_auto_queue = None
         from remote_yam.past_runs import PastRuns
-        self.past_runs = PastRuns()
+        self.past_runs = PastRuns(robot_id=None)
         self.task = None
         self.cleanups = set()
         self.frame_cache = {}

@@ -241,7 +241,8 @@ def fetch(path):
 
 
 class PastRuns:
-    def __init__(self, reader=fetch):
+    def __init__(self, reader=fetch, *, robot_id="yam-1"):
+        self.robot_id = robot_id
         self.reader = reader
         self.lock = threading.Lock()
         self.rows = None
@@ -275,7 +276,8 @@ class PastRuns:
                         if eid not in archived:
                             rows.append({'episode_id':eid, 'episode_index':None,
                                          'started_at':item['started_at'], 'prompt':item.get('task') or 'Task unavailable',
-                                         'original_available':False})
+                                         'original_available':item.get('original_available', False),
+                                         'robot_id':item.get('robot_id', 'yam-1')})
                     for row in sources:
                         if not re.fullmatch(r'ep_[A-Za-z0-9_-]+', row.get('episode_id', '')):
                             continue
@@ -285,9 +287,10 @@ class PastRuns:
                             continue
                         prompts = tasks.get(row['episode_index'], [])
                         rows.append({'episode_id': row['episode_id'], 'episode_index': row['episode_index'],
+                                     'robot_id':row.get('robot_id', 'yam-1'),
                                      'started_at': row['recorded_at'], 'prompt': '\n'.join(prompts) or 'Task unavailable'})
                     # Explicitly excluded by the operator, including incomplete recordings.
-                    rows = [r for r in rows if ' '.join(r['prompt'].split()).casefold().rstrip('.') != 'raise and lower both arms for three cycles']
+                    rows = [r for r in rows if (self.robot_id is None or r['robot_id'] == self.robot_id) and ' '.join(r['prompt'].split()).casefold().rstrip('.') != 'raise and lower both arms for three cycles']
                     self.rows = sorted(rows, key=lambda r: (r['started_at'], r['episode_index'] or -1), reverse=True)
                     self.updated = time.monotonic()
                 except Exception:

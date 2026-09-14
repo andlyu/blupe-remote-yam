@@ -188,3 +188,25 @@ def test_explicit_three_cycle_prompt_hidden_for_archive_and_preview():
         if path.endswith('blupe_motion_classification.jsonl'):return ''
         return '{}'
     assert [r['episode_id'] for r in PastRuns(read).page()['runs']] == ['ep_keep']
+
+
+def test_robot_catalog_isolation_and_legacy_yam_default():
+    def read(path):
+        if path.endswith('blupe_source_episodes.jsonl'):
+            return json.dumps({'episode_id':'ep_yam','episode_index':1,'recorded_at':1})
+        if path == 'meta/episodes.jsonl':
+            return json.dumps({'episode_index':1,'tasks':['Move YAM block']})
+        if path.endswith('blupe_viewing.jsonl'):
+            return json.dumps({'episode_id':'ep_maker','robot_id':'robot-maker','started_at':2,
+                               'task':'Move SO101 block','original_available':True,
+                               'preview':{'speed':10,'duration_s':2,'camera_order':['overhead','side','left','right']}})
+        return '{}'
+    assert [r['episode_id'] for r in PastRuns(read).page()['runs']] == ['ep_yam']
+    result = PastRuns(read, robot_id='robot-maker').page()['runs']
+    assert [r['episode_id'] for r in result] == ['ep_maker']
+    assert result[0]['camera_order'] == ['overhead','side','left','right']
+    assert result[0]['original_available'] is True
+    assert PastRuns(read, robot_id='robot-other').page()['runs'] == []
+    mixed = PastRuns(read, robot_id=None).page()['runs']
+    assert [r['episode_id'] for r in mixed] == ['ep_maker', 'ep_yam']
+    assert [r['robot_id'] for r in mixed] == ['robot-maker', 'yam-1']

@@ -12,3 +12,12 @@ python3 -c 'import hashlib; print(hashlib.sha256(b"YOUR_ROBOT_ID").hexdigest() +
 ```
 
 Robot entries are public connection metadata. Account credentials and local calibration files are not included in the catalog. The controller must be connected and the operator must permit queued execution before a task can run.
+
+## Recordings and visualizers
+
+Past runs combines published videos from every Robot/Env, newest first, with a
+robot label. The separate “All <Robot/Env> episodes” section follows the selector
+and opens that robot’s LeRobot visualizer. MakerMods uses
+`andlyu/Public-MakerMods-SO101-runs`; YAM uses `andlyu/Public-YAM-runs`.
+Single SO101 has no visualizer until recording/upload is configured. Follow the
+[controller Mac recording guide](https://github.com/andlyu/blupe-playground-robot-controller/blob/main/docs/SO101-RECORDING.md).

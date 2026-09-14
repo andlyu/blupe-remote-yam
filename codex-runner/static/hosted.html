@@ -20,7 +20,7 @@
   <div class="runSetup">
     <section class="panel"><h2>Prompt the arms</h2>
       <form id="runForm" autocomplete="off">
-        <div class="promptRow"><textarea id="prompt" aria-label="Prompt the arms" rows="2" maxlength="4000" required>place green block on plate</textarea><div id="runButtons"><button class="primary" id="run" type="submit" disabled>Setup keys and run</button><button type="button" id="openCodexInstructions" hidden>Run using Codex subscription</button></div></div>
+        <div class="promptRow"><textarea id="prompt" aria-label="Prompt the arms" rows="2" maxlength="4000" required>place green block on plate</textarea><div id="runButtons"><button class="primary" id="run" type="submit" disabled>Setup keys and run</button><button type="button" id="openCodexInstructions">Run using Codex subscription</button></div></div>
         <details id="runSettings"><summary>Settings</summary>
         <label for="runnerName">Your name</label><input id="runnerName" required maxlength="32" autocomplete="nickname" placeholder="Name shown with your run">
         <p class="help">Your name, task, and readable Astra conversation will be visible to everyone watching.</p>
@@ -111,16 +111,18 @@
     </section>
     <ol id="events"><li>Your model decisions and robot feedback will appear here.</li></ol>
   </section>
-  <section class="panel playgroundResources pastRuns" aria-labelledby="allEpisodesTitle">
+  <section class="panel playgroundResources" aria-labelledby="allEpisodesTitle">
     <h2 id="allEpisodesTitle">All episodes</h2>
     <details class="episodeViewer">
       <summary>View Dataset in HF</summary>
-      <iframe src="https://lerobot-visualize-dataset.hf.space/andlyu/Public-YAM-runs/episode_0?t=156" title="Recorded YAM episodes on Hugging Face" loading="lazy" allow="fullscreen" referrerpolicy="strict-origin-when-cross-origin"></iframe>
+      <iframe id="datasetViewer" src="https://lerobot-visualize-dataset.hf.space/andlyu/Public-YAM-runs/episode_0?t=156" title="Recorded YAM episodes on Hugging Face" loading="lazy" allow="fullscreen" referrerpolicy="strict-origin-when-cross-origin"></iframe>
     </details>
-    <p><a href="https://huggingface.co/spaces/lerobot/visualize_dataset?path=%2Fandlyu%2FPublic-YAM-runs%2Fepisode_0%3Ft%3D156" target="_blank" rel="noopener noreferrer">Open dataset here</a></p>
+    <p><a id="datasetLink" href="https://huggingface.co/spaces/lerobot/visualize_dataset?path=%2Fandlyu%2FPublic-YAM-runs%2Fepisode_0%3Ft%3D156" target="_blank" rel="noopener noreferrer">Open dataset here</a></p>
 
-        <div class="statusHeader"><h3 id="pastRunsTitle">Past runs</h3><button id="refreshPastRuns" type="button">Refresh</button></div>
-        <p class="help">Select a video to watch it larger.</p>
+  </section>
+  <section class="panel playgroundResources pastRuns" aria-labelledby="pastRunsTitle">
+        <div class="statusHeader"><h2 id="pastRunsTitle">Past runs</h2><button id="refreshPastRuns" type="button">Refresh</button></div>
+        <p class="help">Videos from all robots and environments, newest first. Select a video to watch it larger.</p>
         <p id="pastRunsStatus" class="help" role="status">Loading past runs…</p>
         <ol id="pastRunsList"></ol>
         <button id="morePastRuns" type="button" hidden>Load more</button>

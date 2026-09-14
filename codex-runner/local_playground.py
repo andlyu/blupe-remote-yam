@@ -36,6 +36,9 @@ class LocalPlayground(HostedRunner):
                 if not part.get('more_body'):
                     break
         query = scope.get('query_string', b'').decode('ascii')
+        if public_history:
+            from urllib.parse import parse_qsl, urlencode
+            query = urlencode([(k,v) for k,v in parse_qsl(query) if k != 'robot_id'] + [('robot_id', self.robot_id)])
         url = PLAYGROUND + path + ('?' + query if query else '')
         forwarded = {key: value for key, value in headers.items() if key in ('content-type', 'if-match')}
         forwarded['Origin'] = PLAYGROUND
