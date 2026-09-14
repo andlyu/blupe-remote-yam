@@ -372,7 +372,7 @@ class PublicYamRunnerTests(unittest.TestCase):
         stream.close()
 
         queue_req = calls[0][0]
-        self.assertEqual("https://api.blupe.ai/v1/queue", queue_req.full_url)
+        self.assertEqual("https://api.blupe.ai/v1/robots/yam-1/queue", queue_req.full_url)
         self.assertIsNone(queue_req.get_header("Authorization"))
         monitor_req = calls[1][0]
         self.assertEqual(
@@ -383,7 +383,7 @@ class PublicYamRunnerTests(unittest.TestCase):
         self.assertEqual("https://api.blupe.ai/v1/sessions", req.full_url)
         self.assertEqual("POST", req.method)
         self.assertEqual(
-            {"schema_version": 1, "prompt": "pick up the blue block", "run_duration_s": 300},
+            {"schema_version": 1, "robot_id":"yam-1", "prompt": "pick up the blue block", "run_duration_s": 300},
             json.loads(req.data),
         )
         self.assertIsNone(req.get_header("Authorization"))

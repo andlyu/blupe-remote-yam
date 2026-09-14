@@ -84,11 +84,14 @@ def serve(args):
     import webbrowser
     import uvicorn
     origin = f'http://127.0.0.1:{args.port}'
-    app = LocalPlayground(public_origin=origin, session_api=args.session_api,
+    import json
+    from multi_robot import fleet
+    app = fleet(LocalPlayground, dict(public_origin=origin, session_api=args.session_api,
         camera_origin=args.camera_origin or args.session_api or 'http://127.0.0.1:8089',
         astra_endpoint=os.environ.get('ASTRA_ENDPOINT', ''),
         hardware_control=args.allow_hardware_control, development=True,
-        local_codex=True, default_provider='codex' if args.provider == 'auto' else args.provider)
+        local_codex=True, default_provider='codex' if args.provider == 'auto' else args.provider),
+        json.loads(os.environ['YAM_DASHBOARD_ROBOTS']) if os.environ.get('YAM_DASHBOARD_ROBOTS') else None)
     config = uvicorn.Config(app, host='127.0.0.1', port=args.port, access_log=False)
     # Reserve the port before opening a URL that could belong to an older runner.
     sock = config.bind_socket()

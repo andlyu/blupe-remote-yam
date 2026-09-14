@@ -53,9 +53,16 @@ class RoboCurveResponsesAdapter(ResponsesAdapter):
         super().__init__(api_key, model, endpoint, camera_source=camera_source)
         self._initialize_policy(recording_root)
 
+    def _make_geometry(self):
+        return RoboCurveTrajectory()
+
     def _initialize_policy(self, recording_root):
         """Initialize the motion contract independently of model transport."""
-        self._geometry = RoboCurveTrajectory()
+        self._geometry = self._make_geometry()
+        self._system_prompt = SYSTEM_PROMPT
+        self._tools = TOOLS
+        self._names = NAMES
+        self._camera_names = ('top', 'left', 'right')
         self._history = []
         self._prompt = None
         self._episode = None
@@ -87,7 +94,7 @@ class RoboCurveResponsesAdapter(ResponsesAdapter):
         _, eef, joints = self._geometry.observe(observation)
         text = ('Current observation.\nInstruction: ' + prompt
                 + '\nstate[joint_pos]: ' + str([round(float(v), 4) for v in joints])
-                + '\nstate[eef_state]: ' + ' '.join(f'{k}={v:.4f}' for k, v in zip(NAMES, eef))
+                + '\nstate[eef_state]: ' + ' '.join(f'{k}={v:.4f}' for k, v in zip(self._names, eef))
                 + f'\nGateway waypoints remaining in this session: {MAX_COMMANDS-first_step_id}.')
         content = [{'type': 'input_text', 'text': text}]
         if self._camera_source is None:
@@ -96,9 +103,9 @@ class RoboCurveResponsesAdapter(ResponsesAdapter):
         self._vision_frames = []
         try:
             frames = {frame.name: frame for frame in self._capture_frames(observation)}
-            if set(frames) != {'top', 'left', 'right'}:
-                raise RuntimeError('RoboCurve requires top, left, and right camera frames')
-            for name in ('top', 'left', 'right'):
+            if set(frames) != set(self._camera_names):
+                raise RuntimeError(f'Required camera frames: {self._camera_names}')
+            for name in self._camera_names:
                 frame = frames[name]
                 self._vision_frames.append(frame.summary())
                 content.extend([
@@ -159,7 +166,7 @@ class RoboCurveResponsesAdapter(ResponsesAdapter):
         identity = tuple(observation.get(k) for k in ('episode_id', 'lease_id'))
         if not self._history:
             self._prompt, self._episode = prompt, identity
-            self._history = [{'role': 'system', 'content': SYSTEM_PROMPT},
+            self._history = [{'role': 'system', 'content': self._system_prompt},
                              {'role': 'user', 'content': 'Goal: ' + prompt}]
         elif prompt != self._prompt or identity != self._episode:
             raise RuntimeError('A new trial requires a fresh RoboCurve policy instance')
@@ -170,7 +177,7 @@ class RoboCurveResponsesAdapter(ResponsesAdapter):
             if self.cancelled():
                 return []
             payload = {'model': self.model, 'input': copy.deepcopy(self._history),
-                       'tools': copy.deepcopy(TOOLS), 'store': False,
+                       'tools': copy.deepcopy(self._tools), 'store': False,
                        'include': ['reasoning.encrypted_content']}
             self._calls += 1
             self._record('request', call=self._calls, request=payload)

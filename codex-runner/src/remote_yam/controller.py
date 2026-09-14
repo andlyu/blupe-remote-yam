@@ -25,9 +25,11 @@ class RunnerController:
         robot_id: str = "yam-1",
         hardware_control_enabled: bool = True,
         recording_root: Path | None = None,
+        joint_counts=(6,6),
     ) -> None:
         self._session_api = session_api
-        self._ik_solver = ik_solver or IKSolver()
+        self._joint_counts = joint_counts
+        self._ik_solver = ik_solver or IKSolver(joint_counts=joint_counts)
         self._submit_attempts = max(1, submit_attempts)
         self._robot_id = robot_id
         self._hardware_control_enabled = hardware_control_enabled
@@ -344,7 +346,7 @@ class RunnerController:
             if not isinstance(item, Mapping):
                 continue
             left, right = item.get("left_joints_deg"), item.get("right_joints_deg")
-            if not isinstance(left, list) or not isinstance(right, list) or len(left) != 6 or len(right) != 6:
+            if not isinstance(left, list) or not isinstance(right, list) or len(left) != self._joint_counts[0] or len(right) != self._joint_counts[1]:
                 continue
             key = (item.get("step_id"), item.get("observed_at"))
             if key in seen_observations:
@@ -396,7 +398,7 @@ class RunnerController:
         if not isinstance(payload, Mapping):
             raise ValueError("Robot observation response must contain an object")
         observation = self._public_observation(payload)
-        parse_observation(observation)
+        parse_observation(observation, self._joint_counts)
         with self._lock:
             self._monitor_observation = observation
 
@@ -624,7 +626,7 @@ class RunnerController:
             raise RuntimeError(f"Session command limit of {MAX_COMMANDS} reached")
         provider_observation = dict(payload)
         provider_observation["episode_id"] = episode_id
-        observation = parse_observation(provider_observation)
+        observation = parse_observation(provider_observation, self._joint_counts)
         provider_observation["left_joints_deg"] = list(observation.left_joints_deg)
         provider_observation["right_joints_deg"] = list(observation.right_joints_deg)
         with self._lock:
@@ -1056,17 +1058,18 @@ class RunnerController:
         if callable(validator):
             validator(observation)
         else:
+            tolerance_deg = getattr(provider, "final_joint_tolerance_deg", math.degrees(.05))
             deviations = []
             for field in ("left_joints_deg", "right_joints_deg"):
                 measured = observation.get(field)
                 target = trajectory["final_target"][field]
-                if not isinstance(measured, (list, tuple)) or len(measured) != 6:
+                if not isinstance(measured, (list, tuple)) or len(measured) != len(target):
                     raise RuntimeError(f"Final trajectory observation missing {field}")
                 if any(not math.isfinite(float(a)) for a in measured):
                     raise RuntimeError(f"Final trajectory observation has invalid {field}")
                 for index, (actual, requested) in enumerate(zip(measured, target)):
                     delta = abs(float(actual) - float(requested))
-                    if delta > math.degrees(.05):
+                    if delta > tolerance_deg:
                         deviations.append(dict(joint=f"{field.split('_')[0]}_joint_{index}",
                                                measured_deg=float(actual), target_deg=float(requested),
                                                error_deg=delta))
@@ -1078,7 +1081,7 @@ class RunnerController:
                     for d in deviations)
                 with self._lock:
                     trajectory["final_position_mismatch"] = dict(message=message, joints=deviations,
-                        tolerance_deg=math.degrees(.05),
+                        tolerance_deg=tolerance_deg,
                         measured={k:observation.get(k) for k in ('left_joints_deg','right_joints_deg','left_gripper','right_gripper')})
         with self._lock:
             assert self._trajectory is not None

@@ -113,9 +113,13 @@ class HttpSessionAPI:
         websocket_factory: Callable[..., Any] | None = None,
         websocket_timeout_error: type[BaseException] = TimeoutError,
         supports_trajectories: bool = False,
+        robot_id: str = "yam-1",
+        joint_counts: tuple[int, int] = (6, 6),
     ) -> None:
         if not base_url.startswith(("http://", "https://")):
             raise ValueError("Session API base URL must be HTTP(S)")
+        self.robot_id = robot_id
+        self.joint_counts = tuple(joint_counts)
         self.supports_trajectories = supports_trajectories
         self._base_url = base_url.rstrip("/")
         self._timeout_s = timeout_s
@@ -127,7 +131,7 @@ class HttpSessionAPI:
         self._contact_listener = None
 
     def get_queue_snapshot(self) -> dict[str, Any]:
-        return self._request("GET", "/v1/queue")
+        return self._request("GET", f"/v1/robots/{parse.quote(self.robot_id, safe='')}/queue")
 
     def create_session(self, prompt: str, run_duration_s: int = 300) -> dict[str, Any]:
         if self._websocket_factory is None:
@@ -137,7 +141,7 @@ class HttpSessionAPI:
                 raise RuntimeError(
                     "Control transport is not installed; relaunch with `./run.sh --session-api <base-url>`"
                 ) from exc
-        created = self._request("POST", "/v1/sessions", {"schema_version": 1, "prompt": prompt, "run_duration_s": run_duration_s})
+        created = self._request("POST", "/v1/sessions", {"schema_version": 1, "robot_id": self.robot_id, "prompt": prompt, "run_duration_s": run_duration_s})
         session_id = str(created.get("session_id", ""))
         capability = created.get("session_capability")
         if not session_id or not isinstance(capability, str) or not capability:
@@ -192,8 +196,8 @@ class HttpSessionAPI:
             "lease_id": lease_id,
             "step_id": step_id,
             "idempotency_key": idempotency_key,
-            "left_joints_deg": _joint_vector(left_joints_deg, "left_joints_deg"),
-            "right_joints_deg": _joint_vector(right_joints_deg, "right_joints_deg"),
+            "left_joints_deg": _joint_vector(left_joints_deg, "left_joints_deg", self.joint_counts[0]),
+            "right_joints_deg": _joint_vector(right_joints_deg, "right_joints_deg", self.joint_counts[1]),
         }
         if left_gripper is not None:
             payload["left_gripper"] = float(left_gripper)
@@ -223,7 +227,7 @@ class HttpSessionAPI:
             "lease_id": lease_id,
             "trajectory_id": trajectory_id,
             "cadence_hz": 10.0,
-            "waypoints": _trajectory_waypoints(waypoints),
+            "waypoints": _trajectory_waypoints(waypoints, self.joint_counts),
         }
         return self._request(
             "POST",
@@ -830,15 +834,16 @@ class MockSessionAPI:
         return record
 
 
-def _joint_vector(values: Sequence[float], name: str) -> list[float]:
+def _joint_vector(values: Sequence[float], name: str, count: int = 6) -> list[float]:
     result = [float(value) for value in values]
-    if len(result) != 6:
-        raise ValueError(f"{name} must contain exactly 6 values")
+    if len(result) != count:
+        raise ValueError(f"{name} must contain exactly {count} values")
     return result
 
 
 def _trajectory_waypoints(
     waypoints: Sequence[Mapping[str, Any]],
+    joint_counts: tuple[int, int] = (6, 6),
 ) -> list[dict[str, Any]]:
     if isinstance(waypoints, (str, bytes)) or not 1 <= len(waypoints) <= MAX_WAYPOINTS_PER_PACKET:
         raise ValueError(f"waypoints must contain between 1 and {MAX_WAYPOINTS_PER_PACKET} entries")
@@ -858,12 +863,12 @@ def _trajectory_waypoints(
             raise ValueError("waypoint step_ids must be contiguous")
         item: dict[str, Any] = {
             "step_id": step_id,
-            "left_joints_deg": _joint_vector(raw["left_joints_deg"], "left_joints_deg"),
-            "right_joints_deg": _joint_vector(raw["right_joints_deg"], "right_joints_deg"),
+            "left_joints_deg": _joint_vector(raw["left_joints_deg"], "left_joints_deg", joint_counts[0]),
+            "right_joints_deg": _joint_vector(raw["right_joints_deg"], "right_joints_deg", joint_counts[1]),
         }
         for arm in ("left", "right"):
             key = f"{arm}_gripper"
-            if key in raw:
+            if key in raw and raw[key] is not None:
                 value = float(raw[key])
                 if not math.isfinite(value) or not 0.0 <= value <= 1.0:
                     raise ValueError(f"{key} must be finite and between 0 and 1")

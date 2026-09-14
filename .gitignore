@@ -9,3 +9,5 @@ recordings/
 screenlog.*
 .DS_Store
 .pytest_cache/
+.local/
+codex-runner/data/

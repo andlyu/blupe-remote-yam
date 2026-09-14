@@ -41,6 +41,17 @@ class HostedTests(unittest.IsolatedAsyncioTestCase):
         from remote_yam.past_runs import RunNames
         self.app.run_names = RunNames(self.app.root/'names.sqlite3')
 
+    async def test_public_robot_selector_catalog(self):
+        self.app.robots = [
+            {"id": "yam-1", "name": "YAM", "url": "https://robot.example/", "private": "excluded"},
+            {"id": "isaac", "name": "Isaac", "url": "https://isaac.example/"}]
+        code, data, _ = await self.call('/api/robots')
+        self.assertEqual(code, 200)
+        self.assertEqual(data['selected'], 'yam-1')
+        self.assertEqual(len(data['robots']), 2)
+        self.assertNotIn('private', data['robots'][0])
+        self.assertEqual(data['robots'][1]['url'], 'https://isaac.example/')
+
     async def test_contact_save_failure_keeps_accepted_session_queued(self):
         browser = await self.session()
         with patch.object(hosted, 'save_handles', side_effect=OSError('read-only filesystem')):
@@ -335,13 +346,14 @@ class HostedTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(list(self.app.visitors.values())[0].controller._session_api.get_queue_snapshot()['entries'], [])
 
     async def test_startup_fault_reaches_waiting_visitor_and_clears(self):
+        from YAM_control.public_fault import gripper_fault_message
         browser = await self.session()
-        public_fault = ('Right gripper feedback 1.020001 is outside the accepted range '
-                        '[-0.02, 1.02]. Robot unavailable; operator attention needed.')
+        error = ('RuntimeError: right driver returned invalid normalized gripper feedback: '
+                 'values=[1.020001], shape=(1,); expected one finite value in [-0.02, 1.02]')
         observation = self.app.monitor_api.get_robot_observation('yam-1')
         payload = observation.get('observation') or observation.get('payload') or observation
         payload.update(mode='FAULT', safety={'ok':False, 'estop_engaged':False,
-                                             'reason':public_fault})
+                                             'reason':gripper_fault_message(error)})
         self.app.observation = observation
         state = (await self.call('/api/status', **browser))[1]
         self.assertIn('Right gripper feedback 1.020001', state['robot_fault'])

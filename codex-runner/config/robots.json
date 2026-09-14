@@ -1,0 +1,43 @@
+[
+  {
+    "id": "yam-1",
+    "name": "YAM",
+    "hardware": "yam",
+    "joint_counts": [
+      6,
+      6
+    ],
+    "cameras": [
+      "left",
+      "top",
+      "right"
+    ]
+  },
+  {
+    "id": "robot-abecb4cd868ab24b",
+    "name": "SO101 \u2014 Andrew\u2019s Mac",
+    "hardware": "so101",
+    "joint_counts": [
+      5,
+      0
+    ],
+    "cameras": [
+      "front"
+    ]
+  },
+  {
+    "id": "robot-3652c537a175cbae",
+    "name": "MakerMods Bimanual SO101",
+    "hardware": "bimanual_so101",
+    "joint_counts": [
+      5,
+      5
+    ],
+    "cameras": [
+      "overhead",
+      "side",
+      "left",
+      "right"
+    ]
+  }
+]

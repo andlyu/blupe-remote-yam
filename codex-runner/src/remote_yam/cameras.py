@@ -61,7 +61,8 @@ class CameraFrame:
 
 
 class CameraFrameSource:
-    def __init__(self, camera_origin: str, timeout_s: float = 2.0):
+    def __init__(self, camera_origin: str, timeout_s: float = 2.0, camera_names=CAMERA_NAMES):
+        self.camera_names = tuple(camera_names)
         self.allowed_origin = trusted_origin(camera_origin)
         self.timeout_s = timeout_s
 
@@ -101,7 +102,7 @@ class CameraFrameSource:
     def fetch(self, name: str, url: str) -> CameraFrame:
         """Fetch one named frame with the same origin checks as model capture."""
         parsed = urlsplit(url)
-        if (name not in CAMERA_NAMES or origin(url) != self.allowed_origin
+        if (name not in self.camera_names or origin(url) != self.allowed_origin
                 or parsed.username or parsed.password or parsed.query or parsed.fragment
                 or not parsed.path.startswith("/")):
             raise ValueError("Camera URL is outside the configured relay")
@@ -113,7 +114,7 @@ class CameraFrameSource:
             raise RuntimeError("Station camera metadata is missing")
         urls = []
         # Validate every expected view before opening any connection.
-        for name in CAMERA_NAMES:
+        for name in self.camera_names:
             item = images.get(name)
             url = item.get("url") if isinstance(item, Mapping) else None
             if not isinstance(url, str):

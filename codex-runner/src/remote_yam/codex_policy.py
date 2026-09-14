@@ -134,14 +134,14 @@ DECISION_SCHEMA = {
 }
 
 
-def decision_response(value):
+def decision_response(value, names=NAMES):
     """Validate locally even though Codex also receives an output schema."""
     if not isinstance(value, dict) or set(value) != set(DECISION_SCHEMA['required']):
         raise RuntimeError('Codex returned an invalid decision object; no motion sent')
     if any(not isinstance(value[name], str) for name in ('note', 'summary', 'reason', 'hindsight')):
         raise RuntimeError('Codex decision text must be strings; no motion sent')
     targets = value['targets']
-    if not isinstance(targets, dict) or set(targets) != set(NAMES):
+    if not isinstance(targets, dict) or set(targets) != set(names):
         raise RuntimeError('Codex returned invalid target dimensions; no motion sent')
     if any(v is not None and (isinstance(v, bool) or not isinstance(v, (float, int))
                              or not math.isfinite(v)) for v in targets.values()):
@@ -201,7 +201,7 @@ class CodexAdapter(RoboCurveResponsesAdapter):
     def _post_json(self, payload):
         root = Path(self._workspace.name)
         schema = root / 'decision-schema.json'
-        schema.write_text(json.dumps(DECISION_SCHEMA))
+        schema.write_text(json.dumps(getattr(self, "_decision_schema", DECISION_SCHEMA)))
         history = payload['input']
         if self._sent_items > len(history):
             raise RuntimeError('Codex conversation history moved backwards')
@@ -213,6 +213,8 @@ class CodexAdapter(RoboCurveResponsesAdapter):
             'For done/give_up all targets must be null. Never claim motion executed until measured',
             'feedback says completed. Attached images are the current observation, ordered top, left, right.',
         ]
+        if hasattr(self, '_decision_instructions'):
+            lines = [self._decision_instructions, payload.get('instructions', '')]
         images = []
         for item in history[self._sent_items:]:
             content = item.get('content')
@@ -228,10 +230,10 @@ class CodexAdapter(RoboCurveResponsesAdapter):
                         lines.append(part['text'])
             else:
                 lines.append(json.dumps(item, allow_nan=False))
-        if len(images) != 3:
+        if len(images) != getattr(self, '_expected_camera_count', 3):
             raise RuntimeError('Codex requires exactly three fresh camera images')
         if self._thread_id is None:
-            lines.append('Action contract: ' + json.dumps(payload['tools']))
+            lines.append('Action contract: ' + json.dumps(payload.get('tools', [])))
         command = [self._binary, 'exec']
         if self._thread_id:
             command += ['resume', self._thread_id]
@@ -274,12 +276,12 @@ class CodexAdapter(RoboCurveResponsesAdapter):
         if not completed or not thread_id or not isinstance(final, str):
             raise RuntimeError('Codex did not complete a structured decision; no motion sent')
         try:
-            result = decision_response(json.loads(final))
+            result = getattr(self, "_decision_response", decision_response)(json.loads(final))
         except (ValueError, TypeError):
             raise RuntimeError('Codex returned malformed JSON; no motion sent') from None
         self._thread_id = thread_id
         # Skip the synthetic function call that RoboCurve adds after this return.
-        self._sent_items = len(history) + 1
+        self._sent_items = len(history) + 1 if getattr(self, "_incremental_history", True) else 0
         return result
 
     def _execute(self, command, prompt, root):

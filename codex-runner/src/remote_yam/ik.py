@@ -44,7 +44,8 @@ PoseSolver = Callable[[str, Sequence[float]], Sequence[float]]
 class IKSolver:
     """Resolve each arm independently; never infer, mirror, or pad an arm."""
 
-    def __init__(self, pose_solver: PoseSolver | None = None) -> None:
+    def __init__(self, pose_solver: PoseSolver | None = None, joint_counts=(6,6)) -> None:
+        self.joint_counts = joint_counts
         self._pose_solver = pose_solver
 
     def resolve(self, command: IKCommand) -> ResolvedJointCommand:
@@ -56,7 +57,8 @@ class IKSolver:
         )
 
     def _resolve_arm(self, arm: str, command: ArmIKCommand) -> list[float]:
-        if len(command.values) != 6:
+        count = self.joint_counts[0 if arm == "left" else 1]
+        if len(command.values) != (6 if command.mode == "pose" else count):
             raise ValueError(f"{arm} {command.mode} command must have 6 values")
         if command.mode == "joints":
             values = command.values
@@ -64,7 +66,7 @@ class IKSolver:
             if self._pose_solver is None:
                 raise RuntimeError("pose output requires a configured user-owned IK solver")
             values = tuple(float(value) for value in self._pose_solver(arm, command.values))
-            if len(values) != 6:
+            if len(values) != count:
                 raise ValueError(f"{arm} IK solver must return 6 joint values")
         else:
             raise ValueError(f"unsupported {arm} IK mode: {command.mode!r}")
@@ -80,9 +82,9 @@ class IKSolver:
         return result
 
 
-def parse_observation(raw: dict) -> IKObservation:
-    left = _six_values(raw.get("left_joints_deg"), "left_joints_deg")
-    right = _six_values(raw.get("right_joints_deg"), "right_joints_deg")
+def parse_observation(raw: dict, joint_counts=(6,6)) -> IKObservation:
+    left = _six_values(raw.get("left_joints_deg"), "left_joints_deg", joint_counts[0])
+    right = _six_values(raw.get("right_joints_deg"), "right_joints_deg", joint_counts[1])
     return IKObservation(
         left_joints_deg=tuple(left),
         right_joints_deg=tuple(right),
@@ -91,10 +93,10 @@ def parse_observation(raw: dict) -> IKObservation:
     )
 
 
-def _six_values(raw: object, name: str) -> list[float]:
+def _six_values(raw: object, name: str, count=6) -> list[float]:
     if isinstance(raw, (str, bytes)) or not isinstance(raw, Iterable):
         raise ValueError(f"observation missing {name}")
     values = [float(value) for value in raw]
-    if len(values) != 6:
+    if len(values) != count:
         raise ValueError(f"observation {name} must have 6 values")
     return values

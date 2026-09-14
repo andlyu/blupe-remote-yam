@@ -6,6 +6,7 @@ See HOSTING.md for deployment.
 """
 from __future__ import annotations
 
+import hashlib
 import asyncio
 from contextlib import suppress
 from dataclasses import dataclass, field
@@ -117,7 +118,7 @@ class HostedRunner:
                  max_sessions: int = 32, idle_seconds: float = 1800,
                  lifetime_seconds: float = 7200, api_factory=None,
                  provider_factory=None, payments=None, paid_model_key="", paid_model="gpt-6-astra", chat_database=None,
-                 local_codex=False, default_provider="openai"):
+                 local_codex=False, default_provider="openai", robots=None, robot_id="yam-1", camera_names=CAMERA_NAMES, joint_counts=(6,6), hardware=None):
         parsed = urlsplit(public_origin)
         if (not parsed.hostname or parsed.path not in {"", "/"} or parsed.query
                 or parsed.fragment or parsed.username or parsed.password):
@@ -131,6 +132,27 @@ class HostedRunner:
             endpoint = urlsplit(astra_endpoint)
             if endpoint.scheme != "https" or not endpoint.hostname or endpoint.username or endpoint.password or endpoint.query or endpoint.fragment:
                 raise ValueError("The configured Astra endpoint must use HTTPS without credentials or a query")
+        self.joint_counts = tuple(joint_counts)
+        self.hardware = hardware or ('so101' if self.joint_counts == (5,0) else 'yam' if self.joint_counts == (6,6) else 'custom')
+        if self.hardware == 'bimanual_so101' and self.joint_counts != (5,5):
+            raise ValueError('Bimanual SO101 requires five joints per arm')
+        if self.hardware == 'makerarm' and self.joint_counts != (6,0):
+            raise ValueError('MakerArm requires joint_counts [6,0]')
+        self.camera_names = tuple(camera_names)
+        self.robot_id = robot_id
+        self.robots = robots if robots is not None else [
+            {"id": robot_id, "name": "YAM", "url": public_origin.rstrip("/") + "/"}]
+        ids = set()
+        for robot in self.robots:
+            url = urlsplit(robot["url"])
+            local = development and url.scheme == "http" and url.hostname in {"localhost", "127.0.0.1"}
+            if (not robot.get("id") or robot["id"] in ids or not robot.get("name")
+                    or not url.hostname or (url.scheme != "https" and not local)
+                    or url.username or url.password or url.fragment):
+                raise ValueError("Robots need unique IDs, names, and HTTPS dashboard URLs")
+            ids.add(robot["id"])
+        if robot_id not in ids:
+            raise ValueError("Current robot must be included in the dashboard robot list")
         self.origin = public_origin.rstrip("/")
         if local_codex and not (development and parsed.scheme == 'http' and parsed.hostname in {'127.0.0.1', 'localhost'}):
             raise ValueError('Codex subscription access is restricted to the local runner')
@@ -140,16 +162,19 @@ class HostedRunner:
         self.secure = parsed.scheme == "https"
         self.simulation = not session_api
         self.cookie_name = COOKIE if self.secure else "yam-local-visitor"
+        if robot_id != "yam-1":
+            import hashlib
+            self.cookie_name += "-" + hashlib.sha256(robot_id.encode()).hexdigest()[:16]
         self.astra_endpoint = astra_endpoint
         self.hardware_control = hardware_control
         self.max_sessions = max_sessions
         self.idle_seconds, self.lifetime_seconds = idle_seconds, lifetime_seconds
-        self.api_factory = api_factory or (lambda: HostedSessionAPI(session_api, supports_trajectories=True) if session_api else MockSessionAPI())
+        self.api_factory = api_factory or (lambda: HostedSessionAPI(session_api, supports_trajectories=True, robot_id=robot_id, joint_counts=self.joint_counts) if session_api else MockSessionAPI())
         self.payments = payments
         self.paid_model_key = paid_model_key
         self.paid_model = paid_model
         self.provider_factory = provider_factory
-        self.camera_source = CameraFrameSource(camera_origin)
+        self.camera_source = CameraFrameSource(camera_origin, camera_names=self.camera_names)
         self.visitors: dict[str, Visitor] = {}
         self.monitor_api = self.api_factory()
         self.observation = None
@@ -160,7 +185,7 @@ class HostedRunner:
         self.task = None
         self.cleanups = set()
         self.frame_cache = {}
-        self.frame_locks = {name: threading.Lock() for name in CAMERA_NAMES}
+        self.frame_locks = {name: threading.Lock() for name in self.camera_names}
         self.root = Path(tempfile.mkdtemp(prefix="yam-web-"))
         self.root.chmod(0o700)
         from remote_yam.chat_history import ChatHistory
@@ -195,15 +220,15 @@ class HostedRunner:
         directory.mkdir(mode=0o700)
         visitor = Visitor(EphemeralController(
             LoggedSessionAPI(self.api_factory(), self.submission_log), hardware_control_enabled=self.hardware_control,
-            recording_root=directory), directory)
+            recording_root=directory, robot_id=self.robot_id, joint_counts=self.joint_counts), directory)
         self.visitors[capability] = visitor
         return capability, visitor
 
     def refresh_monitor(self):
         from remote_yam.operator_status import read_auto_queue
-        self.operator_auto_queue = read_auto_queue() if self.hardware_control else None
+        self.operator_auto_queue = read_auto_queue() if self.hardware_control and self.robot_id == "yam-1" else None
         try:
-            self.observation = self.monitor_api.get_robot_observation("yam-1")
+            self.observation = self.monitor_api.get_robot_observation(self.robot_id)
         except Exception:
             self.observation = None
         try:
@@ -335,6 +360,10 @@ class HostedRunner:
             return
         if headers.get("sec-fetch-site") == "cross-site" and not (path == "/" and method == "GET"):
             raise RequestError(403, "Open the runner directly to continue")
+        if method == "GET" and path == "/api/robots":
+            await self.json(send, 200, {"selected": self.robot_id, "robots": [
+                {**{k: robot[k] for k in ("id", "name", "url")}, "hardware": robot.get("hardware", "")} for robot in self.robots]})
+            return
         if method == "GET" and path in {"/", "/static/hosted.js", "/static/hosted.css", "/static/analytics.js", "/static/stream-health.js", "/static/hls.light.min.js"}:
             asset = ROOT / "static" / ("hosted.html" if path == "/" else path.rsplit("/", 1)[1])
             kind = "text/html" if path == "/" else "text/javascript" if path.endswith(".js") else "text/css"
@@ -400,7 +429,7 @@ class HostedRunner:
                 from remote_yam.codex_policy import codex_status
                 local_setup = {'local_runner': True, 'default_provider': self.default_provider,
                                'codex': await asyncio.to_thread(codex_status)}
-            await self.json(send, 200, {**local_setup, "paid_runs": self.payments is not None, "csrf": visitor.csrf, "astra_enabled": bool(self.astra_endpoint),
+            await self.json(send, 200, {**local_setup, "robot_id": self.robot_id, "cameras": list(self.camera_names), "joint_policy": self.joint_counts != (6,6), "paid_runs": self.payments is not None, "csrf": visitor.csrf, "astra_enabled": bool(self.astra_endpoint),
                                       "simulation": self.simulation,
                                       "recover_purchase": await asyncio.to_thread(self.payments.recover, payment_owner) if self.payments and payment_owner else None,
                                       "expires_in": int(self.lifetime_seconds - (time.monotonic() - visitor.born))},
@@ -529,7 +558,7 @@ class HostedRunner:
             observation = state.get("last_observation")
             if isinstance(observation, dict):
                 observation = dict(observation)
-                observation["images"] = {name: {"url": f"/api/monitor/cameras/{name}"} for name in CAMERA_NAMES}
+                observation["images"] = {name: {"url": f"/api/monitor/cameras/{name}"} for name in self.camera_names}
                 state["last_observation"] = observation
             if isinstance(state.get("provider"), dict):
                 state["provider"].pop("recording_path", None)
@@ -543,7 +572,7 @@ class HostedRunner:
             await self.json(send, 200, state)
         elif path.startswith("/api/monitor/cameras/"):
             name = path.rsplit("/", 1)[1]
-            if name not in CAMERA_NAMES or not self.observation:
+            if name not in self.camera_names or not self.observation:
                 raise RequestError(503, "NO SIGNAL")
             images = self.observation.get("images", {})
             spec = images.get(name, {})
@@ -650,7 +679,57 @@ class HostedRunner:
                 raise RequestError(400, "Astra is not configured on this service")
             if name == "local_raise_lower":
                 prompt = "Raise and lower both arms for three cycles."
-            if self.provider_factory:
+            if self.joint_counts != (6,6) and name not in ({'openai','codex'} if self.local_codex else {'openai'}):
+                raise RequestError(400, 'This robot requires an OpenAI or supported local Codex runner')
+            if self.hardware == 'makerarm' and not self.provider_factory:
+                from remote_yam.makerarm_policy import MakerArmOpenAIAdapter, MakerArmCodexAdapter
+                mapping = ROOT / '.local' / 'robot-calibrations' / (hashlib.sha256(self.robot_id.encode()).hexdigest() + '.json')
+                if not mapping.is_file():
+                    raise RequestError(400, 'MakerArm Cartesian control requires a verified motor-to-URDF mapping on this runner')
+                kwargs = dict(camera_source=self.camera_source, recording_root=visitor.directory,
+                              calibration_path=mapping, camera_names=self.camera_names)
+                try:
+                    provider = (MakerArmCodexAdapter(model or 'gpt-6-astra', **kwargs) if name == 'codex'
+                                else MakerArmOpenAIAdapter(key, model or 'gpt-6-astra', **kwargs))
+                except (RuntimeError, ValueError, KeyError) as exc:
+                    raise RequestError(400, str(exc)) from None
+                provider._urlopen = request.build_opener(NoRedirect).open
+            elif self.joint_counts == (5,5) and not self.provider_factory:
+                from remote_yam.bimanual_so101_policy import BimanualSO101OpenAIAdapter, BimanualSO101CodexAdapter
+                calibration_path = ROOT / '.local' / 'robot-calibrations' / (hashlib.sha256(self.robot_id.encode()).hexdigest() + '.json')
+                if not calibration_path.is_file():
+                    raise RequestError(400, 'Bimanual SO101 requires left and right LeRobot calibrations on this runner')
+                kwargs = dict(camera_source=self.camera_source, recording_root=visitor.directory,
+                              calibration_path=calibration_path, camera_names=self.camera_names)
+                try:
+                    provider = (BimanualSO101CodexAdapter(model or 'gpt-6-astra', **kwargs) if name == 'codex'
+                                else BimanualSO101OpenAIAdapter(key, model or 'gpt-6-astra', **kwargs))
+                except (RuntimeError, ValueError, OSError, KeyError) as exc:
+                    raise RequestError(400, str(exc)) from None
+                provider._urlopen = request.build_opener(NoRedirect).open
+            elif self.joint_counts == (5,0) and not self.provider_factory:
+                from remote_yam.so101_policy import SO101OpenAIAdapter, SO101CodexAdapter
+                # Private per-robot calibration, never exposed in the public catalog.
+                calibration_path = Path(__file__).resolve().parent / '.local' / 'robot-calibrations' / (hashlib.sha256(self.robot_id.encode()).hexdigest() + '.json')
+                if not calibration_path.is_file():
+                    raise RequestError(400, 'SO101 Cartesian control requires this robot’s LeRobot calibration on the runner')
+                kwargs = {"camera_source": self.camera_source, "recording_root": visitor.directory,
+                          "calibration_path": calibration_path}
+                try:
+                    provider = (SO101CodexAdapter(model or 'gpt-6-astra', **kwargs) if name == 'codex'
+                                else SO101OpenAIAdapter(key, model or 'gpt-6-astra', **kwargs))
+                except RuntimeError as exc:
+                    raise RequestError(400, str(exc)) from None
+                provider._urlopen = request.build_opener(NoRedirect).open
+            elif self.joint_counts != (6,6) and not self.provider_factory:
+                from remote_yam.joint_policy import JointPolicy, CodexJointPolicy
+                try:
+                    provider = (CodexJointPolicy(model or 'gpt-6-astra', joint_counts=self.joint_counts, camera_source=self.camera_source) if name == 'codex' else
+                        JointPolicy(key, model or 'gpt-6-astra', joint_counts=self.joint_counts, camera_source=self.camera_source))
+                except RuntimeError as exc:
+                    raise RequestError(400, str(exc)) from None
+                provider._urlopen = request.build_opener(NoRedirect).open
+            elif self.provider_factory:
                 provider = self.provider_factory(name, key, model, visitor.directory)
             elif name == 'codex':
                 from remote_yam.codex_policy import CodexAdapter
@@ -743,7 +822,8 @@ def create_app():
             raise ValueError('Payment credentials are incomplete')
         payment_service = Payments(os.environ['YAM_PAYMENT_DB'], config['stripe_key'],
                                    config['webhook_secret'], os.environ['YAM_WEB_ORIGIN'])
-    return HostedRunner(
+    from multi_robot import fleet
+    return fleet(HostedRunner, dict(
         payments=payment_service, paid_model_key=model_key,
         chat_database=os.environ.get("YAM_CHAT_DATABASE", str(ROOT / "data/chat.sqlite3")),
         public_origin=os.environ.get("YAM_WEB_ORIGIN", "http://127.0.0.1:8790" if development else ""),
@@ -753,4 +833,4 @@ def create_app():
         hardware_control=os.environ.get("YAM_WEB_HARDWARE_CONTROL") == "1",
         development=development,
         max_sessions=int(os.environ.get("YAM_WEB_MAX_SESSIONS", "32")),
-    )
+    ), json.loads(os.environ["YAM_DASHBOARD_ROBOTS"]) if os.environ.get("YAM_DASHBOARD_ROBOTS") else None)

@@ -14,6 +14,10 @@ requirements and a compatible local Codex runtime, connects to BluPe's public
 robot queue, and opens the local playground. Enter a task and click **Run**.
 Keep the terminal open while it runs. No OpenAI API key is needed.
 
+Use the top-right robot selector to choose **YAM**, **SO101 — Andrew’s Mac**, or
+**MakerMods Bimanual SO101**. Cameras, conversation, and queue follow that selection.
+See [multi-robot setup](codex-runner/docs/MULTI-ROBOT.md) for the catalog and SO101 calibration requirements.
+
 Command submission is enabled by default. Robot readiness, command validation,
 and gateway execution checks still apply. Closing and reopening the launcher
 reuses the existing Codex login. If the default port is occupied, use

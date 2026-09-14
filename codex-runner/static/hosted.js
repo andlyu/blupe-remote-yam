@@ -120,6 +120,8 @@
   'use strict';
   const $ = id => document.getElementById(id);
   let paidRuns = false;
+  const originalProviderMarkup = $('provider').innerHTML;
+  let selectedRobot = 'yam-1', robotGeneration = 0, robotCatalog = null, pollingStarted = false;
   let csrf = '', ended = false, submitting = false, active = false, lastHistory = 0, contactRequested = false;
   function message(text, error = false) { $('message').textContent = text; $('message').classList.toggle('error', error); }
   let contactDismissed = false;
@@ -135,11 +137,13 @@
     $('message').replaceChildren(document.createTextNode('Feel free to reach out here: '), email, document.createTextNode(', '), phone);
   }
   async function api(path, data) {
-    const headers = {};
+    const generation = robotGeneration;
+    const headers = path === '/api/robots' ? {} : {'X-Blupe-Robot': selectedRobot};
     if (data !== undefined) { headers['Content-Type'] = 'application/json'; headers['X-YAM-Runner-Token'] = csrf; }
     const response = await fetch(path, {method: data === undefined ? 'GET' : 'POST', headers,
       body: data === undefined ? undefined : JSON.stringify(data), credentials: 'same-origin', cache: 'no-store'});
     const result = await response.json();
+    if (generation !== robotGeneration) throw Object.assign(new Error('Robot selection changed'), {stale:true});
     if (!response.ok) {
       if (response.status === 401) { ended = true; buttons(); $('apiKey').value = ''; }
       const error = new Error(result.error || 'Request failed');
@@ -416,7 +420,7 @@
     $('publicRunError').hidden = !sharedError;
     $('publicRunError').textContent = sharedError
       ? `${state.public_run?.error ? (state.public_run.runner_name || 'Anonymous') + (sharedError === 'Run reached time limit' ? ' — Failure: ' : ' — run error: ') : 'Robot error: '}${sharedError}` : '';
-    const station = queue?.stations?.find(item => item.jetson_id === 'yam-1');
+    const station = queue?.stations?.find(item => item.jetson_id === selectedRobot);
     const faultNotice = {pending:'Notifying the operator…', submitted:'The operator has been notified.',
       failed:'Could not notify the operator. Please contact the operator.', unavailable:'Operator attention needed.'}[station?.fault_notification] || 'Operator attention needed.';
     $('station').title = station?.mode === 'FAULT' && station.fault_notification === 'submitted' ? 'Alert accepted by the notification service; email delivery and operator acknowledgement are not confirmed.' : '';
@@ -554,7 +558,7 @@
         for (const item of event.images) {
           if (!/^\/api\/public-images\/(?:robocurve|run)_[a-f0-9]{32}\/[a-f0-9]{64}$/.test(item.url)) continue;
           const figure = document.createElement('figure'), image = document.createElement('img'), caption = document.createElement('figcaption');
-          image.src = item.url; image.alt = item.name + ' image sent to Astra'; image.loading = 'lazy';
+          image.src = item.url + (item.url.includes('?') ? '&' : '?') + 'robot_id=' + encodeURIComponent(selectedRobot); image.alt = item.name + ' image sent to Astra'; image.loading = 'lazy';
           caption.textContent = item.name; figure.append(image, caption); gallery.append(figure);
         }
         li.append(gallery);
@@ -672,7 +676,8 @@
         else panel.requestFullscreen?.().catch(() => {});
       });
     });
-    window.addEventListener('pagehide', () => { stopped = true; cancelAnimationFrame(callback); });
+    video.yamStopPainting = () => { stopped = true; cancelAnimationFrame(callback); };
+    window.addEventListener('pagehide', video.yamStopPainting);
     paint();
   }
   function camera(image) {
@@ -683,6 +688,8 @@
     video.dataset.camera = cameraName;
     if (cameraName === 'synchronized') { video.controls = false; synchronizedPanels(video, label); }
     let hls = null, reader = null, retry, rtcTimeout, generation = 0, lastTime = -1, lastAdvance = 0;
+    let disposed = false;
+    video.yamStop = () => { disposed = true; video.yamHealth?.close(); video.yamStopPainting?.(); cleanup(); };
     let transport = 'hls', attemptStarted = 0;
     if (cameraName === 'synchronized' && window.YamStreamHealth) {
       video.yamHealth = new window.YamStreamHealth(video, {
@@ -697,7 +704,7 @@
       video.pause(); video.srcObject = null; video.removeAttribute('src'); video.load(); lastTime = -1;
     }
     function recoverStream() {
-      if (ended || document.hidden || retry) return;
+      if (disposed || ended || document.hidden || retry) return;
       // Give each transport a full startup window; health remains visibly stalled.
       if (performance.now() - attemptStarted < (transport === 'hls' ? 20000 : 8000)) return;
       if (transport === 'webrtc') connect(true); else offline();
@@ -705,10 +712,10 @@
     function offline() {
       if (retry) return;
       cleanup(); label.textContent = ended ? 'Session ended' : 'Reconnecting';
-      if (!ended && !document.hidden) retry = setTimeout(connect, 5000);
+      if (!disposed && !ended && !document.hidden) retry = setTimeout(connect, 5000);
     }
     function connect(fallback = false) {
-      cleanup(); if (ended || document.hidden) return;
+      cleanup(); if (disposed || ended || document.hidden) return;
       const attempt = generation;
       label.textContent = 'Loading video'; lastAdvance = attemptStarted = performance.now();
       if (['observer', 'synchronized'].includes(cameraName) && !fallback && window.MediaMTXWebRTCReader && window.RTCPeerConnection) {
@@ -788,13 +795,69 @@
     try {
       render(await api('/api/status'));
       if (Date.now() - lastHistory > 4000) { lastHistory = Date.now(); await history(); }
-    } catch (error) { $('astraStreamState').textContent = 'Reconnecting'; message(error.message, true); }
+    } catch (error) { if (!error.stale) { $('astraStreamState').textContent = 'Reconnecting'; message(error.message, true); } }
     setTimeout(poll, 1000);
   }
   window.addEventListener('pagehide', () => { $('apiKey').value = ''; });
+  const originalCameraMarkup = $('liveViewer').innerHTML;
+  function selectedCameras(names) {
+    document.querySelectorAll('[data-camera]').forEach(video => video.yamStop?.());
+    $('liveViewer').innerHTML = originalCameraMarkup;
+    $('videoDelayNotice').hidden = selectedRobot !== 'yam-1';
+    $('liveViewer').dataset.layout = names.length === 1 ? 'single' : 'multi';
+    if (selectedRobot === 'yam-1') {
+      document.querySelectorAll('[data-camera]').forEach(camera);
+      return;
+    }
+    $('liveViewer').querySelectorAll('figure').forEach(node => node.remove());
+    const generation = robotGeneration;
+    for (const name of names) {
+      const figure = document.createElement('figure'), image = document.createElement('img'), caption = document.createElement('figcaption');
+      image.alt = name + ' robot camera'; caption.textContent = name + ' · Connecting';
+      figure.append(image, caption); $('liveViewer').prepend(figure);
+      const update = () => {
+        if (generation !== robotGeneration || ended) return;
+        image.src = '/api/monitor/cameras/' + encodeURIComponent(name) + '?robot_id=' + encodeURIComponent(selectedRobot) + '&t=' + Date.now();
+      };
+      image.onload = () => { caption.textContent = name + ' · Live'; setTimeout(update, 200); };
+      image.onerror = () => { caption.textContent = name + ' · Offline'; image.removeAttribute('src'); setTimeout(update, 1000); };
+      update();
+    }
+  }
+  async function loadRobotSelector() {
+    const selector = $('robotSelector');
+    try {
+      robotCatalog = await api('/api/robots');
+      if (!robotCatalog.robots.some(robot => robot.id === selectedRobot)) {
+        selectedRobot = robotCatalog.selected || robotCatalog.robots[0]?.id || '';
+      }
+      selector.replaceChildren(...robotCatalog.robots.map(robot =>
+        Object.assign(document.createElement('option'), {value: robot.id, textContent: robot.name})));
+      if (!robotCatalog.robots.some(robot => robot.hardware === 'makerarm')) {
+        selector.append(Object.assign(document.createElement('option'), {value: '', textContent: 'MakerMods MakerArm — setup pending', disabled: true}));
+      }
+      selector.value = selectedRobot;
+      selector.disabled = robotCatalog.robots.length < 2;
+      selector.onchange = async () => {
+        if (submitting) { selector.value = selectedRobot; return; }
+        selectedRobot = selector.value; robotGeneration++;
+        csrf = ''; active = false; ended = false; lastChatSnapshot = '';
+        $('apiKey').value = ''; $('robotSelectorStatus').textContent = 'Connecting…';
+        $('station').textContent = 'Checking station availability…';
+        $('queue').replaceChildren();
+        $('astraStreamOutput').replaceChildren();
+        $('astraStreamState').textContent = 'Connecting';
+        document.querySelectorAll('[data-camera]').forEach(video => video.yamStop?.());
+        buttons();
+        await start();
+      };
+    } catch { $('robotSelectorStatus').textContent = 'Robot list unavailable'; }
+  }
   async function start() {
+    if (!robotCatalog) await loadRobotSelector();
     try {
       const session = await api('/api/session', {}); csrf = session.csrf;
+      $('provider').innerHTML = originalProviderMarkup;
       window.yamAnalytics?.init(session.simulation, session.paid_runs);
       if (session.simulation) {
         document.querySelector('.eyebrow').textContent = 'Local simulation · no physical robot connected';
@@ -805,7 +868,7 @@
       if (session.local_runner) {
         const option = document.createElement('option');
         option.value = 'codex'; option.textContent = 'Codex subscription · Astra';
-        $('provider').prepend(option);
+        if (!$('provider').querySelector('[value=codex]')) $('provider').prepend(option);
         $('provider').value = session.default_provider || 'codex';
         $('codexStatus').textContent = session.codex.message;
         $('runnerName').value ||= 'Local runner';
@@ -839,8 +902,16 @@
           } catch(error) { if (error.paymentConfirmed) window.yamAnalytics?.paid(purchase); message(error.message, true); }
         }
       }
+      if (session.joint_policy) {
+        $('provider').replaceChildren(...(session.local_runner ? [['codex','Codex subscription · joint control'],['openai','OpenAI · joint control']] : [['openai','OpenAI · joint control']]).map(([value,textContent])=>Object.assign(document.createElement('option'),{value,textContent})));
+        paidRuns = false; providerChanged();
+        $('policyHelp').textContent = session.local_runner ? 'Uses your ChatGPT sign-in through Codex. Enter a task; the operator starts your turn.' : 'Enter your OpenAI API key and a task; the operator starts your turn.';
+      }
       buttons(); if (!new URLSearchParams(location.search).has('purchase') && !$('message').textContent.startsWith('Payment')) message('Connected. Watch the cameras or choose a policy to begin.');
-      document.querySelectorAll('[data-camera]').forEach(camera); poll();
+      selectedCameras(session.cameras || ['left','top','right']);
+      render(await api('/api/status')); await refreshChat();
+      $('robotSelectorStatus').textContent = '';
+      if (!pollingStarted) { pollingStarted = true; poll(); }
     } catch (error) { message(error.message, true); }
   }
   let chatSending = false, lastChatSnapshot = '';

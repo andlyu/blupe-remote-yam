@@ -7,6 +7,28 @@ from .mujoco_ik import BimanualRelativeIK
 
 
 def build_model_trajectory(command, observation, first_step_id, solver):
+    if getattr(solver, 'joint_counts', (6,6)) != (6,6):
+        if command.left.mode != 'joints' or command.right.mode != 'joints':
+            raise ValueError('This robot requires joint targets')
+        resolved = solver.resolve(command)
+        start = list(observation['left_joints_deg']) + list(observation['right_joints_deg'])
+        target = list(resolved.left_joints_deg) + list(resolved.right_joints_deg)
+        if len(start)!=len(target) or not all(math.isfinite(v) for v in start+target):
+            raise ValueError('Invalid joint feedback')
+        count=max(1,math.ceil(max((abs(a-b) for a,b in zip(start,target)),default=0)/math.degrees(.01)))
+        if count>MAX_WAYPOINTS_PER_PACKET or first_step_id+count>MAX_COMMANDS:
+            raise ValueError('Trajectory exceeds waypoint budget')
+        points=[]
+        for i in range(1,count+1):
+            alpha=i/count
+            point={'step_id':first_step_id+i-1}
+            for arm in ('left','right'):
+                end=getattr(resolved,arm+'_joints_deg')
+                point[arm+'_joints_deg']=[(1-alpha)*a+alpha*b for a,b in zip(observation[arm+'_joints_deg'],end)]
+                grip=getattr(resolved,arm+'_gripper')
+                if grip is not None: point[arm+'_gripper']=(1-alpha)*observation[arm+'_gripper']+alpha*grip
+            points.append(point)
+        return points
     start = np.array([observation[f'{arm}_joints_deg'] for arm in ('left', 'right')], dtype=float)
     if start.shape != (2, 6) or not np.isfinite(start).all():
         raise ValueError('Model trajectory requires finite 6+6 joint feedback')
