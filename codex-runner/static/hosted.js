@@ -168,7 +168,26 @@
       (['openai', 'astra'].includes($('provider').value) &&
        !savedKeyProviders.includes($('provider').value) && !$('apiKey').value.trim());
   }
-  $('openCodexInstructions').onclick = () => $('codexInstructions').showModal();
+  $('openCodexInstructions').onclick = () => {
+    $('copyCodexPrompt').textContent = 'Copy prompt';
+    $('codexCopyStatus').textContent = '';
+    $('codexInstructions').showModal();
+  };
+  async function copyCodexPrompt() {
+    const prompt = document.querySelector('.codexPrompt');
+    try {
+      await navigator.clipboard.writeText(prompt.textContent.trim());
+      $('copyCodexPrompt').textContent = 'Copied';
+      $('codexCopyStatus').textContent = 'Prompt copied.';
+    } catch {
+      const range = document.createRange();
+      range.selectNodeContents(prompt);
+      const selection = window.getSelection();
+      selection.removeAllRanges(); selection.addRange(range);
+      $('codexCopyStatus').textContent = 'Select the highlighted prompt and copy it manually.';
+    }
+  }
+  $('copyCodexPrompt').onclick = copyCodexPrompt;
   function updateRunLabel() {
     const runParent = $('runSettings').open ? $('setupRunActions') : document.querySelector('.promptRow');
     if ($('runButtons').parentElement !== runParent) runParent.append($('runButtons'));

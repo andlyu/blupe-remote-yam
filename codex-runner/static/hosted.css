@@ -211,7 +211,11 @@ main > .coffeeSupport{grid-column:1 / -1;margin-top:4px;width:100%}
 @media(max-width:600px){#setupRunActions{margin-top:20px;padding-top:16px}#setupRunActions #runButtons{width:100%;gap:8px}}
 #codexInstructions{width:min(580px,calc(100% - 40px));padding:28px;border:1px solid #b8c4bf;border-radius:16px}
 #codexInstructions::backdrop{background:#10231a88}
-#codexInstructions pre{overflow:auto;padding:16px;background:#edf2ef;border-radius:8px}
+#codexInstructions .codexPrompt{margin:16px 0 24px 20px;overflow-wrap:anywhere}
 
 
 .runnerContent > .robotNavigation{margin-bottom:16px;justify-content:flex-end}
+
+#codexInstructions .codexDialogActions{display:flex;justify-content:flex-end;gap:8px}
+#codexInstructions .codexDialogActions button{width:auto;min-height:44px;padding:10px 16px;font-size:14px}
+#codexCopyStatus:empty{display:none}
