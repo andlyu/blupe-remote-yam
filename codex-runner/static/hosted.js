@@ -169,7 +169,7 @@
        !savedKeyProviders.includes($('provider').value) && !$('apiKey').value.trim());
   }
   $('openCodexInstructions').onclick = () => {
-    $('copyCodexPrompt').textContent = 'Copy';
+    $('copyCodexPrompt').dataset.copied = 'false';
     $('codexCopyStatus').textContent = '';
     $('codexInstructions').showModal();
   };
@@ -177,7 +177,7 @@
     const prompt = document.querySelector('.codexPrompt');
     try {
       await navigator.clipboard.writeText(prompt.textContent.trim());
-      $('copyCodexPrompt').textContent = 'Copied';
+      $('copyCodexPrompt').dataset.copied = 'true';
       $('codexCopyStatus').textContent = 'Prompt copied.';
     } catch {
       const range = document.createRange();

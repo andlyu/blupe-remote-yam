@@ -220,9 +220,11 @@ main > .coffeeSupport{grid-column:1 / -1;margin-top:4px;width:100%}
 .codexDialogClose{display:grid;place-items:center;width:44px;height:44px;padding:0;margin:-10px -10px -10px 0;border:0;color:var(--muted)}
 .codexPromptLabel{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:8px}
 .codexPromptLabel p{margin:0;font-size:14px;line-height:1.4;color:var(--muted)}
-#copyCodexPrompt{padding:8px 10px;min-width:60px;min-height:44px;border:0;font-size:13px;line-height:1.3}
-.codexPromptBox{padding:18px;background:#f0f1e7;border:1px solid #e3e5d9;border-radius:8px}
-#codexInstructions .codexPrompt{margin:0;font-size:16px;line-height:1.6;overflow-wrap:anywhere}
+#copyCodexPrompt{display:grid;place-items:center;flex:none;width:44px;height:44px;padding:0;border:0;color:var(--muted);margin:-8px -8px 0 0}
+#copyCodexPrompt .copiedIcon,#copyCodexPrompt[data-copied=true] .copyIcon{display:none}
+#copyCodexPrompt[data-copied=true] .copiedIcon{display:block}
+.codexPromptBox{display:flex;align-items:flex-start;gap:12px;padding:18px;background:#f0f1e7;border:1px solid #e3e5d9;border-radius:8px}
+#codexInstructions .codexPrompt{flex:1;min-width:0;margin:0;font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:14px;line-height:1.6;overflow-wrap:anywhere}
 #codexCopyStatus{margin:12px 0 0}
 #codexCopyStatus:empty{display:none}
 @media(max-width:480px){#codexInstructions{padding:20px}.codexDialogHeader h2{font-size:20px}.codexPromptBox{padding:16px}}
