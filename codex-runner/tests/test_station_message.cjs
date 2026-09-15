@@ -51,12 +51,36 @@ for (const robot of robots) {
     for (const mode of ['DISABLED', 'readonly', 'STOPPED']) {
       const s = state(robot, {mode, queue_ready: false}, {robot_auto_queue_enabled: true,
         last_observation: {homed: false, settled: true, observed_at: now}});
-      assert.equal(label(s, robot), 'Stopped'); // Parked is not Home.
+      assert.equal(label(s, robot), 'Stopped but ready'); // Parked automatic queue can wake for work.
+      assert.equal(elements.station.dataset.tone, 'ready');
     }
     assert.equal(label(state(robot, {}, {robot_auto_queue_enabled: false}), robot), 'Stopped');
     assert.equal(label(state(robot, {queue_ready: false}), robot), 'Stopped'); // available is insufficient.
     assert.equal(label(state(robot, {mode: 'active'}), robot), 'Checking / unavailable'); // Legacy manual readiness.
     assert.equal(label(state(robot, {}, {last_observation: {homed: true, settled: false, observed_at: now}}), robot), 'Stopped');
+  });
+  test(`${robot}: stopped-ready is green without granting queue admission`, () => {
+    const parked = state(robot, {mode: 'STOPPED_READY', queue_ready: false}, {
+      status: 'stopped', last_observation: {homed: false, settled: true, observed_at: now}});
+    assert.equal(label(parked, robot), 'Stopped but ready');
+    assert.equal(elements.station.dataset.tone, 'ready');
+    assert.equal(label({...parked, status: 'queued'}, robot), 'Queued — waiting for robot readiness');
+    assert.equal(label({...parked, robot_auto_queue_enabled: false}, robot), 'Stopped');
+    for (const [station, expected] of [
+      [{mode: 'STOPPED', queue_ready: false}, 'Stopped'],
+      [{mode: 'MOVING_HOME'}, 'Moving home'],
+      [{mode: 'PARKING_ZERO'}, 'Parking'],
+      [{mode: 'FAULT'}, 'Fault'],
+      [{connected: false}, 'Offline'],
+      [{mode: 'STOPPED_READY', observed_at: now - 11}, 'Checking / unavailable'],
+    ]) {
+      const s = state(robot, {queue_ready: false, ...station}, {
+        status: 'stopped', last_observation: parked.last_observation});
+      assert.equal(label(s, robot), expected);
+      assert.notEqual(elements.station.dataset.tone, 'ready');
+    }
+    const css = fs.readFileSync(path.join(__dirname, '../static/hosted.css'), 'utf8');
+    assert.match(css, /#station\[data-tone="ready"\]\{color:#28643b\}/);
   });
   test(`${robot}: missing, stale and recovering status never claims readiness`, () => {
     assert.equal(label(state(robot, {}, {queue_snapshot: null}), robot), 'Checking / unavailable');
@@ -67,11 +91,11 @@ for (const robot of robots) {
     assert.equal(label(state(robot), robot), 'Ready for the next run');
   });
 }
-test('the editable spec and rendered labels have the same eleven names', () => {
+test('the editable spec and rendered labels have the same twelve names', () => {
   const doc = fs.readFileSync(path.join(__dirname, '../../docs/UI-LABELS.md'), 'utf8');
   const labels = [...doc.matchAll(/\*\*(.+?):\*\*/g)].map(match => match[1]);
   const actual = vm.runInContext('Object.values(ROBOT_STATUS).map(value => value[0])', context);
-  assert.equal(labels.length, 11);
+  assert.equal(labels.length, 12);
   assert.deepEqual(JSON.parse(JSON.stringify(actual)), labels);
 });
 

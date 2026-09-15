@@ -460,6 +460,7 @@
     running: ['Running', 'active', 'Your task is active.'],
     home: ['Moving home', 'active', 'Moving to its starting pose.'],
     parking: ['Parking', 'active', 'Moving to its resting pose before disabling.'],
+    stoppedReady: ['Stopped but ready', 'ready', 'Stopped with auto-queue enabled. The robot will move home when work arrives.'],
     stopped: ['Stopped', 'waiting', 'Waiting for operator readiness.'],
     offline: ['Offline', 'error', 'Disconnected.'],
     fault: ['Fault', 'error', 'A problem needs attention.'],
@@ -479,7 +480,7 @@
     // READY/STOPPED + queue_ready is the controllers' automatic admission signal.
     // Legacy SO101 "active" and transport "available" alone do not establish it.
     const automatic = state.robot_auto_queue_enabled ??
-      (station.queue_ready === true && ['READY', 'STOPPED'].includes(mode) ? true : null);
+      (mode === 'STOPPED_READY' || station.queue_ready === true && ['READY', 'STOPPED'].includes(mode) ? true : null);
     const ready = home === true && observation.settled === true && automatic === true && station.queue_ready === true;
     if (state.status === 'queued') return ready ? 'queued' : 'readiness';
     if (state.status === 'preparing') return 'preparing';
@@ -490,8 +491,10 @@
     if (['EXECUTING', 'API_ACTIVE', 'WAYPATH_EXECUTING', 'WRIST_TEST'].includes(mode)) return 'running';
     if (state.public_run?.status === 'preparing') return 'preparing';
     if (state.public_run?.status === 'running') return 'running';
-    if (!['READY', 'STOPPED', 'READONLY', 'DISABLED', 'ACTIVE'].includes(mode)) return 'unknown';
+    if (!['READY', 'STOPPED', 'STOPPED_READY', 'READONLY', 'DISABLED', 'ACTIVE'].includes(mode)) return 'unknown';
     if (ready) return 'ready';
+    if (automatic === true && (mode === 'STOPPED_READY' || home != null && observation.settled === true
+        && ['STOPPED', 'READONLY', 'DISABLED'].includes(mode))) return 'stoppedReady';
     if (station.queue_ready === true && (home == null || automatic == null)) return 'unknown';
     return 'stopped';
   }
