@@ -5,7 +5,7 @@ const source = fs.readFileSync(require('node:path').join(__dirname, '../static/h
 const start = source.indexOf('  // Shared spectator stopwatch');
 const end = source.indexOf('  let attentionSession = null;', start);
 let now = 1000, tick;
-const elements = {runTimer:{},runTimerDetail:{}};
+const elements = {runTimer:{},ownRunTimer:{},runTimerDetail:{}};
 const context = vm.createContext({$:id=>elements[id],performance:{now:()=>now},setInterval:fn=>{tick=fn;}});
 vm.runInContext(source.slice(start,end),context);
 function render(run) { context.syncStopwatch(run); return elements.runTimer.textContent; }
@@ -29,4 +29,14 @@ assert.equal(render({status:'running',run_elapsed_s:0,run_duration_s:300}), '05:
 assert.equal(render({status:'running',run_elapsed_s:602,run_duration_s:600}), '00:00');
 assert.equal(elements.runTimerDetail.textContent,'00:00 remaining');
 assert.equal(render({run_elapsed_s:null}), '—:—');
+// Repeated server polls across the minute boundary update both countdowns.
+for (let elapsed = 0; elapsed <= 3; elapsed++) {
+  assert.equal(render({status:'running',run_elapsed_s:elapsed,run_duration_s:60}),
+    ['01:00','00:59','00:58','00:57'][elapsed]);
+  assert.equal(elements.ownRunTimer.textContent, elements.runTimer.textContent);
+  now += 1000;
+}
+assert.equal(render({status:'stopped',run_elapsed_s:18,run_duration_s:60}), '00:42');
+now += 10000; tick();
+assert.equal(elements.ownRunTimer.textContent, '00:42');
 console.log('Shared countdown checks passed');

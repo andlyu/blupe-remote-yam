@@ -91,12 +91,14 @@ class RunnerController:
             self._error = None
             self._safety_error = None
         created = self._session_api.create_session(prompt) if run_duration_s == 300 else self._session_api.create_session(prompt, run_duration_s=run_duration_s)
-        self._run_duration_s = run_duration_s
-        self._run_started_at = created.get("run_started_at")
-        self._run_ended_at = None
         session_id = str(created["session_id"])
         events = self._session_api.open_events(session_id)
         with self._lock:
+            # Status polling continues during the WebSocket handshake. Publish the
+            # new clock together with its session/state, never with an old terminal state.
+            self._run_duration_s = run_duration_s
+            self._run_started_at = created.get("run_started_at")
+            self._run_ended_at = None
             self._analytics_run = {"run_id": uuid.uuid4().hex, "execution_confirmed": False,
                                    "provider": provider.public_config().get("provider"),
                                    "model": provider.public_config().get("model")}
