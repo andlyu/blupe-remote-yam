@@ -160,3 +160,10 @@ def test_hosted_so101_uses_bundled_limits_without_local_calibration(tmp_path,pro
         visitor.close()
         import shutil
         shutil.rmtree(app.root,ignore_errors=True)
+
+
+def test_so101_workspace_allows_minus_three_centimeters():
+    geometry = SO101Trajectory()
+    assert geometry.low[2] == -.03
+    schema = SO101OpenAIAdapter('test', 'test', camera_source=Camera())._tools[0]['parameters']['properties']['targets']['properties']
+    assert schema['z']['minimum'] == -.03

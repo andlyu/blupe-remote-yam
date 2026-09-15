@@ -15,7 +15,7 @@ from .session import MAX_COMMANDS, MAX_WAYPOINTS_PER_PACKET
 NAMES = ('x', 'y', 'z', 'wrist_roll', 'gripper')
 JOINTS = ('shoulder_pan', 'shoulder_lift', 'elbow_flex', 'wrist_flex', 'wrist_roll')
 # Forward in this model is -Y: allow 44 cm forward from each arm's base.
-LOW = np.array([-.4, -.44, .02, -2.7438472969992493, 0.])
+LOW = np.array([-.4, -.44, -.03, -2.7438472969992493, 0.])
 HIGH = np.array([.4, .4, .5, 2.841206309382605, 1.])
 STEP = np.array([.002, .002, .002, .01, .01])
 
