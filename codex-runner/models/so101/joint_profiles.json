@@ -33,5 +33,77 @@
     ],
     "source": "https://github.com/andlyu/blupe-playground-robot-controller/blob/a24cde5/examples/so101/dice_06.json",
     "source_sha256": "106595ed23ed558ed1f615b0021eda569e07e910910a6cbc9d17db99521fab2c"
+  },
+  "robot-3652c537a175cbae": {
+    "left": {
+      "schema_version": 1,
+      "joint_names": [
+        "shoulder_pan",
+        "shoulder_lift",
+        "elbow_flex",
+        "wrist_flex",
+        "wrist_roll"
+      ],
+      "convention": "lerobot_midpoint_degrees",
+      "joint_limits_deg": [
+        [
+          -121.4065934065934,
+          121.4065934065934
+        ],
+        [
+          -106.37362637362638,
+          106.37362637362638
+        ],
+        [
+          -97.93406593406593,
+          97.93406593406593
+        ],
+        [
+          -105.31868131868131,
+          105.31868131868131
+        ],
+        [
+          -169.58241758241758,
+          169.58241758241758
+        ]
+      ],
+      "source": "MakerMods left LeRobot calibration for robot-3652c537a175cbae",
+      "source_sha256": "22fba9404ad1b08753624fe53a5f6b537093bd7b5e8cf9eb084d3a2e66a6984b"
+    },
+    "right": {
+      "schema_version": 1,
+      "joint_names": [
+        "shoulder_pan",
+        "shoulder_lift",
+        "elbow_flex",
+        "wrist_flex",
+        "wrist_roll"
+      ],
+      "convention": "lerobot_midpoint_degrees",
+      "joint_limits_deg": [
+        [
+          -121.58241758241758,
+          121.58241758241758
+        ],
+        [
+          -105.4065934065934,
+          105.4065934065934
+        ],
+        [
+          -97.4065934065934,
+          97.4065934065934
+        ],
+        [
+          -107.78021978021978,
+          107.78021978021978
+        ],
+        [
+          -169.58241758241758,
+          169.58241758241758
+        ]
+      ],
+      "source": "MakerMods right LeRobot calibration for robot-3652c537a175cbae",
+      "source_sha256": "bc47bf7b101f4cd4e34f18c95a71f3639ccf2584b68ead8dd56d890a7472d19e"
+    }
   }
 }

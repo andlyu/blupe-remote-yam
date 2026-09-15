@@ -10,13 +10,19 @@ NAMES = tuple(f'{side}_{name}' for side in SIDES for name in ARM_NAMES)
 
 
 class BimanualSO101Trajectory:
-    def __init__(self, calibration_path):
-        # The runner owns this manifest; paths are resolved relative to it.
-        manifest = Path(calibration_path)
-        paths = json.loads(manifest.read_text())
-        if set(paths) != set(SIDES) or any(not isinstance(p, str) or not p for p in paths.values()):
-            raise RuntimeError('Bimanual SO101 calibration must name left and right calibration files')
-        self.arms = {side: SO101Trajectory(manifest.parent / paths[side]) for side in SIDES}
+    def __init__(self, calibration_path=None, *, joint_profile=None):
+        if calibration_path is not None:
+            if joint_profile is not None:
+                raise RuntimeError('Provide bimanual joint limits or calibration, not both')
+            manifest = Path(calibration_path)
+            paths = json.loads(manifest.read_text())
+            if set(paths) != set(SIDES) or any(not isinstance(p, str) or not p for p in paths.values()):
+                raise RuntimeError('Bimanual SO101 calibration must name left and right calibration files')
+            self.arms = {side: SO101Trajectory(manifest.parent / paths[side]) for side in SIDES}
+        else:
+            if not isinstance(joint_profile, dict) or set(joint_profile) != set(SIDES) or any(not isinstance(v, dict) for v in joint_profile.values()):
+                raise RuntimeError('Bimanual SO101 joint limits must specify both left and right arms')
+            self.arms = {side: SO101Trajectory(joint_profile=joint_profile[side]) for side in SIDES}
 
     @staticmethod
     def arm_observation(observation, side):

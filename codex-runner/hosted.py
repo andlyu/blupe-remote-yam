@@ -697,10 +697,13 @@ class HostedRunner:
             elif self.joint_counts == (5,5) and not self.provider_factory:
                 from remote_yam.bimanual_so101_policy import BimanualSO101OpenAIAdapter, BimanualSO101CodexAdapter
                 calibration_path = ROOT / '.local' / 'robot-calibrations' / (hashlib.sha256(self.robot_id.encode()).hexdigest() + '.json')
-                if not calibration_path.is_file():
-                    raise RequestError(400, 'Bimanual SO101 requires left and right LeRobot calibrations on this runner')
+                from remote_yam.so101_trajectory import load_joint_profile
+                calibration_path = calibration_path if calibration_path.is_file() else None
+                joint_profile = None if calibration_path else load_joint_profile(self.robot_id)
+                if calibration_path is None and joint_profile is None:
+                    raise RequestError(400, 'No bimanual SO101 joint limits configured for this robot. Add robot-specific profiles or local calibrations.')
                 kwargs = dict(camera_source=self.camera_source, recording_root=visitor.directory,
-                              calibration_path=calibration_path, camera_names=self.camera_names)
+                              calibration_path=calibration_path, joint_profile=joint_profile, camera_names=self.camera_names)
                 try:
                     provider = (BimanualSO101CodexAdapter(model or 'gpt-6-astra', **kwargs) if name == 'codex'
                                 else BimanualSO101OpenAIAdapter(key, model or 'gpt-6-astra', **kwargs))

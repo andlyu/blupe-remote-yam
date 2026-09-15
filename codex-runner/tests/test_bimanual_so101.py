@@ -76,3 +76,40 @@ def test_codex_schema(manifest):
     value['targets']['right_gripper']=.4
     assert json.loads(p._decision_response(value)['output'][0]['arguments'])['targets']=={'right_gripper':.4}
     p._workspace.cleanup()
+
+
+def test_bundled_makermods_profiles_match_calibrated_limits():
+    from remote_yam.so101_trajectory import load_joint_profile
+    profile=load_joint_profile('robot-3652c537a175cbae')
+    g=BimanualSO101Trajectory(joint_profile=profile)
+    for side in ('left','right'):
+        assert g.arms[side].calibration_path is None
+        assert np.rad2deg(g.arms[side].limits)==pytest.approx(np.array(profile[side]['joint_limits_deg']))
+    points=g.build({'left_gripper':.12,'right_gripper':.32},obs(),0)
+    assert points[-1]['left_gripper']==.12
+    assert points[-1]['right_gripper']==.32
+    for bad in (None, {'left':profile['left']}, {**profile,'right':None}):
+        with pytest.raises(RuntimeError):BimanualSO101Trajectory(joint_profile=bad)
+
+@pytest.mark.parametrize('provider_name',['openai','codex'])
+def test_fresh_checkout_launches_bimanual_without_local_files(tmp_path,provider_name):
+    from hosted import HostedRunner
+    from remote_yam.session import MockSessionAPI
+    from unittest.mock import Mock
+    import shutil
+    app=HostedRunner(public_origin='http://127.0.0.1:8791',session_api='https://api.example',
+        camera_origin='https://camera.example',robot_id='robot-3652c537a175cbae',
+        joint_counts=(5,5),camera_names=('overhead','side','left','right'),local_codex=True,development=True,
+        api_factory=lambda:MockSessionAPI(auto_activate=False))
+    _,visitor=app.new_visitor()
+    app.remember_runner=Mock();visitor.controller.join_and_run=Mock()
+    provider=None
+    try:
+        with patch('hosted.ROOT',tmp_path),patch('remote_yam.codex_policy.codex_status',return_value={'ready':True}),patch('remote_yam.codex_policy.codex_binary',return_value='/unused'):
+            app.launch(visitor,{'provider':provider_name,'api_key':'test-key-123','prompt':'test','runner_name':'test'})
+        provider=visitor.controller.join_and_run.call_args.args[0]
+        assert isinstance(provider,BimanualSO101CodexAdapter if provider_name=='codex' else BimanualSO101OpenAIAdapter)
+        assert all(a.calibration_path is None for a in provider._geometry.arms.values())
+    finally:
+        if provider is not None and hasattr(provider,'_workspace'):provider._workspace.cleanup()
+        visitor.close();shutil.rmtree(app.root,ignore_errors=True)

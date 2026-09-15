@@ -34,8 +34,9 @@ Never report success just because a target was requested; check the new observat
 class BimanualSO101PolicyMixin:
     final_joint_tolerance_deg = 5.0
 
-    def __init__(self, *args, calibration_path, camera_names=('overhead','left','right'), **kwargs):
+    def __init__(self, *args, calibration_path=None, joint_profile=None, camera_names=('overhead','left','right'), **kwargs):
         self._calibration_path = calibration_path
+        self._joint_profile = joint_profile
         self._bimanual_cameras = tuple(name for name in camera_names if name != 'side')
         if not self._bimanual_cameras or len(set(self._bimanual_cameras)) != len(self._bimanual_cameras):
             raise ValueError('Provide distinct camera roles')
@@ -46,7 +47,7 @@ class BimanualSO101PolicyMixin:
         super().__init__(*args, **kwargs)
 
     def _make_geometry(self):
-        return BimanualSO101Trajectory(self._calibration_path)
+        return BimanualSO101Trajectory(self._calibration_path, joint_profile=self._joint_profile)
 
     def _initialize_policy(self, recording_root):
         super()._initialize_policy(recording_root)
