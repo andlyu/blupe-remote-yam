@@ -422,6 +422,7 @@ class RunnerController:
                     "available": bool(raw["available"]), "source": raw.get("source"),
                     "queue_ready": raw.get("queue_ready") is True,
                     "mode": raw.get("mode"), "observed_at": raw.get("observed_at"),
+                    "fault_notification": raw.get("fault_notification"),
                 })
         entries.sort(key=lambda entry: entry["position"])
         with self._lock:

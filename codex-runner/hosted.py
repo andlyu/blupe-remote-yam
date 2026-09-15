@@ -516,6 +516,9 @@ class HostedRunner:
             if self.queue is not None:
                 controller.update_queue_snapshot(self.queue)
             state = controller.status()
+            # A failed monitor refresh must not keep advertising cached readiness.
+            if self.queue is None:
+                state['queue_snapshot'] = None
             from remote_yam.operator_status import fresh_auto_queue
             state['robot_auto_queue_enabled'] = fresh_auto_queue(self.operator_auto_queue)
             # Station faults can happen before any visitor is assigned a run.

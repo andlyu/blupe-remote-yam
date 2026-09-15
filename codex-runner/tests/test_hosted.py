@@ -345,6 +345,18 @@ class HostedTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(a['key_configured'])
         self.assertEqual(list(self.app.visitors.values())[0].controller._session_api.get_queue_snapshot()['entries'], [])
 
+    async def test_monitor_outage_clears_public_readiness_and_recovers(self):
+        browser = await self.session()
+        self.app.queue = self.app.monitor_api.get_queue_snapshot()
+        state = (await self.call('/api/status', **browser))[1]
+        self.assertIsNotNone(state['queue_snapshot'])
+        self.app.queue = None
+        state = (await self.call('/api/status', **browser))[1]
+        self.assertIsNone(state['queue_snapshot'])
+        self.app.queue = self.app.monitor_api.get_queue_snapshot()
+        state = (await self.call('/api/status', **browser))[1]
+        self.assertIsNotNone(state['queue_snapshot'])
+
     async def test_startup_fault_reaches_waiting_visitor_and_clears(self):
         from YAM_control.public_fault import gripper_fault_message
         browser = await self.session()

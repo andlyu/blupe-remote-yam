@@ -447,6 +447,56 @@
     if (time.textContent !== label) time.textContent = label;
     time.dateTime = validDate ? date.toISOString() : '';
   }
+  // Keep this shared vocabulary in sync with docs/UI-LABELS.md.
+  const ROBOT_STATUS = {
+    ready: ['Ready for the next run', 'ready', 'The robot is home with auto-queue enabled.'],
+    queued: ['Queued — waiting for your turn', 'waiting', 'The robot is home with auto-queue enabled; your prompt is waiting for assignment.'],
+    readiness: ['Queued — waiting for robot readiness', 'waiting', 'The robot isn’t ready yet.'],
+    preparing: ['Preparing', 'active', 'Getting ready for your task.'],
+    running: ['Running', 'active', 'Your task is active.'],
+    home: ['Moving home', 'active', 'Moving to its starting pose.'],
+    parking: ['Parking', 'active', 'Moving to its resting pose before disabling.'],
+    stopped: ['Stopped', 'waiting', 'Waiting for operator readiness.'],
+    offline: ['Offline', 'error', 'Disconnected.'],
+    fault: ['Fault', 'error', 'A problem needs attention.'],
+    unknown: ['Checking / unavailable', 'unknown', 'Current status is unknown.'],
+  };
+  function robotStatus(state, robotId, now = Date.now() / 1000) {
+    const queue = state.queue_snapshot;
+    const station = queue?.stations?.find(item => item.jetson_id === robotId);
+    const fresh = timestamp => typeof timestamp === 'number' && now - timestamp >= -5 && now - timestamp <= 10;
+    if (!station || !fresh(queue.generated_at)) return 'unknown';
+    if (station.connected === false) return 'offline';
+    if (station.connected !== true || !fresh(station.observed_at)) return 'unknown';
+    const mode = String(station.mode || '').toUpperCase();
+    if (mode === 'FAULT') return 'fault';
+    const observation = state.last_observation;
+    const home = fresh(observation?.observed_at) ? observation.homed : null;
+    // READY/STOPPED + queue_ready is the controllers' automatic admission signal.
+    // Legacy SO101 "active" and transport "available" alone do not establish it.
+    const automatic = state.robot_auto_queue_enabled ??
+      (station.queue_ready === true && ['READY', 'STOPPED'].includes(mode) ? true : null);
+    const ready = home === true && observation.settled === true && automatic === true && station.queue_ready === true;
+    if (state.status === 'queued') return ready ? 'queued' : 'readiness';
+    if (state.status === 'preparing') return 'preparing';
+    if (state.status === 'running') return 'running';
+    if (['MOVING_HOME', 'HOMING'].includes(mode)) return 'home';
+    if (['PARKING_ZERO', 'PARKING'].includes(mode)) return 'parking';
+    if (['INITIALIZING', 'PREPARING'].includes(mode)) return 'preparing';
+    if (['EXECUTING', 'API_ACTIVE', 'WAYPATH_EXECUTING', 'WRIST_TEST'].includes(mode)) return 'running';
+    if (state.public_run?.status === 'preparing') return 'preparing';
+    if (state.public_run?.status === 'running') return 'running';
+    if (!['READY', 'STOPPED', 'READONLY', 'DISABLED', 'ACTIVE'].includes(mode)) return 'unknown';
+    if (ready) return 'ready';
+    if (station.queue_ready === true && (home == null || automatic == null)) return 'unknown';
+    return 'stopped';
+  }
+  function renderRobotStatus(key) {
+    const [label, tone, meaning] = ROBOT_STATUS[key];
+    $('station').textContent = $('status').textContent = label;
+    $('station').dataset.tone = tone;
+    $('station').title = meaning;
+  }
   function render(state) {
     updateSavedKey(state.saved_key_providers);
     window.yamAnalytics?.observe(state);
@@ -484,33 +534,9 @@
     const station = queue?.stations?.find(item => item.jetson_id === selectedRobot);
     const faultNotice = {pending:'Notifying the operator…', submitted:'The operator has been notified.',
       failed:'Could not notify the operator. Please contact the operator.', unavailable:'Operator attention needed.'}[station?.fault_notification] || 'Operator attention needed.';
-    $('station').title = station?.mode === 'FAULT' && station.fault_notification === 'submitted' ? 'Alert accepted by the notification service; email delivery and operator acknowledgement are not confirmed.' : '';
-    const disabledAutoReady = station?.connected && station.mode === 'DISABLED' && state.robot_auto_queue_enabled === true;
-    const idleReadonly = station?.connected && station.mode === 'readonly' && !active;
-    const stationFault = String(station?.mode || '').toUpperCase() === 'FAULT';
-    $('station').dataset.tone = !station ? 'unknown'
-      : !station.connected || stationFault ? 'error'
-      : state.status === 'queued' ? 'waiting'
-      : state.status === 'preparing' || state.status === 'running' ? 'active'
-      : idleReadonly ? 'ready'
-      : station.mode === 'DISABLED' ? (disabledAutoReady ? 'ready' : 'waiting')
-      : ['EXECUTING', 'INITIALIZING', 'HOMING', 'PARKING'].includes(station.mode) ? 'active'
-      : station.queue_ready || station.available ? 'ready' : 'waiting';
-    const queueReady = station?.connected && (station.queue_ready || station.available);
-    $('station').textContent = !station ? 'Station availability is currently unavailable'
-      : !station.connected ? 'Robot is offline'
-      : stationFault ? (state.robot_fault || 'Robot fault') + ' — ' + faultNotice
-      : state.status === 'queued' ? (disabledAutoReady || queueReady
-        ? 'Your run is queued — waiting for your turn.'
-        : 'Your run is queued — waiting for robot readiness.')
-      : state.status === 'preparing' ? 'The robot is preparing your run.'
-      : state.status === 'running' ? (station.mode === 'readonly'
-        ? 'Run active — waiting for robot control.' : 'Your run is running.')
-      : idleReadonly ? 'Ready to queue your next run.'
-      : disabledAutoReady || queueReady ? 'Ready for the next run. Join the queue to start.'
-      : ['DISABLED', 'STOPPED'].includes(station.mode) ? 'Robot stopped — waiting for operator readiness'
-      : `Robot ${String(station.mode || 'reserved').toLowerCase()}`;
-    if (!active && queueReady) $('status').textContent = 'Ready to run';
+    const statusKey = robotStatus(state, selectedRobot);
+    renderRobotStatus(statusKey);
+    if (statusKey === 'fault') $('station').title += ' ' + faultNotice;
     const entries = queue?.entries || [];
     const waiting = entries.filter(item => !['running', 'preparing'].includes(item.status)).length;
     $('queueSummary').textContent = queue ? `Queue · ${waiting} waiting` : 'Queue · unavailable';
@@ -852,12 +878,19 @@
     window.addEventListener('pagehide', cleanup);
     connect();
   }
+  let statusPollError = '';
   async function poll() {
     if (ended) return;
     try {
-      render(await api('/api/status'));
-      if (Date.now() - lastHistory > 4000) { lastHistory = Date.now(); await history(); }
-    } catch (error) { if (!error.stale) { $('astraStreamState').textContent = 'Reconnecting'; message(error.message, true); } }
+      const state = await api('/api/status');
+      if (statusPollError && $('message').textContent === statusPollError) message('');
+      statusPollError = '';
+      render(state);
+      if (Date.now() - lastHistory > 4000) {
+        lastHistory = Date.now();
+        try { await history(); } catch (error) { if (!error.stale) message(error.message, true); }
+      }
+    } catch (error) { if (!error.stale) { renderRobotStatus('unknown'); $('astraStreamState').textContent = 'Reconnecting'; statusPollError = error.message; message(error.message, true); } }
     setTimeout(poll, 1000);
   }
   window.addEventListener('pagehide', () => { $('apiKey').value = ''; });
@@ -929,7 +962,7 @@
         window.dispatchEvent(new CustomEvent('blupe-robot-selected', {detail:selectedRobot}));
         csrf = ''; active = false; ended = false; lastChatSnapshot = '';
         $('apiKey').value = ''; $('robotSelectorStatus').textContent = 'Connecting…';
-        $('station').textContent = 'Checking station availability…';
+        renderRobotStatus('unknown');
         $('queue').replaceChildren();
         $('astraStreamOutput').replaceChildren();
         $('astraStreamState').textContent = 'Connecting';
