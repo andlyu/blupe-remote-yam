@@ -22,11 +22,26 @@ assert.equal(message(parked).dataset.tone, 'ready');
 // Queue submission remains possible without claiming automatic start is enabled.
 assert.equal(message(parked, {robot_auto_queue_enabled: false}).textContent,
   'Ready to queue your next run.');
-for (const status of ['queued', 'preparing', 'running']) {
-  assert.doesNotMatch(message(parked, {status}).textContent, /^Ready/);
-}
+// One unchanged readonly station must describe the visitor's full queue lifecycle.
+for (const [status, expected] of [
+  ['idle', 'Ready to queue your next run.'],
+  ['queued', 'Your run is queued — waiting for robot readiness.'],
+  ['preparing', 'The robot is preparing your run.'],
+  ['running', 'Run active — waiting for robot control.'],
+  ['stopped', 'Ready to queue your next run.'],
+  ['queued', 'Your run is queued — waiting for robot readiness.'],
+]) assert.equal(message(parked, {status}).textContent, expected);
+assert.equal(message(parked, {status: 'queued'}).dataset.tone, 'waiting');
+assert.equal(message({...parked, queue_ready: true}, {status: 'queued'}).textContent,
+  'Your run is queued — waiting for your turn.');
+assert.equal(message({...parked, mode: 'active'}, {status: 'running'}).textContent,
+  'Your run is running.');
 assert.equal(message({...parked, connected: false}).textContent, 'Robot is offline');
 assert.doesNotMatch(message({...parked, mode: 'FAULT'}).textContent, /^Ready/);
+assert.equal(message({...parked, mode: 'fault'}, {status: 'queued'}).textContent,
+  'Robot fault — Operator attention needed.');
+assert.equal(message({...parked, connected: false}, {status: 'queued'}).textContent,
+  'Robot is offline');
 assert.equal(message({...parked, mode: 'DISABLED'}).textContent,
   'Robot stopped — waiting for operator readiness');
 assert.equal(message({...parked, mode: 'DISABLED'}, {robot_auto_queue_enabled: true}).textContent,

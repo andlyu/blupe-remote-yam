@@ -487,8 +487,11 @@
     $('station').title = station?.mode === 'FAULT' && station.fault_notification === 'submitted' ? 'Alert accepted by the notification service; email delivery and operator acknowledgement are not confirmed.' : '';
     const disabledAutoReady = station?.connected && station.mode === 'DISABLED' && state.robot_auto_queue_enabled === true;
     const idleReadonly = station?.connected && station.mode === 'readonly' && !active;
+    const stationFault = String(station?.mode || '').toUpperCase() === 'FAULT';
     $('station').dataset.tone = !station ? 'unknown'
-      : !station.connected || station.mode === 'FAULT' ? 'error'
+      : !station.connected || stationFault ? 'error'
+      : state.status === 'queued' ? 'waiting'
+      : state.status === 'preparing' || state.status === 'running' ? 'active'
       : idleReadonly ? 'ready'
       : station.mode === 'DISABLED' ? (disabledAutoReady ? 'ready' : 'waiting')
       : ['EXECUTING', 'INITIALIZING', 'HOMING', 'PARKING'].includes(station.mode) ? 'active'
@@ -496,10 +499,15 @@
     const queueReady = station?.connected && (station.queue_ready || station.available);
     $('station').textContent = !station ? 'Station availability is currently unavailable'
       : !station.connected ? 'Robot is offline'
+      : stationFault ? (state.robot_fault || 'Robot fault') + ' — ' + faultNotice
+      : state.status === 'queued' ? (disabledAutoReady || queueReady
+        ? 'Your run is queued — waiting for your turn.'
+        : 'Your run is queued — waiting for robot readiness.')
+      : state.status === 'preparing' ? 'The robot is preparing your run.'
+      : state.status === 'running' ? (station.mode === 'readonly'
+        ? 'Run active — waiting for robot control.' : 'Your run is running.')
       : idleReadonly ? 'Ready to queue your next run.'
       : disabledAutoReady || queueReady ? 'Ready for the next run. Join the queue to start.'
-      : station.mode === 'FAULT' ? (state.robot_fault || 'Robot fault') + ' — ' + faultNotice
-      : state.status === 'queued' && ['DISABLED', 'STOPPED', 'READY'].includes(station.mode) ? 'Waiting for operator to launch run'
       : ['DISABLED', 'STOPPED'].includes(station.mode) ? 'Robot stopped — waiting for operator readiness'
       : `Robot ${String(station.mode || 'reserved').toLowerCase()}`;
     if (!active && queueReady) $('status').textContent = 'Ready to run';
