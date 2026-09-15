@@ -26,11 +26,14 @@ class ChatModerationTests(unittest.IsolatedAsyncioTestCase):
         connection.getresponse.return_value = response
         with patch.object(chat, 'HTTPConnection', return_value=connection):
             status, body = chat.read_chat([(b'host', b'runner.example'), (b'cookie', b'session=test'),
-                                           (b'sec-fetch-site', b'cross-site')])
+                                           (b'sec-fetch-site', b'cross-site'), (b'x-blupe-robot', b'robot-bimanual'),
+                                           (b'x-forwarded-host', b'attacker.example')])
         self.assertEqual(status, 401)
         self.assertEqual(json.loads(body)['error'], 'Session ended')
         self.assertEqual(connection.request.call_args.args, ('GET', '/api/chat'))
         self.assertEqual(connection.request.call_args.kwargs['headers']['cookie'], 'session=test')
+        self.assertEqual(connection.request.call_args.kwargs['headers']['x-blupe-robot'], 'robot-bimanual')
+        self.assertNotIn('x-forwarded-host', connection.request.call_args.kwargs['headers'])
         connection.close.assert_called_once()
         events = []
         async def send(event): events.append(event)

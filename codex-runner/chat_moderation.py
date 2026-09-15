@@ -27,7 +27,7 @@ def remove_messages(payload, removals):
 def read_chat(headers):
     # Preserve the original Host, cookie, and browser-origin checks. This cannot
     # proxy robot actions, create sessions, post chat, or select an upstream URL.
-    allowed = {'host', 'cookie', 'origin', 'sec-fetch-site'}
+    allowed = {'host', 'cookie', 'origin', 'sec-fetch-site', 'x-blupe-robot'}
     forwarded = {key.decode().lower(): value.decode('latin1') for key, value in headers
                  if key.decode().lower() in allowed}
     forwarded['accept-encoding'] = 'identity'

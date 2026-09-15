@@ -34,3 +34,15 @@ test('polling waits for session creation and resumes after switching away from a
   c.ended=false; c.csrf='new-session'; await c.poll();
   assert.equal(calls, 1);
 });
+
+test('chat authentication failure does not revoke valid robot controls', async () => {
+  let disabled=0;
+  const c=vm.createContext({robotGeneration:1,csrf:'valid-session',selectedRobot:'so101',ended:false,
+    buttons(){disabled++;},$:()=>({value:''}),fetch:async()=>({ok:false,status:401,json:async()=>({error:'Chat unavailable'})})});
+  const start=source.indexOf('  async function api(');
+  vm.runInContext(source.slice(start,source.indexOf('  function buttons()',start)),c);
+  await assert.rejects(c.api('/api/chat'),/Chat unavailable/);
+  assert.equal(c.ended,false);assert.equal(disabled,0);
+  await assert.rejects(c.api('/api/status'),/Chat unavailable/);
+  assert.equal(c.ended,true);assert.equal(disabled,1);
+});

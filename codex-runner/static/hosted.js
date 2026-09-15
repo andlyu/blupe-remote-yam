@@ -178,7 +178,7 @@
       throw Object.assign(new Error('Robot session changed'), {stale:true});
     }
     if (!response.ok) {
-      if (response.status === 401) { ended = true; buttons(); $('apiKey').value = ''; }
+      if (response.status === 401 && path !== '/api/chat') { ended = true; buttons(); $('apiKey').value = ''; }
       const error = new Error(result.error || 'Request failed');
       error.paymentConfirmed = result.payment_confirmed === true;
       throw error;
@@ -1033,7 +1033,8 @@
       }
       buttons(); if (!new URLSearchParams(location.search).has('purchase') && !$('message').textContent.startsWith('Payment')) message('Connected. Watch the cameras or choose a policy to begin.');
       selectedCameras(session.cameras || ['left','top','right']);
-      render(await api('/api/status')); await refreshChat();
+      render(await api('/api/status'));
+      try { await refreshChat(); } catch (error) { $('chatStatus').textContent = 'Chat unavailable'; }
       $('robotSelectorStatus').textContent = '';
       if (!pollingStarted) { pollingStarted = true; poll(); }
     } catch (error) { if (!error.stale) message(error.message, true); }
