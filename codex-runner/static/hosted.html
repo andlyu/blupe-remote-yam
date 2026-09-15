@@ -44,7 +44,7 @@
         <div id="setupRunActions"></div>
         </details>
       </form>
-      <div class="actions" hidden><button id="stop" class="danger" disabled>Stop run</button><button id="forget" disabled>Forget key &amp; stop</button><button id="operator" disabled>Call operator</button></div>
+      <div class="actions" hidden><button id="forget" disabled>Forget key &amp; stop</button><button id="operator" disabled>Call operator</button></div>
       <p id="message" role="status" aria-live="polite">Connecting to your browser session…</p>
     </section>
     <aside id="yourQueue" class="panel robotQueue" tabindex="-1">      <span id="queueSummary" role="status">Queue · connecting…</span><ol id="queue" hidden><li>Waiting for queue information</li></ol>
@@ -64,6 +64,7 @@
     <ol id="sideConversationMessages" tabindex="0" aria-label="Live conversation messages" aria-live="polite" aria-relevant="additions"><li>Astra’s replies and robot feedback from the current run appear here for everyone.</li></ol>
   </section>
 <div class="watchVisuals">
+  <div id="liveRunControls" hidden><button id="stop" class="danger" type="button" disabled>Stop run</button></div>
   <section class="panel" aria-label="What’s running" hidden>
     <h2>What’s running</h2><p id="whatsRunning" role="status">Checking the current run…</p>
   </section>

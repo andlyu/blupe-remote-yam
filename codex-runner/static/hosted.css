@@ -230,3 +230,8 @@ main > .coffeeSupport{grid-column:1 / -1;margin-top:4px;width:100%}
 @media(max-width:480px){#codexInstructions{padding:20px}.codexDialogHeader h2{font-size:20px}.codexPromptBox{padding:16px}}
 
 #setupRunActions #runButtons:has(#openCodexInstructions[hidden]){grid-template-columns:1fr}
+
+/* Keep the session owner’s stop control above the live camera feeds. */
+#liveRunControls{display:flex;justify-content:flex-end;margin-bottom:10px}
+#liveRunControls #stop{background:#b42318;border-color:#b42318;color:#fff;min-height:44px;padding:10px 22px;font-size:15px;font-weight:700}
+#liveRunControls #stop:hover:not(:disabled){background:#912018;border-color:#912018}

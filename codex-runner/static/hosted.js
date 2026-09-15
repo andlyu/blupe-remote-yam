@@ -150,6 +150,7 @@
   let paidRuns = false;
   const originalProviderMarkup = $('provider').innerHTML;
   let selectedRobot = new URLSearchParams(location.search).get('robot_id') || 'yam-1', robotGeneration = 0, robotCatalog = null, pollingStarted = false;
+  let ownRunLive = false;
   let csrf = '', ended = false, submitting = false, active = false, lastHistory = 0, contactRequested = false;
   function message(text, error = false) { $('message').textContent = text; $('message').classList.toggle('error', error); }
   let contactDismissed = false;
@@ -184,6 +185,7 @@
     $('run').disabled = !csrf || ended || active || submitting;
     ['runDuration', 'runnerName', 'email', 'instagramHandle', 'provider', 'model', 'prompt', 'apiKey'].forEach(id => { $(id).disabled = active || submitting || ended; });
     $('stop').disabled = !csrf || ended || !active;
+    $('liveRunControls').hidden = !csrf || ended || !active || !ownRunLive;
     $('leaveQueue').disabled = !csrf || ended || !active;
     $('operator').disabled = false;
     $('forget').disabled = !csrf || ended;
@@ -458,6 +460,7 @@
     renderConversation(live?.events || [], 'sideConversationMessages');
     document.querySelector('#liveConversationPanel .statusHeader:nth-of-type(2) h2').textContent = 'Conversation with ' + (live?.model_name || 'Astra');
     active = ['queued', 'preparing', 'running'].includes(state.status);
+    ownRunLive = ['preparing', 'running'].includes(state.status);
     $('status').textContent = state.status.replaceAll('_', ' ');
     guideRunAttention(state);
     if (contactRequested || (!contactDismissed && state.error?.startsWith('Operator request failed:'))) operatorContact();
