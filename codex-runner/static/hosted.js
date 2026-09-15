@@ -903,7 +903,7 @@
         if (submitting) { selector.value = selectedRobot; return; }
         selectedRobot = selector.value; robotGeneration++;
         const robotUrl = new URL(location.href); robotUrl.searchParams.set('robot_id', selectedRobot);
-        history.replaceState(null, '', robotUrl);
+        window.history.replaceState(null, '', robotUrl);
         window.dispatchEvent(new CustomEvent('blupe-robot-selected', {detail:selectedRobot}));
         csrf = ''; active = false; ended = false; lastChatSnapshot = '';
         $('apiKey').value = ''; $('robotSelectorStatus').textContent = 'Connecting…';

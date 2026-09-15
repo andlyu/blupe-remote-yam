@@ -28,3 +28,17 @@ test('history waits for robot selection and ignores a previous robot response', 
   assert.equal(nodes.get('pastRunsStatus').textContent,'No published runs yet.');
   assert.equal(nodes.get('refreshPastRuns').disabled,false);
 });
+
+ test('robot switching uses browser history even with a local history function', async () => {
+  const full = fs.readFileSync(path.join(__dirname, '../static/hosted.js'), 'utf8');
+  const handler = full.match(/selector\.onchange = async \(\) => \{([\s\S]*?)\n      \};/)[1];
+  let started = 0, replaced = 0;
+  const node = {value:'so101', textContent:'', replaceChildren(){}};
+  const context = {submitting:false, selector:node, selectedRobot:'yam-1', robotGeneration:0,
+    URL, location:{href:'http://localhost/?robot_id=yam-1'},
+    history:async()=>{}, window:{history:{replaceState(a,b,url){replaced++;assert.equal(url.searchParams.get('robot_id'),'so101');}},dispatchEvent(){}},
+    CustomEvent:class {}, $:()=>node, document:{querySelectorAll:()=>[]}, buttons(){},
+    start:async()=>{started++;}, csrf:'',active:false,ended:false,lastChatSnapshot:''};
+  await vm.runInNewContext('(async()=>{'+handler+'})()',context);
+  assert.equal(replaced,1); assert.equal(started,1);
+});
