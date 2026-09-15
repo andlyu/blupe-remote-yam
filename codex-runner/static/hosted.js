@@ -486,16 +486,18 @@
       failed:'Could not notify the operator. Please contact the operator.', unavailable:'Operator attention needed.'}[station?.fault_notification] || 'Operator attention needed.';
     $('station').title = station?.mode === 'FAULT' && station.fault_notification === 'submitted' ? 'Alert accepted by the notification service; email delivery and operator acknowledgement are not confirmed.' : '';
     const disabledAutoReady = station?.connected && station.mode === 'DISABLED' && state.robot_auto_queue_enabled === true;
+    const idleReadonly = station?.connected && station.mode === 'readonly' && !active;
     $('station').dataset.tone = !station ? 'unknown'
       : !station.connected || station.mode === 'FAULT' ? 'error'
+      : idleReadonly ? 'ready'
       : station.mode === 'DISABLED' ? (disabledAutoReady ? 'ready' : 'waiting')
       : ['EXECUTING', 'INITIALIZING', 'HOMING', 'PARKING'].includes(station.mode) ? 'active'
       : station.queue_ready || station.available ? 'ready' : 'waiting';
     const queueReady = station?.connected && (station.queue_ready || station.available);
     $('station').textContent = !station ? 'Station availability is currently unavailable'
       : !station.connected ? 'Robot is offline'
-      : disabledAutoReady ? 'Robot disabled but ready'
-      : queueReady ? 'Stopped — ready to run. Join the queue to start.'
+      : idleReadonly ? 'Ready to queue your next run.'
+      : disabledAutoReady || queueReady ? 'Ready for the next run. Join the queue to start.'
       : station.mode === 'FAULT' ? (state.robot_fault || 'Robot fault') + ' — ' + faultNotice
       : state.status === 'queued' && ['DISABLED', 'STOPPED', 'READY'].includes(station.mode) ? 'Waiting for operator to launch run'
       : ['DISABLED', 'STOPPED'].includes(station.mode) ? 'Robot stopped — waiting for operator readiness'
