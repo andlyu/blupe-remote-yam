@@ -477,10 +477,12 @@
     if (mode === 'FAULT') return 'fault';
     const observation = state.last_observation;
     const home = fresh(observation?.observed_at) ? observation.homed : null;
+    // YAM also reports queue_ready while verified parked with automatic queue on.
+    const parkedYam = robotId === 'yam-1' && mode === 'DISABLED' && station.queue_ready === true;
     // READY/STOPPED + queue_ready is the controllers' automatic admission signal.
     // Legacy SO101 "active" and transport "available" alone do not establish it.
     const automatic = state.robot_auto_queue_enabled ??
-      (mode === 'STOPPED_READY' || station.queue_ready === true && ['READY', 'STOPPED'].includes(mode) ? true : null);
+      (parkedYam || mode === 'STOPPED_READY' || station.queue_ready === true && ['READY', 'STOPPED'].includes(mode) ? true : null);
     const ready = home === true && observation.settled === true && automatic === true && station.queue_ready === true;
     if (state.status === 'queued') return ready ? 'queued' : 'readiness';
     if (state.status === 'preparing') return 'preparing';
@@ -493,7 +495,7 @@
     if (state.public_run?.status === 'running') return 'running';
     if (!['READY', 'STOPPED', 'STOPPED_READY', 'READONLY', 'DISABLED', 'ACTIVE'].includes(mode)) return 'unknown';
     if (ready) return 'ready';
-    if (automatic === true && (mode === 'STOPPED_READY' || home != null && observation.settled === true
+    if (automatic === true && (parkedYam || mode === 'STOPPED_READY' || home != null && observation.settled === true
         && ['STOPPED', 'READONLY', 'DISABLED'].includes(mode))) return 'stoppedReady';
     if (station.queue_ready === true && (home == null || automatic == null)) return 'unknown';
     return 'stopped';

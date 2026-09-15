@@ -91,6 +91,32 @@ for (const robot of robots) {
     assert.equal(label(state(robot), robot), 'Ready for the next run');
   });
 }
+test('parked YAM reports automatic readiness while disabled and uninitialized', () => {
+  // A torque-off YAM reports settled=false; localhost has no operator tunnel.
+  const s = state('yam-1', {mode: 'DISABLED', queue_ready: true, available: false}, {
+    status: 'stopped', robot_auto_queue_enabled: null,
+    last_observation: {homed: false, settled: false, observed_at: now}});
+  assert.equal(label(s, 'yam-1'), 'Stopped but ready');
+  assert.equal(elements.station.dataset.tone, 'ready');
+  assert.equal(label({...s, robot_auto_queue_enabled: true}, 'yam-1'), 'Stopped but ready');
+  assert.equal(label({...s, robot_auto_queue_enabled: false}, 'yam-1'), 'Stopped');
+  assert.equal(label({...s, status: 'queued'}, 'yam-1'), 'Queued — waiting for robot readiness');
+  assert.equal(label({...s, status: 'running'}, 'yam-1'), 'Running');
+  for (const [station, expected] of [
+    [{mode: 'DISABLED', queue_ready: false}, 'Stopped'],
+    [{mode: 'DISABLED', observed_at: now - 11}, 'Checking / unavailable'],
+    [{mode: 'FAULT'}, 'Fault'], [{connected: false}, 'Offline'],
+    [{mode: 'API_ACTIVE'}, 'Running'], [{mode: 'PARKING_ZERO'}, 'Parking'],
+  ]) {
+    assert.equal(label(state('yam-1', {queue_ready: true, ...station}, {
+      last_observation: s.last_observation}), 'yam-1'), expected);
+  }
+  for (const robot of robots.slice(1)) {
+    assert.equal(label(state(robot, {mode: 'DISABLED', queue_ready: true}, {
+      last_observation: s.last_observation}), robot), 'Checking / unavailable');
+  }
+});
+
 test('the editable spec and rendered labels have the same twelve names', () => {
   const doc = fs.readFileSync(path.join(__dirname, '../../docs/UI-LABELS.md'), 'utf8');
   const labels = [...doc.matchAll(/\*\*(.+?):\*\*/g)].map(match => match[1]);
