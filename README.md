@@ -17,6 +17,7 @@ Keep the terminal open while it runs. No OpenAI API key is needed.
 Use the top-right robot selector to choose **YAM**, **SO101 — Andrew’s Mac**, or
 **MakerMods Bimanual SO101**. Cameras, conversation, and queue follow that selection.
 See [multi-robot setup](codex-runner/docs/MULTI-ROBOT.md) for the catalog and SO101 joint-limit configuration.
+See [UI status labels](docs/UI-LABELS.md) for each robot, queue, run, timer, and camera message and when it appears.
 
 Command submission is enabled by default. Robot readiness, command validation,
 and gateway execution checks still apply. Closing and reopening the launcher
