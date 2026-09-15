@@ -53,11 +53,14 @@ class Cameras:
 
 
 def test_openai_prompt_tools_images(manifest):
-    p=BimanualSO101OpenAIAdapter('test','test',calibration_path=manifest,camera_source=Cameras())
+    source=Cameras()
+    p=BimanualSO101OpenAIAdapter('test','test',calibration_path=manifest,camera_source=source, camera_names=source.camera_names)
+    assert source.camera_names == ('overhead','side','left','right')
+    assert p._camera_source.camera_names == ('overhead','left','right')
     def reply(payload):
         prompt=payload['input'][0]['content'];assert 'Two SO101' in prompt and 'OWN fixed robot base' in prompt
         assert '9.5 cm' not in prompt and 'Two identical 6-DoF' not in prompt
-        assert len([v for v in payload['input'][-1]['content'] if v['type']=='input_image'])==4
+        assert len([v for v in payload['input'][-1]['content'] if v['type']=='input_image'])==3
         assert set(payload['tools'][0]['parameters']['properties']['targets']['properties'])==set(NAMES)
         return {'output':[{'type':'function_call','call_id':'t','name':'move_to','arguments':json.dumps({'targets':{'right_gripper':.32},'note':'Open right slightly.'})}]}
     p._post_json=reply
@@ -68,7 +71,7 @@ def test_openai_prompt_tools_images(manifest):
 def test_codex_schema(manifest):
     with patch('remote_yam.codex_policy.codex_status',return_value={'ready':True}),patch('remote_yam.codex_policy.codex_binary',return_value='/unused'):
         p=BimanualSO101CodexAdapter(calibration_path=manifest,camera_source=Cameras())
-    assert p._expected_camera_count==4
+    assert p._expected_camera_count==3
     value=dict(action='move_to',targets={n:None for n in NAMES},note='Open right',summary='',reason='',hindsight='')
     value['targets']['right_gripper']=.4
     assert json.loads(p._decision_response(value)['output'][0]['arguments'])['targets']=={'right_gripper':.4}

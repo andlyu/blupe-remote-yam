@@ -20,7 +20,7 @@ No YAM jaw width applies. State joints are ordered left shoulder_pan, shoulder_l
 elbow_flex, wrist_flex, wrist_roll, gripper, then the same for right. Angles are radians;
 grippers are normalized. Cartesian state comes from FK of measured joint positions.
 The left and right cameras are wrist views attached to their respective arms.
-Overhead and side views show the scene. Use their labels, not image order, to
+The overhead view shows the scene. Use their labels, not image order, to
 identify each view. Unspecified arms hold their measured joints; unspecified target
 dimensions on a requested arm retain measured values. Both IK paths are checked
 before any motion is sent, then dispatched together at 10 Hz, at most 0.01 radians
@@ -34,11 +34,15 @@ Never report success just because a target was requested; check the new observat
 class BimanualSO101PolicyMixin:
     final_joint_tolerance_deg = 5.0
 
-    def __init__(self, *args, calibration_path, camera_names=('overhead','side','left','right'), **kwargs):
+    def __init__(self, *args, calibration_path, camera_names=('overhead','left','right'), **kwargs):
         self._calibration_path = calibration_path
-        self._bimanual_cameras = tuple(camera_names)
+        self._bimanual_cameras = tuple(name for name in camera_names if name != 'side')
         if not self._bimanual_cameras or len(set(self._bimanual_cameras)) != len(self._bimanual_cameras):
             raise ValueError('Provide distinct camera roles')
+        # Keep the shared viewer/recorder camera source unchanged.
+        if kwargs.get('camera_source') is not None:
+            kwargs['camera_source'] = copy.copy(kwargs['camera_source'])
+            kwargs['camera_source'].camera_names = self._bimanual_cameras
         super().__init__(*args, **kwargs)
 
     def _make_geometry(self):
