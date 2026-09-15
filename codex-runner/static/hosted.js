@@ -357,6 +357,7 @@
   function tickStopwatch() {
     if (!stopwatch) {
       $('runTimer').textContent = '—:—';
+      $('ownRunTimer').textContent = '—:—';
       $('runTimerDetail').textContent = 'Waiting for a run';
       return;
     }
@@ -364,6 +365,7 @@
     const age = Math.max(0, (performance.now() - stopwatch.receivedAt) / 1000);
     const elapsed = stopwatch.elapsed + (running ? Math.min(age, 5) : 0);
     $('runTimer').textContent = stopwatch.duration === null ? '—:—' : stopwatchTime(Math.ceil(Math.max(0, stopwatch.duration - elapsed)));
+    $('ownRunTimer').textContent = $('runTimer').textContent;
     $('runTimerDetail').textContent = running && age > 5 ? 'Reconnecting · timer paused'
       : !running ? 'Run ended'
       : `${stopwatch.status === 'preparing' ? 'Preparing · ' : ''}${stopwatch.duration === null ? 'Run in progress' : stopwatchTime(Math.ceil(Math.max(0, stopwatch.duration - elapsed))) + ' remaining'}`;
@@ -848,7 +850,10 @@
   const originalCameraMarkup = $('liveViewer').innerHTML;
   function selectedCameras(names) {
     document.querySelectorAll('[data-camera]').forEach(video => video.yamStop?.());
+    const runControls = $('liveRunControls');
     $('liveViewer').innerHTML = originalCameraMarkup;
+    // Preserve the stop listener when robot selection rebuilds the camera tiles.
+    $('liveRunControls').replaceWith(runControls);
     $('videoDelayNotice').hidden = selectedRobot !== 'yam-1';
     $('liveViewer').dataset.layout = names.length === 1 ? 'single' : 'multi';
     if (selectedRobot === 'yam-1') {

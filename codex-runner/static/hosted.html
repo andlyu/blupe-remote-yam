@@ -64,12 +64,11 @@
     <ol id="sideConversationMessages" tabindex="0" aria-label="Live conversation messages" aria-live="polite" aria-relevant="additions"><li>Astra’s replies and robot feedback from the current run appear here for everyone.</li></ol>
   </section>
 <div class="watchVisuals">
-  <div id="liveRunControls" hidden><button id="stop" class="danger" type="button" disabled>Stop run</button></div>
   <section class="panel" aria-label="What’s running" hidden>
     <h2>What’s running</h2><p id="whatsRunning" role="status">Checking the current run…</p>
   </section>
   <section id="liveViewer" class="cameras" aria-label="Live robot cameras" tabindex="-1">
-    <div id="viewerCue" class="viewerCue" role="status" aria-live="polite" hidden><strong>Your run is live</strong><span>Watch your robot here. The video may follow with a short delay.</span></div>
+    <div id="viewerCue" class="viewerCue" role="status" aria-live="polite" hidden><strong>Your run is live</strong><span>Watch your robot here. The video may follow with a short delay.</span><div id="liveRunControls" hidden><span id="ownRunTimer" role="timer" aria-label="Your run time remaining" aria-live="off">—:—</span><button id="stop" class="danger" type="button" disabled>Stop run</button></div></div>
     <figure class="syncTile"><div class="syncTilePicture"><canvas data-sync-tile="0" width="640" height="360" aria-label="Top robot camera"></canvas><button class="expandCamera" data-expand-camera="0" aria-label="Expand top camera">⛶</button></div><figcaption>Top <span data-sync-status>Connecting</span></figcaption></figure>
     <figure class="syncTile"><div class="syncTilePicture"><canvas data-sync-tile="1" width="640" height="360" aria-label="Observer robot camera"></canvas><button class="expandCamera" data-expand-camera="1" aria-label="Expand observer camera">⛶</button></div><figcaption>Observer <span data-sync-status>Connecting</span></figcaption></figure>
     <figure class="syncTile"><div class="syncTilePicture"><canvas data-sync-tile="2" width="640" height="360" aria-label="Left robot camera"></canvas><button class="expandCamera" data-expand-camera="2" aria-label="Expand left camera">⛶</button></div><figcaption>Left <span data-sync-status>Connecting</span></figcaption></figure>

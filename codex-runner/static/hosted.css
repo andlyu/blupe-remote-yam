@@ -232,6 +232,10 @@ main > .coffeeSupport{grid-column:1 / -1;margin-top:4px;width:100%}
 #setupRunActions #runButtons:has(#openCodexInstructions[hidden]){grid-template-columns:1fr}
 
 /* Keep the session owner’s stop control above the live camera feeds. */
-#liveRunControls{display:flex;justify-content:flex-end;margin-bottom:10px}
+#liveRunControls{display:flex;justify-content:flex-end;margin-left:auto}
 #liveRunControls #stop{background:#b42318;border-color:#b42318;color:#fff;min-height:44px;padding:10px 22px;font-size:15px;font-weight:700}
 #liveRunControls #stop:hover:not(:disabled){background:#912018;border-color:#912018}
+
+#liveRunControls{align-items:center;gap:14px}
+.viewerCue #ownRunTimer,.watchLayout .viewerCue #ownRunTimer{display:inline;font-size:20px;font-weight:700;font-variant-numeric:tabular-nums}
+#liveViewer.yourRunLive .liveStopwatch{display:none}
