@@ -10,7 +10,7 @@ def request_images(content, recorder):
     name = 'Camera'
     for part in content:
         if part.get('type') == 'input_text':
-            match = re.search(r"camera '(top|left|right)_cam'", part.get('text', ''))
+            match = re.search(r"camera '(top|overhead|front|left|right)_cam'", part.get('text', ''))
             if match:
                 name = match.group(1)
         elif part.get('type') == 'input_image':
@@ -54,7 +54,7 @@ def project_events(events, run_id):
         row['images'] = []
         for image in details.get('images', []) if event['kind'] == 'model_request' else []:
             digest = image.get('digest', '')
-            if re.fullmatch('[a-f0-9]{64}', digest) and image.get('name') in {'top', 'left', 'right'}:
+            if re.fullmatch('[a-f0-9]{64}', digest) and image.get('name') in {'top', 'overhead', 'front', 'left', 'right'}:
                 row['images'].append({'name': image['name'], 'url': f'/api/public-images/{run_id}/{digest}'})
         output.append(row)
     return output

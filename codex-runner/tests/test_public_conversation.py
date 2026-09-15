@@ -40,3 +40,26 @@ def test_request_is_copied_and_full_arguments_preserved(tmp_path):
     assert 'opaque' not in str(display)
     assert response_text({'output':[{'type':'function_call','name':'move',
         'arguments':'{"note":"Go","joints":[1,2,3]}'}]}) == 'move: {"note":"Go","joints":[1,2,3]}'
+
+
+def test_makermods_preview_contains_each_sent_camera(tmp_path):
+    recorder = CallRecorder(tmp_path)
+    names = ['overhead', 'left', 'right']
+    content = []
+    for name in names:
+        content.extend([{'type':'input_text', 'text':f"camera '{name}_cam' (step 0):"},
+                        {'type':'input_image', 'image_url':'data:image/jpeg;base64,'+base64.b64encode(name.encode()).decode()}])
+    images = request_images(content, recorder)
+    public = project_events([{'kind':'model_request', 'details':{'images':images}}], recorder.path.name)
+    assert [image['name'] for image in public[0]['images']] == names
+    for name, image in zip(names, images):
+        assert (recorder.path/'blobs'/image['digest']).read_bytes() == name.encode()
+
+
+def test_single_so101_front_preview_and_invalid_digest(tmp_path):
+    recorder = CallRecorder(tmp_path)
+    images = request_images([{'type':'input_text','text':"camera 'front_cam' (step 0):"},
+        {'type':'input_image','image_url':'data:image/jpeg;base64,'+base64.b64encode(b'front').decode()}], recorder)
+    images.append({'name':'overhead', 'digest':'../not-an-image'})
+    public = project_events([{'kind':'model_request', 'details':{'images':images}}], recorder.path.name)
+    assert [image['name'] for image in public[0]['images']] == ['front']
