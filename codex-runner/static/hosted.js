@@ -167,12 +167,16 @@
   }
   async function api(path, data) {
     const generation = robotGeneration;
+    const sessionToken = csrf;
     const headers = path === '/api/robots' ? {} : {'X-Blupe-Robot': selectedRobot};
     if (data !== undefined) { headers['Content-Type'] = 'application/json'; headers['X-YAM-Runner-Token'] = csrf; }
     const response = await fetch(path, {method: data === undefined ? 'GET' : 'POST', headers,
       body: data === undefined ? undefined : JSON.stringify(data), credentials: 'same-origin', cache: 'no-store'});
     const result = await response.json();
-    if (generation !== robotGeneration) throw Object.assign(new Error('Robot selection changed'), {stale:true});
+    if (generation !== robotGeneration ||
+        (!['/api/session', '/api/robots'].includes(path) && sessionToken !== csrf)) {
+      throw Object.assign(new Error('Robot session changed'), {stale:true});
+    }
     if (!response.ok) {
       if (response.status === 401) { ended = true; buttons(); $('apiKey').value = ''; }
       const error = new Error(result.error || 'Request failed');
@@ -880,7 +884,7 @@
   }
   let statusPollError = '';
   async function poll() {
-    if (ended) return;
+    if (ended || !csrf) { setTimeout(poll, 1000); return; }
     try {
       const state = await api('/api/status');
       if (statusPollError && $('message').textContent === statusPollError) message('');
@@ -975,7 +979,7 @@
   async function start() {
     if (!robotCatalog) await loadRobotSelector();
     try {
-      const session = await api('/api/session', {}); csrf = session.csrf;
+      const session = await api('/api/session', {}); csrf = session.csrf; ended = false;
       $('openCodexInstructions').hidden = !!session.local_runner;
       $('provider').innerHTML = originalProviderMarkup;
       window.yamAnalytics?.init(session.simulation, session.paid_runs);
@@ -1032,10 +1036,11 @@
       render(await api('/api/status')); await refreshChat();
       $('robotSelectorStatus').textContent = '';
       if (!pollingStarted) { pollingStarted = true; poll(); }
-    } catch (error) { message(error.message, true); }
+    } catch (error) { if (!error.stale) message(error.message, true); }
   }
   let chatSending = false, lastChatSnapshot = '';
   async function refreshChat() {
+    if (!csrf || ended) return;
     const data = await api('/api/chat');
     const list = $('chatMessages');
     const snapshot = JSON.stringify([data.visitor, data.messages]);

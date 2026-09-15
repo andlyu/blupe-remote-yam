@@ -80,7 +80,7 @@ test('status outage and recovery clear stale labels and errors; history failure 
   let response = new Error('Status temporarily unavailable');
   let historyFails = false;
   const c = vm.createContext({
-    $: id => nodes[id], ended:false, lastHistory:Date.now(), setTimeout(){},
+    $: id => nodes[id], ended:false, csrf:'test-session', lastHistory:Date.now(), setTimeout(){},
     api:async()=>{if (response instanceof Error) throw response; return response;},
     message(text){nodes.message.textContent=text;},
     render(state){nodes.station.textContent=state.label;},
