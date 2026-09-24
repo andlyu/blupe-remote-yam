@@ -8,7 +8,7 @@ const submitSource = source.split("  $('runForm').addEventListener('submit', asy
 
 function fixture(ready) {
   const nodes = {}, handlers = {}, requests = [];
-  const $ = id => nodes[id] ||= {value: '', hidden: true, open: false, textContent: '',
+  const $ = id => nodes[id] ||= {value: '', hidden: true, open: false, textContent: '', dataset: {},
     showModal() { this.open = true; }, close() { this.open = false; },
     focus() {}, select() {}, addEventListener(event, handler) { handlers[id] = handler; }};
   for (const [id, value] of Object.entries({provider:'claude', model:'claude-opus-5-5',

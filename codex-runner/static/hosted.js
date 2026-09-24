@@ -169,7 +169,9 @@
   let selectedRobot = window.yamApplication?.defaultRobot || new URLSearchParams(location.search).get('robot_id') || 'yam-1', robotGeneration = 0, robotCatalog = null, pollingStarted = false;
   let ownRunLive = false, conversationSharingAllowed = true;
   let csrf = '', ended = false, submitting = false, active = false, lastHistory = 0, contactRequested = false;
-  function message(text, error = false) { $('message').textContent = text; $('message').classList.toggle('error', error); }
+  function message(text, error = false) {
+    for (const id of ['message', 'localRunMessage']) { $(id).textContent = text; $(id).classList.toggle('error', error); }
+  }
   let contactDismissed = false;
   function operatorContact() {
     contactRequested = true;
@@ -209,6 +211,7 @@
   }
   function buttons() {
     $('run').disabled = !csrf || ended || active || submitting;
+    $('openLocalRun').disabled = !csrf || ended || active || submitting;
     $('runGroot').disabled = !csrf || ended || active || submitting;
     $('runAstra').disabled = $('runClaude').disabled = !csrf || ended || active || submitting;
     ['runDuration', 'runnerName', 'email', 'provider', 'model', 'prompt', 'apiKey'].forEach(id => { $(id).disabled = active || submitting || ended; });
@@ -303,6 +306,30 @@
     }
   }
   $('copyCodexPrompt').onclick = copyCodexPrompt;
+  function configureLocalRunDialog(local) {
+    $('localRunDialog').dataset.local = String(local);
+    $('runForm').classList.toggle('localRunMode', local);
+    $('openLocalRun').hidden = !local;
+    $('runnerIdentity').hidden = local;
+    if (local) {
+      $('localRunDialogBody').append($('runSettings'));
+      $('runSettings').open = true;
+    } else {
+      $('localRunDialog').close();
+      $('localRunDialog').before($('runSettings'));
+      $('runSettings').open = false;
+    }
+    updateRunLabel();
+  }
+  $('openLocalRun').onclick = () => {
+    if (active || submitting || ended || !csrf) return;
+    $('runSettings').open = true;
+    updateRunLabel();
+    $('localRunMessage').textContent = '';
+    $('localRunDialog').showModal();
+    $('provider').focus();
+  };
+  $('closeLocalRun').onclick = () => $('localRunDialog').close();
   function updateRunLabel() {
     const runParent = $('runSettings').open ? $('setupRunActions') : document.querySelector('.promptRow');
     if ($('runButtons').parentElement !== runParent) runParent.append($('runButtons'));
@@ -329,6 +356,7 @@
   $('runForm').addEventListener('invalid', () => {
     $('runSettings').open = true;
     updateRunLabel();
+    if ($('localRunDialog').dataset.local === 'true' && !$('localRunDialog').open) $('localRunDialog').showModal();
   }, true);
   $('runSettings').addEventListener('toggle', updateRunLabel);
   $('runForm').addEventListener('input', updateRunLabel);
@@ -414,7 +442,7 @@
       prompt: $('prompt').value, run_duration_s:Number($('runDuration').value)*60, api_key: $('apiKey').value.trim()};
     $('subscriptionHelp').close();
     submitting = true; buttons(); message(['codex', 'claude'].includes(payload.provider) ? 'Checking your subscription connection…' : 'Joining the robot queue…');
-    try { const state = await api('/api/run', payload); updateSavedKey(state.saved_key_providers); window.yamAnalytics?.observe(state); $('apiKey').value = ''; $('runSettings').open = false; active = true; guideRunAttention({status:'queued'}); message(payload.provider === 'groot' ? 'You’re in the queue. GR00T GPU warmup has started.' : 'You’re in the queue. Your position is highlighted above.'); }
+    try { const state = await api('/api/run', payload); updateSavedKey(state.saved_key_providers); window.yamAnalytics?.observe(state); $('apiKey').value = ''; $('runSettings').open = $('localRunDialog').dataset.local === 'true'; $('localRunDialog').close(); active = true; guideRunAttention({status:'queued'}); message(payload.provider === 'groot' ? 'You’re in the queue. GR00T GPU warmup has started.' : 'You’re in the queue. Your position is highlighted above.'); }
     catch (error) {
       if (error.stale) return;
       window.yamAnalytics?.rejected(payload.provider, payload.model);
@@ -1191,6 +1219,7 @@
       $('shareConversation').checked = session.share_conversation !== false;
       conversationSharingAllowed = session.share_conversation !== false;
       $('shareConversation').disabled = !conversationSharingAllowed;
+      configureLocalRunDialog(!!session.local_runner);
       $('provider').innerHTML = originalProviderMarkup;
       window.yamAnalytics?.init(session.simulation, session.paid_runs);
       $('simulationNotice').hidden = !session.simulation;
@@ -1229,6 +1258,7 @@
       }
       $('runGroot').hidden = !session.groot_enabled;
       if (session.groot_enabled) $('provider').append(Object.assign(document.createElement('option'), {value:'groot',textContent:'GR00T'}));
+      if (session.local_runner) { $('runAstra').hidden = true; $('runClaude').hidden = true; $('runGroot').hidden = true; }
       buttons(); if (!new URLSearchParams(location.search).has('purchase') && !$('message').textContent.startsWith('Payment')) message('');
       camerasDisconnected = robotCatalog?.robots.find(robot => robot.id === selectedRobot)?.connected === false;
       modelCameraNames = new Set(session.model_cameras || []);
