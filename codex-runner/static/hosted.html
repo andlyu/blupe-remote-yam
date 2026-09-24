@@ -28,10 +28,6 @@
         <div class="runHeading"><h2>Prompt the arms</h2><div class="runTimeControl"><label for="runDuration">Time</label><input id="runDuration" type="number" min="1" max="10" step="1" value="5" aria-describedby="runDurationUnit" required><span id="runDurationUnit">min</span></div></div>
         <div class="promptRow"><textarea id="prompt" aria-label="Prompt the arms" rows="2" maxlength="4000" required>place green block on plate</textarea><div id="runButtons"><button class="primary" id="run" type="submit" disabled>Run online</button><button type="button" id="openCodexInstructions">Run Locally through Subscription</button><button type="button" id="runAstra" hidden disabled>Run with Astra</button><button type="button" id="runClaude" hidden disabled>Run with Opus</button><button type="button" id="runGroot" hidden disabled>Run GR00T</button></div></div>
         <details id="runSettings"><summary>Settings</summary>
-        <label for="runnerName">Your name</label><input id="runnerName" required maxlength="32" autocomplete="nickname" placeholder="Name shown with your run">
-        <p class="help">Your name, task, and readable Astra conversation will be visible to everyone watching.</p>
-        <label for="email">Email (optional)</label><input id="email" type="email" maxlength="254" placeholder="you@example.com" autocomplete="email" autocapitalize="none" spellcheck="false" aria-describedby="emailHelp">
-        <p class="help" id="emailHelp">This project is super new. We'd love to follow up about your experience.</p>
         <label for="provider">Model</label>
         <select id="provider"><option value="openai" selected>ChatGPT</option><option value="anthropic">Claude</option><option value="local_raise_lower">No AI — just wiggle arms</option><option value="astra" hidden disabled>Astra · bring your key</option></select>
         <!-- application-payment-options -->
@@ -45,6 +41,10 @@
         <div id="claudeSetup" hidden><p id="claudeStatus" class="help" role="status"></p><button type="button" id="claudeCheck">Check Claude connection</button><p class="help">First-time sign-in: <code>./run.sh --claude-login --provider claude</code></p></div>
 
         <p id="policyHelp" class="help">The model observes the cameras, chooses a move, and waits for robot feedback before deciding again.</p>
+        <label for="runnerName">Your name</label><input id="runnerName" required maxlength="32" autocomplete="nickname" placeholder="Name shown with your run">
+        <p class="help">Your name, task, and readable Astra conversation will be visible to everyone watching.</p>
+        <label for="email">Email (optional)</label><input id="email" type="email" maxlength="254" placeholder="you@example.com" autocomplete="email" autocapitalize="none" spellcheck="false" aria-describedby="emailHelp">
+        <p class="help" id="emailHelp">This project is super new. We'd love to follow up about your experience.</p>
         <label id="conversationSharingSettings" class="conversationSharing" hidden><input id="shareConversation" type="checkbox" checked> Share conversation on the public playground</label>
         <div id="setupRunActions"></div>
         </details>
