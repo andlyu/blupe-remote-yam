@@ -231,6 +231,7 @@
        !savedKeyProviders.includes($('provider').value) && !$('apiKey').value.trim());
   }
   $('openCodexInstructions').onclick = () => {
+    $('localRunDialog').close();
     $('copyCodexPrompt').dataset.copied = 'false';
     $('codexCopyStatus').textContent = '';
     $('codexInstructions').showModal();
@@ -309,16 +310,12 @@
   function configureLocalRunDialog(local) {
     $('localRunDialog').dataset.local = String(local);
     $('runForm').classList.toggle('localRunMode', local);
-    $('openLocalRun').hidden = !local;
+    $('runForm').classList.add('runDialogMode');
+    $('openLocalRun').hidden = false;
     $('runnerIdentity').hidden = local;
-    if (local) {
-      $('localRunDialogBody').append($('runSettings'));
-      $('runSettings').open = true;
-    } else {
-      $('localRunDialog').close();
-      $('localRunDialog').before($('runSettings'));
-      $('runSettings').open = false;
-    }
+    $('localRunDialog').close();
+    $('localRunDialogBody').append($('runSettings'));
+    $('runSettings').open = true;
     updateRunLabel();
   }
   $('openLocalRun').onclick = () => {
@@ -356,7 +353,7 @@
   $('runForm').addEventListener('invalid', () => {
     $('runSettings').open = true;
     updateRunLabel();
-    if ($('localRunDialog').dataset.local === 'true' && !$('localRunDialog').open) $('localRunDialog').showModal();
+    if (!$('localRunDialog').open) $('localRunDialog').showModal();
   }, true);
   $('runSettings').addEventListener('toggle', updateRunLabel);
   $('runForm').addEventListener('input', updateRunLabel);
@@ -442,7 +439,7 @@
       prompt: $('prompt').value, run_duration_s:Number($('runDuration').value)*60, api_key: $('apiKey').value.trim()};
     $('subscriptionHelp').close();
     submitting = true; buttons(); message(['codex', 'claude'].includes(payload.provider) ? 'Checking your subscription connection…' : 'Joining the robot queue…');
-    try { const state = await api('/api/run', payload); updateSavedKey(state.saved_key_providers); window.yamAnalytics?.observe(state); $('apiKey').value = ''; $('runSettings').open = $('localRunDialog').dataset.local === 'true'; $('localRunDialog').close(); active = true; guideRunAttention({status:'queued'}); message(payload.provider === 'groot' ? 'You’re in the queue. GR00T GPU warmup has started.' : 'You’re in the queue. Your position is highlighted above.'); }
+    try { const state = await api('/api/run', payload); updateSavedKey(state.saved_key_providers); window.yamAnalytics?.observe(state); $('apiKey').value = ''; $('runSettings').open = true; $('localRunDialog').close(); active = true; guideRunAttention({status:'queued'}); message(payload.provider === 'groot' ? 'You’re in the queue. GR00T GPU warmup has started.' : 'You’re in the queue. Your position is highlighted above.'); }
     catch (error) {
       if (error.stale) return;
       window.yamAnalytics?.rejected(payload.provider, payload.model);
