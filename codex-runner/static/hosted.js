@@ -310,7 +310,7 @@
     const modelAnchor = $('runSettings').open ? $('run') : $('openCodexInstructions');
     modelAnchor.after($('runAstra'), $('runClaude'), $('runGroot'));
     $('openCodexInstructions').textContent = $('runSettings').open
-      ? 'Or run locally through a subscription' : 'Run Locally through Subscription';
+      ? 'Run locally through subscription' : 'Run Locally through Subscription';
     $('runForm').classList.toggle('setupReady', !runSetupNeeded());
     $('runForm').classList.toggle('runActive', active || submitting);
     $('run').textContent = runSetupNeeded() && !$('runSettings').open
