@@ -305,9 +305,12 @@
   function updateRunLabel() {
     const runParent = $('runSettings').open ? $('setupRunActions') : document.querySelector('.promptRow');
     if ($('runButtons').parentElement !== runParent) runParent.append($('runButtons'));
-    const firstAction = $('runSettings').open ? $('openCodexInstructions') : $('run');
+    const firstAction = $('run');
     if ($('runButtons').firstElementChild !== firstAction) $('runButtons').prepend(firstAction);
-    $('openCodexInstructions').after($('runAstra'), $('runClaude'), $('runGroot'));
+    const modelAnchor = $('runSettings').open ? $('run') : $('openCodexInstructions');
+    modelAnchor.after($('runAstra'), $('runClaude'), $('runGroot'));
+    $('openCodexInstructions').textContent = $('runSettings').open
+      ? 'Or run locally through a subscription' : 'Run Locally through Subscription';
     $('runForm').classList.toggle('setupReady', !runSetupNeeded());
     $('runForm').classList.toggle('runActive', active || submitting);
     $('run').textContent = runSetupNeeded() && !$('runSettings').open
