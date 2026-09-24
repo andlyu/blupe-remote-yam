@@ -311,7 +311,7 @@
     $('runForm').classList.toggle('setupReady', !runSetupNeeded());
     $('runForm').classList.toggle('runActive', active || submitting);
     $('run').textContent = runSetupNeeded() && !$('runSettings').open
-      ? 'Setup keys and run'
+      ? 'Setup LLM Keys and run'
       : window.yamApplication?.runLabel?.() || 'Run';
   }
   $('run').addEventListener('click', event => {
