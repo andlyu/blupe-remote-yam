@@ -184,6 +184,7 @@
     if (!response.ok) {
       if (response.status === 401 && path !== '/api/chat') { ended = true; buttons(); $('apiKey').value = ''; }
       const error = new Error(result.error || 'Request failed');
+      error.subscriptionSetup = result.subscription_setup;
       error.paymentConfirmed = result.payment_confirmed === true;
       throw error;
     }
@@ -228,6 +229,47 @@
   $('runGroot').onclick = () => runWithProvider('groot', 'Run GR00T');
   $('runAstra').onclick = () => runWithProvider('codex', 'Run with Astra');
   $('runClaude').onclick = () => runWithProvider('claude', 'Run with Opus');
+  let setupProvider = null;
+  let shownSubscriptionFailure = '';
+  function showSubscriptionSetup(setup) {
+    setupProvider = setup.provider;
+    $('subscriptionHelpTitle').textContent = setup.provider === 'claude' ? 'Caude is not setup' : `${setup.label} is not setup`;
+    $('subscriptionHelpReason').textContent = ['missing', 'login_required'].includes(setup.state)
+      ? `We couldn't find a ready ${setup.label} subscription connection on this computer. ${setup.message}`
+      : setup.message;
+    $('subscriptionSetupPrompt').value = setup.setup_prompt;
+    $('subscriptionSetupStatus').textContent = setup.run_started
+      ? 'This run has stopped. Reconnect your subscription before starting another.'
+      : 'No robot run has been started.';
+    if (!$('subscriptionHelp').open) $('subscriptionHelp').showModal();
+  }
+  $('closeSubscriptionHelp').addEventListener('click', () => $('subscriptionHelp').close());
+  $('subscriptionHelp').addEventListener('close', () => { setupProvider = null; });
+  $('copySubscriptionPrompt').addEventListener('click', async () => {
+    try {
+      await navigator.clipboard.writeText($('subscriptionSetupPrompt').value);
+      $('subscriptionSetupStatus').textContent = 'Copied. Paste the prompt into your coding assistant.';
+    } catch (_) {
+      $('subscriptionSetupPrompt').focus(); $('subscriptionSetupPrompt').select();
+      $('subscriptionSetupStatus').textContent = 'Select and copy the setup prompt above.';
+    }
+  });
+  $('recheckSubscription').addEventListener('click', async () => {
+    if (!setupProvider) return;
+    const provider = setupProvider;
+    $('recheckSubscription').disabled = true;
+    $('subscriptionSetupStatus').textContent = 'Verifying a small request through your subscription…';
+    try {
+      const setup = await api(`/api/${provider}/check`, {});
+      if (provider !== setupProvider) return;
+      if (setup.ready) {
+        $('subscriptionHelp').close();
+        $(`${provider}Status`).textContent = setup.message;
+        message(`${setup.label} is connected. Click its Run button when you are ready. ${setup.availability_note}`);
+      } else showSubscriptionSetup(setup);
+    } catch (error) { if (!error.stale) $('subscriptionSetupStatus').textContent = error.message; }
+    finally { $('recheckSubscription').disabled = false; }
+  });
   async function copyCodexPrompt() {
     const prompt = document.querySelector('.codexPrompt');
     try {
@@ -280,6 +322,8 @@
     updateRunLabel();
   }
   function providerChanged() {
+    $('subscriptionHelp').close();
+    setupProvider = null;
     if ($('provider').value === 'groot') {
       $('providerFields').hidden = true; $('apiKey').required = false;
       $('apiKey').value = ''; $('model').value = 'groot-reviewed-step10000';
@@ -315,13 +359,21 @@
   $('provider').addEventListener('change', () => { providerChanged(); applyModelName(lastLive); window.yamAnalytics?.selected($('provider').value, $('model').value.trim()); });
   $('codexCheck').addEventListener('click', async () => {
     $('codexCheck').disabled = true;
-    try { $('codexStatus').textContent = (await api('/api/codex/check', {})).message; }
+    try {
+      const setup = await api('/api/codex/check', {});
+      $('codexStatus').textContent = setup.message;
+      if (!setup.ready) showSubscriptionSetup(setup);
+    }
     catch (error) { $('codexStatus').textContent = error.message; }
     finally { $('codexCheck').disabled = false; }
   });
   $('claudeCheck').addEventListener('click', async () => {
     $('claudeCheck').disabled = true;
-    try { $('claudeStatus').textContent = (await api('/api/claude/check', {})).message; }
+    try {
+      const setup = await api('/api/claude/check', {});
+      $('claudeStatus').textContent = setup.message;
+      if (!setup.ready) showSubscriptionSetup(setup);
+    }
     catch (error) { $('claudeStatus').textContent = error.message; }
     finally { $('claudeCheck').disabled = false; }
   });
@@ -334,9 +386,15 @@
     const payload = {runner_name: $('runnerName').value.trim(), provider: $('provider').value, model: $('model').value.trim(),
       email: $('email').value.trim(), instagram_handle: $('instagramHandle').value.trim(),
       prompt: $('prompt').value, run_duration_s:Number($('runDuration').value)*60, api_key: $('apiKey').value.trim()};
-    submitting = true; buttons(); message('Joining the robot queue…');
+    $('subscriptionHelp').close();
+    submitting = true; buttons(); message(['codex', 'claude'].includes(payload.provider) ? 'Checking your subscription connection…' : 'Joining the robot queue…');
     try { const state = await api('/api/run', payload); updateSavedKey(state.saved_key_providers); window.yamAnalytics?.observe(state); $('apiKey').value = ''; $('runSettings').open = false; active = true; guideRunAttention({status:'queued'}); message(payload.provider === 'groot' ? 'You’re in the queue. GR00T GPU warmup has started.' : 'You’re in the queue. Your position is highlighted above.'); }
-    catch (error) { window.yamAnalytics?.rejected(payload.provider, payload.model); message(error.message, true); }
+    catch (error) {
+      if (error.stale) return;
+      window.yamAnalytics?.rejected(payload.provider, payload.model);
+      message(error.message, true);
+      if (error.subscriptionSetup) showSubscriptionSetup(error.subscriptionSetup);
+    }
     finally { delete payload.api_key; submitting = false; buttons(); }
   });
   for (const [id, path, text] of [
@@ -534,6 +592,13 @@
     $('station').title = meaning;
   }
   function render(state) {
+    if (state.subscription_setup?.setup_prompt) {
+      const failure = `${state.session_id}:${state.error}`;
+      if (failure !== shownSubscriptionFailure) {
+        shownSubscriptionFailure = failure;
+        showSubscriptionSetup(state.subscription_setup);
+      }
+    }
     updateSavedKey(state.saved_key_providers);
     window.yamAnalytics?.observe(state);
     $('whatsRunning').textContent = state.whats_running?.length

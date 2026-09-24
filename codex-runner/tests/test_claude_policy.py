@@ -94,6 +94,9 @@ class ClaudeStatusTests(unittest.TestCase):
             self.assertEqual(claude_status()['state'], 'missing')
         self.assertEqual(self.status(json.dumps({'loggedIn': False}))['state'], 'login_required')
         self.assertEqual(self.status('{}', version='1.9.0')['state'], 'upgrade_required')
+        # This build signs in successfully but rejects --restricted at inference.
+        self.assertEqual(self.status(json.dumps({'loggedIn': True, 'authMethod': 'claude.ai'}),
+                                     version='2.1.185')['state'], 'upgrade_required')
 
     def test_environment_withholds_anthropic_keys_and_runner_secrets(self):
         with patch.dict(os.environ, {'ANTHROPIC_API_KEY': 'sk-ant-secret',

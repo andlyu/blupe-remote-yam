@@ -1,33 +1,41 @@
-# Run BluPe with your Codex subscription
+# Run the BluPe playground locally
 
-On macOS or Linux, install Git, Python 3, and Node.js/npm, then run:
+On macOS or Linux, install Git and Python 3.10 or newer, then run:
 
 ```bash
 git clone https://github.com/andlyu/blupe-remote-yam.git
 cd blupe-remote-yam
-./run-codex.sh
+./run-playground.sh
 ```
 
-Sign in with your ChatGPT subscription account when Codex opens the browser.
-Your account must have access to `gpt-6-astra`. The launcher installs its Python
-requirements and a compatible local Codex runtime, connects to BluPe's public
-robot queue, and opens the local playground. Enter a task and click **Run**.
-Keep the terminal open while it runs. No OpenAI API key is needed.
+The launcher installs the playground dependencies and opens the local UI. It
+checks the installed Codex and Claude connections without requiring either one
+to be installed or signed in. Keep the terminal open while the playground runs.
+
+Enter a task and choose **Run with Astra** or **Run with Opus**. Before joining
+the robot queue, the playground checks that provider again. If its CLI is missing,
+outdated, or not signed in with a subscription, it shows the reason and a
+**Copy setup prompt** button. Paste that prompt into your coding assistant to
+install or update the provider and complete your own browser sign-in. Then use
+**Check again** and click Run when ready. Page loading checks local setup only. Run and Check again send a small live
+model request through the selected subscription to verify authentication and
+model access before queue admission. These checks consume a small amount of
+subscription usage. Sign-in or limits can still change during a queued run;
+subscription failures display reconnect guidance.
+
+For explicit provider setup, use `./run-codex.sh` for Astra through your ChatGPT
+subscription (Node.js/npm required), or `./run-claude.sh` for Opus through your
+Claude subscription (Claude Code 2.1.263 or newer required). No API key is needed
+for these subscription options. Credentials stay on your computer.
 
 Use the top-right robot selector to choose **YAM**, **SO101 — Andrew’s Mac**, or
-**MakerMods Bimanual SO101**. Cameras, conversation, and queue follow that selection.
-See [multi-robot setup](codex-runner/docs/MULTI-ROBOT.md) for the catalog and SO101 joint-limit configuration.
-See [UI status labels](docs/UI-LABELS.md) for a short explanation of each robot status.
+**MakerMods Bimanual SO101**. Opus and GR00T currently support YAM. See
+[multi-robot setup](codex-runner/docs/MULTI-ROBOT.md) for the catalog and
+[UI status labels](docs/UI-LABELS.md) for robot readiness.
 
 Command submission is enabled by default. Robot readiness, command validation,
-and gateway execution checks still apply. Closing and reopening the launcher
-reuses the existing Codex login. If the default port is occupied, use
-`./run-codex.sh --port 8792`.
-
-You can also ask Codex: **“Clone https://github.com/andlyu/blupe-remote-yam
-and launch it with my Codex subscription using ./run-codex.sh.”**
-Complete any OpenAI browser login yourself. Each user signs in locally;
-credentials are not shared with BluPe.
+and gateway execution checks still apply. If the default port is occupied, use
+`./run-playground.sh --port 8792`.
 
 The shared runner and general playground UI are maintained here in `codex-runner/`.
 `blupe-evals` consumes a pinned commit from this repository; do not copy changes
@@ -36,9 +44,9 @@ The existing API-key runner below remains available.
 
 ### Claude subscription
 
-Install Claude Code and run `./run-claude.sh`. Complete the Claude login yourself.
-The same local playground exposes **Run with Opus** for YAM. Its model integration,
-UI controls and tests are maintained in this repository alongside Codex.
+See the [Claude setup README](docs/claude/README.md) for installation, updates,
+subscription sign-in, expired-login recovery, and connection verification.
+The local playground exposes **Run with Opus** for YAM.
 
 
 ---

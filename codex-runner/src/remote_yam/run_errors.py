@@ -15,6 +15,10 @@ def public_run_error(state):
     safety = state.get('safety_error') or {}
     if error or safety:
         text = str(error or safety.get('code') or '').lower()
+        if 'claude code needs sign-in' in text:
+            return 'Claude subscription sign-in expired or was rejected. Reconnect Claude in the local runner.'
+        if 'codex needs chatgpt sign-in' in text:
+            return 'ChatGPT subscription sign-in expired or was rejected. Reconnect Codex in the local runner.'
         if 'runtime limit' in text or 'session_timeout' in text or 'policy_runtime_timeout' in text:
             return 'Run reached time limit'
         if '401' in text or 'authentication' in text or 'invalid_api_key' in text:

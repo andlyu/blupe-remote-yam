@@ -49,8 +49,9 @@ def model_display_name(provider):
 
 
 class RequestError(Exception):
-    def __init__(self, status: int, message: str):
+    def __init__(self, status: int, message: str, *, setup=None):
         self.status, self.message = status, message
+        self.setup = setup
 
 
 class HostedSessionAPI(HttpSessionAPI):
@@ -100,6 +101,7 @@ class Visitor:
     runner_session_id: str | None = None
     launches: int = 0
     saved_keys: dict[str, str] = field(default_factory=dict, repr=False)
+    subscription_prompts: dict[str, str] = field(default_factory=dict)
     retired: bool = False
     lock: threading.Lock = field(default_factory=threading.Lock)
 
@@ -346,7 +348,8 @@ class HostedRunner:
         try:
             await self.http(scope, receive, send)
         except RequestError as exc:
-            await self.json(send, exc.status, {"error": exc.message})
+            await self.json(send, exc.status, {"error": exc.message,
+                **({'subscription_setup': exc.setup} if exc.setup is not None else {})})
         except (ConnectionError, asyncio.CancelledError):
             raise
         except Exception:
@@ -446,13 +449,14 @@ class HostedRunner:
             application_setup, application_headers = await self.session_extension(cookie, visitor)
             local_setup = {}
             if self.local_codex:
-                from remote_yam.codex_policy import codex_status
+                from remote_yam.subscription_setup import subscription_status
                 local_setup = {'local_runner': True, 'default_provider': self.default_provider,
-                               'codex': await asyncio.to_thread(codex_status)}
+                               'codex': await asyncio.to_thread(subscription_status, 'codex')}
             if self.local_claude:
-                from remote_yam.claude_policy import claude_status, DEFAULT_MODEL as CLAUDE_MODEL
+                from remote_yam.claude_policy import DEFAULT_MODEL as CLAUDE_MODEL
+                from remote_yam.subscription_setup import subscription_status
                 local_setup = {**local_setup, 'local_runner': True, 'default_provider': self.default_provider,
-                               'claude': await asyncio.to_thread(claude_status), 'claude_model': CLAUDE_MODEL}
+                               'claude': await asyncio.to_thread(subscription_status, 'claude'), 'claude_model': CLAUDE_MODEL}
             await self.json(send, 200, {**local_setup, **application_setup, "robot_id": self.robot_id, "cameras": list(self.camera_names), "model_cameras": list(self.model_camera_names()), "joint_policy": self.joint_counts != (6,6), "csrf": visitor.csrf, "astra_enabled": bool(self.astra_endpoint), "groot_enabled": bool(self.groot_key_file),
                                       "simulation": self.simulation,
                                       "expires_in": int(self.lifetime_seconds - (time.monotonic() - visitor.born))},
@@ -492,11 +496,11 @@ class HostedRunner:
             elif path == "/api/run":
                 result = await asyncio.to_thread(self.launch, visitor, payload)
             elif path == '/api/codex/check' and self.local_codex:
-                from remote_yam.codex_policy import codex_status
-                result = await asyncio.to_thread(codex_status)
+                from remote_yam.subscription_setup import verify_subscription
+                result = await asyncio.to_thread(verify_subscription, 'codex')
             elif path == '/api/claude/check' and self.local_claude:
-                from remote_yam.claude_policy import claude_status
-                result = await asyncio.to_thread(claude_status)
+                from remote_yam.subscription_setup import verify_subscription
+                result = await asyncio.to_thread(verify_subscription, 'claude')
             elif path in {"/api/stop", "/api/credentials/clear", "/api/disconnect", "/api/operator"}:
                 result = await asyncio.to_thread(self.control, visitor, path)
                 if path == "/api/disconnect":
@@ -517,6 +521,18 @@ class HostedRunner:
             if self.queue is not None:
                 controller.update_queue_snapshot(self.queue)
             state = controller.status()
+            # Only the owner receives local setup instructions after a login expires
+            # during a run. No subprocess or live request is made by status polling.
+            state['subscription_setup'] = None
+            provider_name = (state.get('provider') or {}).get('provider')
+            if state.get('error') and provider_name in {'codex', 'claude'}:
+                from remote_yam.subscription_setup import subscription_failure
+                failure = subscription_failure(provider_name, state['error'], setup={
+                    'provider': provider_name, 'label': 'Opus (Claude)' if provider_name == 'claude' else 'Astra'})
+                if failure['state'] == 'login_required':
+                    failure['setup_prompt'] = visitor.subscription_prompts.get(provider_name, '')
+                    failure['run_started'] = True
+                    state['subscription_setup'] = failure
             if self.queue is None:
                 state["queue_snapshot"] = None
             from remote_yam.operator_status import fresh_auto_queue
@@ -691,6 +707,12 @@ class HostedRunner:
                 prompt = "Raise and lower both arms for three cycles."
             if self.joint_counts != (6,6) and name not in {'openai'} | ({'codex'} if self.local_codex else set()):
                 raise RequestError(400, 'This robot requires an OpenAI or supported local Codex runner')
+            if name in {'codex', 'claude'}:
+                from remote_yam.subscription_setup import verify_subscription
+                setup = verify_subscription(name, model)
+                visitor.subscription_prompts[name] = setup['setup_prompt']
+                if not setup['ready']:
+                    raise RequestError(409, f"{setup['label']} needs setup on this computer. " + setup['message'], setup=setup)
             if name == 'groot':
                 from remote_yam.groot_policy import GrootAdapter
                 if model not in ('', 'groot-reviewed-step10000'):

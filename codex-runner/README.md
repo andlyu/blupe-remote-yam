@@ -16,6 +16,17 @@ Camera URLs must be reachable from the runner host. The current simulation publi
 
 ## Launch
 
+From the repository root, run `./run-playground.sh` for normal installation and
+startup. It installs the playground dependencies without requiring a provider
+login. The UI checks local Codex and Claude readiness; a Run click rechecks the
+selected provider before queue admission. Missing or outdated installations and
+missing subscription logins show a copyable setup/update prompt. **Check again**
+sends a small live model request without starting a robot run. Run performs the
+same verification before queue admission. These checks use subscription usage;
+page loading performs only local setup checks. Expired logins get reconnect
+guidance even when the CLI reports a saved login.
+
+
 The local launcher now serves the same playground UI and queue backend as the
 remote site: prompt/settings, queue position, synchronized live views, conversation
 and public past runs. Codex subscription is available only on localhost. The
@@ -39,9 +50,9 @@ launches can omit `--codex-login`. This does not change your global Codex instal
 Select **Codex subscription** and keep model **gpt-6-astra**. This routes Astra
 decisions through local Codex and your ChatGPT subscription limits. It does not
 use the separately billed Responses API. No API key is requested, and there is
-no automatic API-key fallback. **Check Codex connection** checks local setup and
-sign-in and session-storage write access without sending a model request or joining
-the robot queue. A readable login alone is insufficient: the process launching
+no automatic API-key fallback. **Check Codex connection** checks local setup,
+sign-in and session-storage write access, then verifies a small live model request
+using your subscription without joining the robot queue. A readable login alone is insufficient: the process launching
 the runner must also be able to write `CODEX_HOME` (normally `~/.codex`). When
 launching from a sandboxed coding agent, grant that directory write access through
 its permission flow, or launch from your own terminal. The runner reports this
@@ -91,7 +102,7 @@ of Codex. Run from this directory:
 
 The launcher checks the installed Claude Code version and reuses your existing
 Claude account login; if sign-in is needed, `claude auth login` opens its browser
-flow. Later launches can omit `--claude-login`. Requires Claude Code 2.1 or newer
+flow. Later launches can omit `--claude-login`. Requires Claude Code 2.1.263 or newer
 on `PATH`, in `~/.local/bin`, or in `~/.npm-global/bin` — the launcher does not
 install it. The latter locations also work when a desktop launcher supplies a
 minimal `PATH`. On macOS the launcher needs normal Keychain access to read your
@@ -100,8 +111,8 @@ subscription login; a sandboxed launch may incorrectly report that sign-in is ne
 In the UI the prompt row shows **Run with Astra** and **Run with Opus** side by
 side; either joins the same robot queue with the same task. **Run with Opus**
 selects provider **Claude subscription · Opus** and model `claude-opus-5-5`.
-**Check Claude connection** reports local setup only — never the account email,
-organization, or plan owner.
+**Check Claude connection** verifies a small request through the Claude
+subscription. It never displays the account email, organization, or plan owner.
 
 Three things this provider does deliberately:
 

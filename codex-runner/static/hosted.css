@@ -267,3 +267,10 @@ main > .coffeeSupport{grid-column:1 / -1;margin-top:4px;width:100%}
 #runButtons #runGroot{flex:0 0 auto}
 #setupRunActions #runButtons{grid-template-columns:repeat(3,minmax(0,1fr));width:min(100%,500px)}
 @media(max-width:600px){#runButtons{flex-wrap:wrap}#runButtons #runGroot{flex:1;min-width:0}#setupRunActions #runButtons{display:flex;flex-wrap:wrap}}
+
+#subscriptionHelp{box-sizing:border-box;width:min(600px,calc(100vw - 32px));max-height:calc(100dvh - 48px);overflow:auto;border:1px solid var(--line);border-radius:16px;padding:24px;background:var(--paper);color:var(--ink);box-shadow:0 24px 80px #0003}
+#subscriptionHelp::backdrop{background:#18251e80}
+#subscriptionHelp .subscriptionHelpHeader{display:flex;align-items:center;justify-content:space-between;gap:20px}
+#subscriptionHelp h3{margin:0;font-size:20px}
+#subscriptionHelp textarea{box-sizing:border-box;width:100%;min-height:88px;resize:vertical}
+#subscriptionHelp .actions{flex-wrap:wrap}

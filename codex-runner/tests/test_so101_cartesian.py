@@ -150,7 +150,8 @@ def test_hosted_so101_uses_bundled_limits_without_local_calibration(tmp_path,pro
     app.remember_runner=Mock()
     visitor.controller.join_and_run=Mock()
     try:
-        with patch('playground.ROOT',tmp_path), patch('remote_yam.codex_policy.codex_status',return_value={'ready':True}):
+        with patch('playground.ROOT',tmp_path), patch('remote_yam.codex_policy.codex_status',return_value={'ready':True}), \
+                patch('remote_yam.subscription_setup.probe_subscription', return_value='gpt-6-astra'):
             app.launch(visitor,{'provider':provider_name,'api_key':'test-key-123','prompt':'test','runner_name':'test'})
         provider=visitor.controller.join_and_run.call_args.args[0]
         assert isinstance(provider,SO101CodexAdapter if provider_name=='codex' else SO101OpenAIAdapter)

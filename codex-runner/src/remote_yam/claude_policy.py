@@ -30,7 +30,7 @@ from .codex_policy import DECISION_SCHEMA, decision_response as _shared_decision
 from .robocurve_policy import RoboCurveResponsesAdapter
 
 DEFAULT_MODEL = 'claude-opus-5-5'
-MIN_VERSION = (2, 1, 0)
+MIN_VERSION = (2, 1, 263)
 INSTALL_HELP = ('Install Claude Code (https://claude.com/claude-code) so the `claude` command is on PATH, '
                 'then retry ./run.sh --provider claude.')
 LOGIN_HELP = 'Run ./run.sh --claude-login --provider claude in the launch terminal.'
@@ -76,7 +76,8 @@ def claude_status():
                                  timeout=10, env=claude_environment())
         match = re.search(r'(\d+)\.(\d+)\.(\d+)', version.stdout)
         if version.returncode or not match or tuple(map(int, match.groups())) < MIN_VERSION:
-            return {'ready': False, 'state': 'upgrade_required', 'message': INSTALL_HELP}
+            return {'ready': False, 'state': 'upgrade_required',
+                    'message': 'Claude Code 2.1.263 or newer is required. Run `claude update`, then check again.'}
         auth = subprocess.run([binary, 'auth', 'status'], capture_output=True,
                               text=True, timeout=15, env=claude_environment())
         try:

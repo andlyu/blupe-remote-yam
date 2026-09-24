@@ -45,6 +45,16 @@
         <div id="setupRunActions"></div>
         </details>
       </form>
+      <dialog id="subscriptionHelp" aria-labelledby="subscriptionHelpTitle">
+        <div class="subscriptionHelpHeader"><h3 id="subscriptionHelpTitle"></h3><button type="button" id="closeSubscriptionHelp" aria-label="Close setup popup">Close</button></div>
+        <p id="subscriptionHelpReason" hidden></p>
+        <p>Paste the following prompt into your favorite coding agent:</p>
+        <label for="subscriptionSetupPrompt">Setup prompt</label>
+        <textarea id="subscriptionSetupPrompt" rows="2" readonly></textarea>
+        <div class="actions"><button type="button" id="copySubscriptionPrompt">Copy setup prompt</button><button type="button" id="recheckSubscription">Check again</button></div>
+        <p class="help">Checking the connection uses a small amount of subscription usage.</p>
+        <p id="subscriptionSetupStatus" class="help" role="status"></p>
+      </dialog>
       <div class="actions" hidden><button id="forget" disabled>Forget key &amp; stop</button><button id="operator" disabled>Call operator</button></div>
       <p id="message" role="status" aria-live="polite">Connecting to your browser session…</p>
     </section>
