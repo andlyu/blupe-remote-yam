@@ -1229,7 +1229,7 @@
       }
       $('runGroot').hidden = !session.groot_enabled;
       if (session.groot_enabled) $('provider').append(Object.assign(document.createElement('option'), {value:'groot',textContent:'GR00T'}));
-      buttons(); if (!new URLSearchParams(location.search).has('purchase') && !$('message').textContent.startsWith('Payment')) message('Connected. Watch the cameras or choose a policy to begin.');
+      buttons(); if (!new URLSearchParams(location.search).has('purchase') && !$('message').textContent.startsWith('Payment')) message('');
       camerasDisconnected = robotCatalog?.robots.find(robot => robot.id === selectedRobot)?.connected === false;
       modelCameraNames = new Set(session.model_cameras || []);
       selectedCameras(session.cameras || ['left','top','right']);
