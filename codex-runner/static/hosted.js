@@ -1180,9 +1180,7 @@
       $('openCodexInstructions').hidden = !!session.local_runner;
       $('provider').innerHTML = originalProviderMarkup;
       window.yamAnalytics?.init(session.simulation, session.paid_runs);
-      if (session.simulation) {
-        document.querySelector('.eyebrow').textContent = 'Local simulation · no physical robot connected';
-      }
+      $('simulationNotice').hidden = !session.simulation;
       const astra = $('provider').querySelector('[value="astra"]');
       astra.hidden = astra.disabled = !session.astra_enabled;
       if (session.local_runner) {
