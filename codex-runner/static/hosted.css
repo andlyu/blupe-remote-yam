@@ -281,9 +281,8 @@ main > .coffeeSupport{grid-column:1 / -1;margin-top:4px;width:100%}
 #subscriptionHelp textarea{box-sizing:border-box;width:100%;min-height:88px;resize:vertical}
 #subscriptionHelp .actions{flex-wrap:wrap}
 
-/* Expanded setup: primary run actions, then a separate local alternative. */
-#setupRunActions #runButtons{display:flex;flex-wrap:wrap;width:100%;gap:12px;justify-content:flex-end}
-#setupRunActions #runButtons button{min-width:140px;flex:1 1 140px;min-height:48px}
-#setupRunActions #runButtons #openCodexInstructions{flex:0 0 100%;width:100%;min-width:0;margin-top:8px;padding:20px 0 4px;border:0;border-top:1px solid var(--line);border-radius:0;background:transparent;text-align:center;color:var(--muted);font-weight:500;text-decoration:underline;text-underline-offset:4px;white-space:normal}
-#setupRunActions #runButtons #openCodexInstructions:hover{color:var(--ink);background:transparent}
-@media(max-width:600px){#setupRunActions #runButtons button{flex-basis:100%;width:100%}}
+/* Expanded setup has one action: run with the selected settings. */
+#setupRunActions #runButtons{display:flex;justify-content:flex-end;width:100%;gap:0}
+#setupRunActions #runButtons button:not(#run){display:none}
+#setupRunActions #runButtons #run{flex:0 1 180px;min-height:48px;margin:0}
+@media(max-width:600px){#setupRunActions #runButtons #run{flex:1;width:100%}}
