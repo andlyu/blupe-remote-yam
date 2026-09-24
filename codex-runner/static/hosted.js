@@ -1256,11 +1256,13 @@
       }
       await window.yamApplication?.sessionReady?.(session, applicationContext());
       if (session.joint_policy) {
-        $('provider').replaceChildren(...(session.local_runner ? [['codex','Codex subscription · joint control'],['openai','OpenAI · joint control']] : [['openai','OpenAI · joint control']]).map(([value,textContent])=>Object.assign(document.createElement('option'),{value,textContent})));
-        // Joint-control robots have no Claude policy; keep the button off the form.
-        $('runClaude').hidden = true; $('runAstra').hidden = true;
+        const selected = $('provider').value;
+        const allowed = new Set(['openai', ...(session.codex ? ['codex'] : []),
+          ...(session.claude_supported ? ['anthropic', ...(session.claude ? ['claude'] : [])] : [])]);
+        $('provider').replaceChildren(...Array.from($('provider').options).filter(option => allowed.has(option.value)));
+        if (allowed.has(selected)) $('provider').value = selected;
+        $('runClaude').hidden = !session.claude_supported; $('runAstra').hidden = true;
         providerChanged();
-        $('policyHelp').textContent = session.local_runner ? 'Uses your ChatGPT sign-in through Codex. Enter a task; the operator starts your turn.' : 'Enter your OpenAI API key and a task; the operator starts your turn.';
       }
       $('runGroot').hidden = !session.groot_enabled;
       if (session.groot_enabled) $('provider').append(Object.assign(document.createElement('option'), {value:'groot',textContent:'GR00T'}));

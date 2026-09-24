@@ -29,7 +29,7 @@ Claude subscription (Claude Code 2.1.263 or newer required). No API key is neede
 for these subscription options. Credentials stay on your computer.
 
 Use the top-right robot selector to choose **YAM**, **SO101 — Andrew’s Mac**, or
-**MakerMods Bimanual SO101**. Opus and GR00T currently support YAM. See
+**MakerMods Bimanual SO101**. Opus supports these robots and configured MakerArm robots through the same robot-specific motion validation as Astra. GR00T currently supports YAM. See
 [multi-robot setup](codex-runner/docs/MULTI-ROBOT.md) for the catalog and
 [UI status labels](docs/UI-LABELS.md) for robot readiness.
 
@@ -46,7 +46,7 @@ The existing API-key runner below remains available.
 
 See the [Claude setup README](docs/claude/README.md) for installation, updates,
 subscription sign-in, expired-login recovery, and connection verification.
-The local playground exposes **Run with Opus** for YAM.
+The local playground supports **Opus** for YAM, SO101, MakerMods Bimanual SO101, and configured MakerArm robots.
 
 
 ---

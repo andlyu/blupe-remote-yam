@@ -82,3 +82,20 @@ def test_fk_matches_independent_mujoco_model(mapping):
         for name,v in zip(JOINTS,q):data.qpos[model.jnt_qposadr[model.joint(name).id]]=v
         mujoco.mj_forward(model,data)
         assert np.linalg.norm(geometry.forward(q)-data.body('grasp_center').xpos)<1e-8
+
+@pytest.mark.parametrize('provider', ['claude', 'anthropic'])
+def test_opus_retains_makerarm_mapping_and_contract(mapping, provider):
+    from unittest.mock import patch
+    from remote_yam.makerarm_policy import MakerArmClaudeAdapter, MakerArmAnthropicAdapter
+    with patch('remote_yam.claude_policy.claude_status', return_value={'ready':True}), patch('remote_yam.claude_policy.claude_binary', return_value='/unused'):
+        p = (MakerArmClaudeAdapter(calibration_path=mapping, camera_names=('front','wrist')) if provider=='claude'
+             else MakerArmAnthropicAdapter('test', calibration_path=mapping, camera_names=('front','wrist')))
+    try:
+        assert p._camera_names == ('front','wrist')
+        assert p._expected_camera_count == 2
+        assert 'Y-up' in p._system_prompt
+        assert set(p._decision_schema['properties']['targets']['required']) == set(NAMES)
+        assert p._geometry.build({'gripper':.52}, observation(), 0)[-1]['left_gripper'] == .52
+        with pytest.raises(InvalidMove):p._geometry.build({'yaw':1}, observation(), 0)
+    finally:
+        if hasattr(p, '_workspace'):p._workspace.cleanup()

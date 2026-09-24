@@ -3,6 +3,8 @@ import copy
 from .robocurve_contract import SYSTEM_PROMPT as YAM_PROMPT, TOOLS as YAM_TOOLS
 from .robocurve_policy import OpenAIAdapter
 from .codex_policy import CodexAdapter, DECISION_SCHEMA, decision_response
+from .claude_policy import ClaudeAdapter
+from .anthropic_policy import AnthropicAdapter
 from .so101_trajectory import SO101Trajectory, NAMES, LOW, HIGH
 
 SYSTEM_PROMPT = YAM_PROMPT.split('Embodiment notes:')[0].replace("'yam_arms'", "'so101'") + '''Embodiment notes:
@@ -75,4 +77,12 @@ class SO101OpenAIAdapter(SO101PolicyMixin, OpenAIAdapter):
     pass
 
 class SO101CodexAdapter(SO101PolicyMixin, CodexAdapter):
+    pass
+
+
+class SO101ClaudeAdapter(SO101PolicyMixin, ClaudeAdapter):
+    pass
+
+
+class SO101AnthropicAdapter(SO101PolicyMixin, AnthropicAdapter):
     pass

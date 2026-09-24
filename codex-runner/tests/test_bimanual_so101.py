@@ -3,7 +3,7 @@ from unittest.mock import patch
 import numpy as np
 import pytest
 from remote_yam.bimanual_so101_trajectory import BimanualSO101Trajectory, NAMES
-from remote_yam.bimanual_so101_policy import BimanualSO101OpenAIAdapter, BimanualSO101CodexAdapter
+from remote_yam.bimanual_so101_policy import BimanualSO101OpenAIAdapter, BimanualSO101CodexAdapter, BimanualSO101ClaudeAdapter, BimanualSO101AnthropicAdapter
 from remote_yam.so101_trajectory import JOINTS
 from remote_yam.robocurve_trajectory import InvalidMove
 from remote_yam.cameras import CameraFrame
@@ -91,7 +91,7 @@ def test_bundled_makermods_profiles_match_calibrated_limits():
     for bad in (None, {'left':profile['left']}, {**profile,'right':None}):
         with pytest.raises(RuntimeError):BimanualSO101Trajectory(joint_profile=bad)
 
-@pytest.mark.parametrize('provider_name',['openai','codex'])
+@pytest.mark.parametrize('provider_name',['openai','codex','claude','anthropic'])
 def test_fresh_checkout_launches_bimanual_without_local_files(tmp_path,provider_name):
     from playground import HostedRunner
     from remote_yam.session import MockSessionAPI
@@ -99,17 +99,19 @@ def test_fresh_checkout_launches_bimanual_without_local_files(tmp_path,provider_
     import shutil
     app=HostedRunner(public_origin='http://127.0.0.1:8791',session_api='https://api.example',
         camera_origin='https://camera.example',robot_id='robot-3652c537a175cbae',
-        joint_counts=(5,5),camera_names=('overhead','side','left','right'),local_codex=True,development=True,
+        joint_counts=(5,5),camera_names=('overhead','side','left','right'),local_codex=True,local_claude=True,development=True,
         api_factory=lambda:MockSessionAPI(auto_activate=False))
     _,visitor=app.new_visitor()
     app.remember_runner=Mock();visitor.controller.join_and_run=Mock()
     provider=None
     try:
         with patch('playground.ROOT',tmp_path),patch('remote_yam.codex_policy.codex_status',return_value={'ready':True}),patch('remote_yam.codex_policy.codex_binary',return_value='/unused'), \
-                patch('remote_yam.subscription_setup.probe_subscription', return_value='gpt-6-astra'):
+                patch('remote_yam.subscription_setup.verify_subscription', return_value={'ready':True,'setup_prompt':'','label':'test'}), \
+                patch('remote_yam.claude_policy.claude_status', return_value={'ready':True}), patch('remote_yam.claude_policy.claude_binary', return_value='/unused'):
             app.launch(visitor,{'provider':provider_name,'api_key':'test-key-123','prompt':'test','runner_name':'test'})
         provider=visitor.controller.join_and_run.call_args.args[0]
-        assert isinstance(provider,BimanualSO101CodexAdapter if provider_name=='codex' else BimanualSO101OpenAIAdapter)
+        assert isinstance(provider, {'codex':BimanualSO101CodexAdapter,'openai':BimanualSO101OpenAIAdapter,
+            'claude':BimanualSO101ClaudeAdapter,'anthropic':BimanualSO101AnthropicAdapter}[provider_name])
         assert all(a.calibration_path is None for a in provider._geometry.arms.values())
     finally:
         if provider is not None and hasattr(provider,'_workspace'):provider._workspace.cleanup()
@@ -159,3 +161,43 @@ def test_codex_attaches_all_four_labeled_images(manifest):
         assert len(calls) == 1
     finally:
         p._workspace.cleanup()
+
+
+def test_claude_four_images_and_validated_motion(manifest):
+    from pathlib import Path
+    with patch('remote_yam.claude_policy.claude_status', return_value={'ready':True}), patch('remote_yam.claude_policy.claude_binary', return_value='/unused'):
+        p = BimanualSO101ClaudeAdapter(calibration_path=manifest, camera_source=Cameras())
+    def execute(command, prompt, root):
+        assert len(list(Path(root).glob('camera-*.jpg'))) == 4
+        assert 'bimanual SO101' in command[command.index('--system-prompt')+1]
+        assert 'Use only Read' in command[command.index('--system-prompt')+1]
+        schema = json.loads(command[command.index('--json-schema')+1])
+        assert set(schema['properties']['targets']['required']) == set(NAMES)
+        for role in Cameras.camera_names:
+            assert f"camera '{role}_cam'" in prompt
+        value = dict(action='move_to', targets=dict.fromkeys(NAMES), note='Open right', summary='', reason='', hindsight='')
+        value['targets']['right_gripper'] = .32
+        return dict(type='result', subtype='success', is_error=False, session_id='test-session',
+                    permission_denials=[], result=json.dumps(value))
+    try:
+        with patch.object(p, '_execute', side_effect=execute):
+            points = p.build_trajectory('Open right slightly', obs(), 0)
+        assert points[-1]['right_gripper'] == .32
+        assert all(point['left_joints_deg'] == obs()['left_joints_deg'] for point in points)
+        with pytest.raises(InvalidMove):
+            p._geometry.build({'right_x':5}, obs(), 0)
+    finally:
+        p._workspace.cleanup()
+
+
+def test_anthropic_uses_makermods_contract(manifest):
+    from remote_yam.anthropic_policy import messages_payload
+    p = BimanualSO101AnthropicAdapter('test', calibration_path=manifest, camera_source=Cameras())
+    def reply(payload):
+        wire = messages_payload(payload)
+        assert 'Two SO101 follower arms' in wire['system']
+        assert len([b for b in wire['messages'][-1]['content'] if b['type']=='image']) == 4
+        assert set(wire['tools'][0]['input_schema']['properties']['targets']['properties']) == set(NAMES)
+        return {'output':[{'type':'function_call','call_id':'t','name':'move_to','arguments':json.dumps({'targets':{'right_gripper':.32},'note':'Open right'})}]}
+    p._post_json = reply
+    assert p.build_trajectory('Open right', obs(), 0)[-1]['right_gripper'] == .32

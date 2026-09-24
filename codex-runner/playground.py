@@ -459,7 +459,7 @@ class HostedRunner:
                 from remote_yam.subscription_setup import subscription_status
                 local_setup = {**local_setup, 'local_runner': True, 'default_provider': self.default_provider,
                                'claude': await asyncio.to_thread(subscription_status, 'claude'), 'claude_model': CLAUDE_MODEL}
-            await self.json(send, 200, {**local_setup, **application_setup, "robot_id": self.robot_id, "cameras": list(self.camera_names), "model_cameras": list(self.model_camera_names()), "joint_policy": self.joint_counts != (6,6), "csrf": visitor.csrf, "astra_enabled": bool(self.astra_endpoint), "groot_enabled": bool(self.groot_key_file),
+            await self.json(send, 200, {**local_setup, **application_setup, "robot_id": self.robot_id, "cameras": list(self.camera_names), "model_cameras": list(self.model_camera_names()), "joint_policy": self.joint_counts != (6,6), "claude_supported": self.hardware == "makerarm" or self.joint_counts in {(6,6), (5,5), (5,0)}, "csrf": visitor.csrf, "astra_enabled": bool(self.astra_endpoint), "groot_enabled": bool(self.groot_key_file),
                                       "simulation": self.simulation, "share_conversation": self.share_conversation,
                                       "expires_in": int(self.lifetime_seconds - (time.monotonic() - visitor.born))},
                             [(b"set-cookie", cookie_value.encode())] + application_headers)
@@ -716,7 +716,9 @@ class HostedRunner:
                 raise RequestError(400, "Astra is not configured on this service")
             if name == "local_raise_lower":
                 prompt = "Raise and lower both arms for three cycles."
-            if self.joint_counts != (6,6) and name not in {'openai'} | ({'codex'} if self.local_codex else set()):
+            claude_supported = self.hardware == 'makerarm' or self.joint_counts in {(5,5), (5,0)}
+            if self.joint_counts != (6,6) and name not in ({'openai'} | ({'codex'} if self.local_codex else set())
+                    | ({'anthropic'} | ({'claude'} if self.local_claude else set()) if claude_supported else set())):
                 raise RequestError(400, 'This robot requires an OpenAI or supported local Codex runner')
             if name in {'codex', 'claude'}:
                 from remote_yam.subscription_setup import verify_subscription
@@ -730,20 +732,25 @@ class HostedRunner:
                     raise RequestError(400, 'Unknown GR00T checkpoint')
                 provider = GrootAdapter(Path(self.groot_key_file).read_text().strip(), camera_source=self.camera_source)
             elif self.hardware == 'makerarm' and not self.provider_factory:
-                from remote_yam.makerarm_policy import MakerArmOpenAIAdapter, MakerArmCodexAdapter
+                from remote_yam.makerarm_policy import MakerArmOpenAIAdapter, MakerArmCodexAdapter, MakerArmClaudeAdapter, MakerArmAnthropicAdapter
                 mapping = ROOT / '.local' / 'robot-calibrations' / (hashlib.sha256(self.robot_id.encode()).hexdigest() + '.json')
                 if not mapping.is_file():
                     raise RequestError(400, 'MakerArm Cartesian control requires a verified motor-to-URDF mapping on this runner')
                 kwargs = dict(camera_source=self.camera_source, recording_root=visitor.directory,
                               calibration_path=mapping, camera_names=self.camera_names)
                 try:
-                    provider = (MakerArmCodexAdapter(model or 'gpt-6-astra', **kwargs) if name == 'codex'
-                                else MakerArmOpenAIAdapter(key, model or 'gpt-6-astra', **kwargs))
+                    if name in {'claude', 'anthropic'}:
+                        from remote_yam.claude_policy import DEFAULT_MODEL as CLAUDE_MODEL
+                        provider = (MakerArmClaudeAdapter(model or CLAUDE_MODEL, **kwargs) if name == 'claude'
+                                    else MakerArmAnthropicAdapter(key, model or CLAUDE_MODEL, **kwargs))
+                    else:
+                        provider = (MakerArmCodexAdapter(model or 'gpt-6-astra', **kwargs) if name == 'codex'
+                                    else MakerArmOpenAIAdapter(key, model or 'gpt-6-astra', **kwargs))
                 except (RuntimeError, ValueError, KeyError) as exc:
                     raise RequestError(400, str(exc)) from None
                 provider._urlopen = request.build_opener(NoRedirect).open
             elif self.joint_counts == (5,5) and not self.provider_factory:
-                from remote_yam.bimanual_so101_policy import BimanualSO101OpenAIAdapter, BimanualSO101CodexAdapter
+                from remote_yam.bimanual_so101_policy import BimanualSO101OpenAIAdapter, BimanualSO101CodexAdapter, BimanualSO101ClaudeAdapter, BimanualSO101AnthropicAdapter
                 calibration_path = ROOT / '.local' / 'robot-calibrations' / (hashlib.sha256(self.robot_id.encode()).hexdigest() + '.json')
                 from remote_yam.so101_trajectory import load_joint_profile
                 calibration_path = calibration_path if calibration_path.is_file() else None
@@ -753,13 +760,18 @@ class HostedRunner:
                 kwargs = dict(camera_source=self.camera_source, recording_root=visitor.directory,
                               calibration_path=calibration_path, joint_profile=joint_profile, camera_names=self.policy_camera_names)
                 try:
-                    provider = (BimanualSO101CodexAdapter(model or 'gpt-6-astra', **kwargs) if name == 'codex'
-                                else BimanualSO101OpenAIAdapter(key, model or 'gpt-6-astra', **kwargs))
+                    if name in {'claude', 'anthropic'}:
+                        from remote_yam.claude_policy import DEFAULT_MODEL as CLAUDE_MODEL
+                        provider = (BimanualSO101ClaudeAdapter(model or CLAUDE_MODEL, **kwargs) if name == 'claude'
+                                    else BimanualSO101AnthropicAdapter(key, model or CLAUDE_MODEL, **kwargs))
+                    else:
+                        provider = (BimanualSO101CodexAdapter(model or 'gpt-6-astra', **kwargs) if name == 'codex'
+                                    else BimanualSO101OpenAIAdapter(key, model or 'gpt-6-astra', **kwargs))
                 except (RuntimeError, ValueError, OSError, KeyError) as exc:
                     raise RequestError(400, str(exc)) from None
                 provider._urlopen = request.build_opener(NoRedirect).open
             elif self.joint_counts == (5,0) and not self.provider_factory:
-                from remote_yam.so101_policy import SO101OpenAIAdapter, SO101CodexAdapter
+                from remote_yam.so101_policy import SO101OpenAIAdapter, SO101CodexAdapter, SO101ClaudeAdapter, SO101AnthropicAdapter
                 from remote_yam.so101_trajectory import load_joint_profile
                 # An explicit local calibration overrides the bundled robot-specific limits.
                 calibration_path = ROOT / '.local' / 'robot-calibrations' / (hashlib.sha256(self.robot_id.encode()).hexdigest() + '.json')
@@ -770,8 +782,13 @@ class HostedRunner:
                 kwargs = {"camera_source": self.camera_source, "recording_root": visitor.directory,
                           "calibration_path": calibration_path, "joint_profile": joint_profile}
                 try:
-                    provider = (SO101CodexAdapter(model or 'gpt-6-astra', **kwargs) if name == 'codex'
-                                else SO101OpenAIAdapter(key, model or 'gpt-6-astra', **kwargs))
+                    if name in {'claude', 'anthropic'}:
+                        from remote_yam.claude_policy import DEFAULT_MODEL as CLAUDE_MODEL
+                        provider = (SO101ClaudeAdapter(model or CLAUDE_MODEL, **kwargs) if name == 'claude'
+                                    else SO101AnthropicAdapter(key, model or CLAUDE_MODEL, **kwargs))
+                    else:
+                        provider = (SO101CodexAdapter(model or 'gpt-6-astra', **kwargs) if name == 'codex'
+                                    else SO101OpenAIAdapter(key, model or 'gpt-6-astra', **kwargs))
                 except RuntimeError as exc:
                     raise RequestError(400, str(exc)) from None
                 provider._urlopen = request.build_opener(NoRedirect).open

@@ -3,6 +3,8 @@ import copy
 from .robocurve_contract import SYSTEM_PROMPT as BASE_PROMPT, TOOLS as BASE_TOOLS
 from .robocurve_policy import OpenAIAdapter
 from .codex_policy import CodexAdapter, DECISION_SCHEMA, decision_response
+from .claude_policy import ClaudeAdapter
+from .anthropic_policy import AnthropicAdapter
 from .makerarm_trajectory import MakerArmTrajectory, NAMES
 
 SYSTEM_PROMPT = BASE_PROMPT.split('Embodiment notes:')[0].replace("'yam_arms'", "'makerarm'") + '''Embodiment notes:
@@ -67,4 +69,12 @@ class MakerArmOpenAIAdapter(MakerArmPolicyMixin, OpenAIAdapter):
     pass
 
 class MakerArmCodexAdapter(MakerArmPolicyMixin, CodexAdapter):
+    pass
+
+
+class MakerArmClaudeAdapter(MakerArmPolicyMixin, ClaudeAdapter):
+    pass
+
+
+class MakerArmAnthropicAdapter(MakerArmPolicyMixin, AnthropicAdapter):
     pass

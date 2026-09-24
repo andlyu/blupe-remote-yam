@@ -178,6 +178,11 @@ class ClaudeAdapter(RoboCurveResponsesAdapter):
         lines = []
         if hasattr(self, '_decision_instructions'):
             system = self._decision_instructions
+            # Robot contracts also serve Codex's attached-image transport. Claude
+            # reads staged images, so permit exactly that existing Read capability.
+            for restriction in ('Do not use shell, files, web, or other tools.',
+                                'Do not use shell, files, web or other tools.'):
+                system = system.replace(restriction, 'Use only Read to inspect the supplied camera images; do not use other tools.')
             lines.append(payload.get('instructions', ''))
         images = []
         for item in history[self._sent_items:]:
