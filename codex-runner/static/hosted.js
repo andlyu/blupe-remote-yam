@@ -494,9 +494,18 @@
       : !running ? 'Run ended'
       : `${stopwatch.status === 'preparing' ? 'Preparing · ' : ''}${stopwatch.duration === null ? 'Run in progress' : stopwatchTime(Math.ceil(Math.max(0, stopwatch.duration - elapsed))) + ' remaining'}`;
   }
-  function syncStopwatch(run) {
-    stopwatch = run && typeof run.run_elapsed_s === 'number' && Number.isFinite(run.run_elapsed_s)
-      ? {elapsed: Math.max(0, run.run_elapsed_s), status: run.status,
+  function syncStopwatch(run, generatedAt) {
+    const finite = value => typeof value === 'number' && Number.isFinite(value);
+    let elapsed = run?.run_elapsed_s;
+    if (run && !finite(elapsed) && finite(run.run_started_at)) {
+      // API-backed local runs supply server timestamps instead of elapsed time.
+      // Never subtract the viewer's wall clock: it may differ from the API clock.
+      const end = ['preparing', 'running'].includes(run.status) ? generatedAt : run.run_ended_at;
+      if (finite(end)) elapsed = end - run.run_started_at;
+      else if (run.run_id && stopwatch?.runId === run.run_id) elapsed = stopwatch.elapsed;
+    }
+    stopwatch = run && finite(elapsed)
+      ? {elapsed: Math.max(0, elapsed), status: run.status, runId: run.run_id,
          duration: typeof run.run_duration_s === 'number' && Number.isFinite(run.run_duration_s) ? run.run_duration_s : null,
          receivedAt: performance.now()} : null;
     tickStopwatch();
@@ -656,7 +665,7 @@
       ? state.whats_running.map(run => `${run.runner_name || 'Anonymous'} · ${run.task || 'Task unavailable'}${run.status === 'preparing' ? ' (preparing)' : ''}`).join('\n')
       : 'No policy is running.';
     const live = state.public_run;
-    syncStopwatch(live);
+    syncStopwatch(live, state.queue_snapshot?.generated_at);
     $('currentRunner').textContent = 'Runner: ' + (live?.runner_name || '—');
     $('currentPrompt').textContent = live?.task || 'Waiting for someone to run a policy.';
     $('conversationState').textContent = (live?.status || 'Waiting for a run').replaceAll('_', ' ') + (live?.error ? ' · ' + live.error : '');
