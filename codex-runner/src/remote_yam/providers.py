@@ -131,6 +131,7 @@ class ResponsesAdapter:
             method="POST",
         )
         self._contact_issue = None
+        contact_label = "Claude" if self.provider_name == "anthropic" else "Astra"
         for attempt in range(1, 4):
             if self.cancelled():
                 raise RuntimeError("Model request cancelled")
@@ -141,7 +142,7 @@ class ResponsesAdapter:
                 cause = exc.reason if isinstance(exc, error.URLError) and not isinstance(exc, error.HTTPError) else exc
                 retrying = attempt < 3 and not isinstance(cause, ssl.SSLCertVerificationError)
                 detail = {
-                    "message": "Server contact issue — Astra",
+                    "message": f"Server contact issue — {contact_label}",
                     "state": "retrying" if retrying else "failed",
                     "attempt": attempt, "max_attempts": 3,
                     "cause_type": type(cause).__name__,
@@ -157,14 +158,14 @@ class ResponsesAdapter:
                 if not retrying:
                     failure_label = f"HTTP {exc.code}" if isinstance(exc, error.HTTPError) else type(cause).__name__
                     raise RuntimeError(
-                        f"Server contact issue — Astra request failed after {attempt} attempts ({failure_label})"
+                        f"Server contact issue — {contact_label} request failed after {attempt} attempts ({failure_label})"
                     ) from None
                 self._wait_before_retry(float(attempt))
                 continue
             if self.cancelled():
                 raise RuntimeError("Model request cancelled")
             if self._contact_issue:
-                self._contact_event("server_contact_recovered", {"message": "Astra server contact restored"})
+                self._contact_event("server_contact_recovered", {"message": f"{contact_label} server contact restored"})
             self._contact_issue = None
             return result
         raise AssertionError("unreachable")

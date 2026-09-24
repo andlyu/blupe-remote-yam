@@ -140,6 +140,21 @@ class HostedTests(unittest.IsolatedAsyncioTestCase):
         return await self.call("/api/run", method="POST", payload={
             "provider": "openai", "model": "test-model", "api_key": secret, "prompt": "Private task"}, **browser)
 
+    async def test_claude_api_joins_queue_and_retains_only_its_own_key(self):
+        browser = await self.session()
+        code, result, _ = await self.call('/api/run', method='POST', payload={
+            'provider':'anthropic', 'model':'claude-opus-5-5', 'api_key':'claude-test-key',
+            'prompt':'Move block'}, **browser)
+        self.assertEqual(code, 200, result)
+        visitor = next(iter(self.app.visitors.values()))
+        self.assertEqual(visitor.controller.status()['status'], 'queued')
+        self.assertEqual(visitor.saved_keys, {'anthropic':'claude-test-key'})
+        self.assertFalse(self.app.local_claude)
+        other = await self.session()
+        code, _, _ = await self.call('/api/run', method='POST', payload={
+            'provider':'anthropic', 'model':'claude-opus-5-5', 'prompt':'Move block'}, **other)
+        self.assertEqual(code, 400)
+
     async def test_legacy_controller_without_analytics_keeps_queued_run(self):
         browser = await self.session()
         visitor = next(iter(self.app.visitors.values()))

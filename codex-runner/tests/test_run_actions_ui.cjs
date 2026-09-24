@@ -15,5 +15,5 @@ test('expanding and collapsing setup preserves action nodes and reading order', 
   const update = vm.runInNewContext('(function(){'+updateSource+')', {$:id=>nodes[id],window:{},document:{querySelector:()=>prompt},runSetupNeeded:()=>true,active:false,submitting:false});
   update(); assert.equal(group.parentElement,prompt); assert.deepEqual(group.children,[run,codex,astra,claude,groot]);
   nodes.runSettings.open=true; update(); assert.equal(group.parentElement,footer); assert.deepEqual(group.children,[run,astra,claude,groot,codex]); assert.equal(run.textContent,'Run');
-  nodes.runSettings.open=false; update(); assert.equal(group.parentElement,prompt); assert.deepEqual(group.children,[run,codex,astra,claude,groot]); assert.equal(run.textContent,'Setup LLM Keys and run');
+  nodes.runSettings.open=false; update(); assert.equal(group.parentElement,prompt); assert.deepEqual(group.children,[run,codex,astra,claude,groot]); assert.equal(run.textContent,'Run online');
 });

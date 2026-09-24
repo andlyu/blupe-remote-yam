@@ -223,7 +223,7 @@
   let savedKeyProviders = [];
   function runSetupNeeded() {
     return !$('runnerName').value.trim() ||
-      (['openai', 'astra'].includes($('provider').value) &&
+      (['openai', 'astra', 'anthropic'].includes($('provider').value) && !$('providerFields').hidden &&
        !savedKeyProviders.includes($('provider').value) && !$('apiKey').value.trim());
   }
   $('openCodexInstructions').onclick = () => {
@@ -314,7 +314,7 @@
     $('runForm').classList.toggle('setupReady', !runSetupNeeded());
     $('runForm').classList.toggle('runActive', active || submitting);
     $('run').textContent = runSetupNeeded() && !$('runSettings').open
-      ? 'Setup LLM Keys and run'
+      ? 'Run online'
       : window.yamApplication?.runLabel?.() || 'Run';
   }
   $('run').addEventListener('click', event => {
@@ -336,7 +336,7 @@
   function updateSavedKey(providers) {
     if (Array.isArray(providers)) savedKeyProviders = providers;
     const saved = savedKeyProviders.includes($('provider').value);
-    const keyed = ['openai', 'astra'].includes($('provider').value);
+    const keyed = ['openai', 'astra', 'anthropic'].includes($('provider').value);
     $('apiKey').required = keyed && !saved;
     $('apiKey').placeholder = saved ? 'Key saved for this session · enter a new key to replace it' : 'Paste a dedicated API key';
     updateRunLabel();
@@ -367,12 +367,16 @@
       return;
     }
     $('forget').hidden = false;
+    const anthropic = $('provider').value === 'anthropic';
+    $('model').value = anthropic ? 'claude-opus-5-5' : $('provider').value === 'astra' ? 'astra-default' : 'gpt-6-astra';
+    $('apiKeyLabel').textContent = anthropic ? 'Claude API key' : 'OpenAI API key';
+    $('apiKeyCreate').href = anthropic ? 'https://platform.claude.com/settings/keys' : 'https://platform.openai.com/api-keys';
+    $('apiKeyBilling').href = anthropic ? 'https://platform.claude.com/settings/billing' : 'https://platform.openai.com/account/billing/overview';
     if (window.yamApplication?.providerChanged?.(applicationContext())) return;
     const builtIn = $('provider').value === 'local_raise_lower';
     $('providerFields').hidden = builtIn;
     $('apiKey').required = !builtIn; updateSavedKey();
     $('apiKey').value = '';
-    $('model').value = $('provider').value === 'astra' ? 'astra-default' : 'gpt-6-astra';
     $('prompt').value = builtIn ? 'Raise and lower both arms.' : 'place green block on plate';
     $('policyHelp').textContent = builtIn ? 'The built-in policy performs three raise/lower cycles. No model calls or API key are needed.' : 'The model observes the cameras, chooses a move, and waits for robot feedback before deciding again.';
   }
@@ -522,7 +526,7 @@
   let liveModelName = 'Astra', lastLive = null;
   function selectedModelName() {
     const provider = $('provider').value;
-    if (provider === 'claude') {
+    if (provider === 'claude' || provider === 'anthropic') {
       const m = /^claude-(opus|sonnet|haiku|fable)-(\d+)(?:-(\d+))?$/.exec(claudeModel);
       return m ? m[1][0].toUpperCase() + m[1].slice(1) + ' ' + m[2] + (m[3] ? '.' + m[3] : '') : 'Claude';
     }

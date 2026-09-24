@@ -40,7 +40,7 @@ def model_display_name(provider):
     """Name the public conversation panel shows for the model driving the run."""
     provider = provider if isinstance(provider, dict) else {}
     name, model = provider.get("provider"), str(provider.get("model") or "")
-    if name == "claude":
+    if name in {"claude", "anthropic"}:
         family, major, minor = (model.split("-") + ["", "", "", ""])[1:4]
         if family in {"opus", "sonnet", "haiku", "fable"} and major.isdigit():
             return family.title() + " " + major + ("." + minor if minor.isdigit() else "")
@@ -690,7 +690,7 @@ class HostedRunner:
                 raise RequestError(400, str(exc)) from None
             if not isinstance(runner_name, str) or not 1 <= len(runner_name.strip()) <= 32 or any(ord(c) < 32 for c in runner_name):
                 raise RequestError(400, 'Enter a name of 1–32 characters')
-            if name not in ({"local_raise_lower", "openai", "astra"} | ({"codex"} if self.local_codex else set())
+            if name not in ({"local_raise_lower", "openai", "astra", "anthropic"} | ({"codex"} if self.local_codex else set())
                             | ({"claude"} if self.local_claude else set())) | ({"groot"} if self.groot_key_file else set()):
                 raise RequestError(400, "Choose a supported provider")
             if not isinstance(prompt, str) or not 1 <= len(prompt.strip()) <= 4000:
@@ -788,6 +788,11 @@ class HostedRunner:
                                              recording_root=visitor.directory)
                 except (RuntimeError, ValueError) as exc:
                     raise RequestError(400, str(exc)) from None
+            elif name == 'anthropic':
+                from remote_yam.anthropic_policy import AnthropicAdapter, DEFAULT_MODEL
+                provider = AnthropicAdapter(key, model or DEFAULT_MODEL, camera_source=self.camera_source,
+                                            recording_root=visitor.directory)
+                provider._urlopen = request.build_opener(NoRedirect).open
             elif name == "local_raise_lower":
                 provider = RepeatingRaiseLowerAdapter(cycles=3)
             else:

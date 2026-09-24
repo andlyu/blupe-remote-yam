@@ -323,3 +323,14 @@ Only include text intended for public display, never API keys or private context
 See `docs/YAM-PUBLIC-CONVERSATION.md` in the BluPe API repository for limits and examples.
 
 For two SO101 followers, see [bimanual SO101 prompt, IK, and runner configuration](docs/BIMANUAL-SO101.md).
+
+## Online model choices
+
+**Run online** opens the model selector: ChatGPT (OpenAI API key), Claude
+(Anthropic API key, Opus 5.5), or No AI — just wiggle arms. Claude API control
+currently supports YAM; other robot profiles retain their supported providers.
+Subscription logins remain in the separate local Codex/Claude launch flow.
+The shared runner keeps API keys in browser-session server memory and applies
+the same image freshness, trajectory validation and feedback checks to both
+API providers. BluPe hosting adds Stripe as a funding choice under ChatGPT;
+it does not offer Stripe-funded Claude inference.

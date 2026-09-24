@@ -26,18 +26,19 @@
     <section class="panel">
       <form id="runForm" autocomplete="off">
         <div class="runHeading"><h2>Prompt the arms</h2><div class="runTimeControl"><label for="runDuration">Time</label><input id="runDuration" type="number" min="1" max="10" step="1" value="5" aria-describedby="runDurationUnit" required><span id="runDurationUnit">min</span></div></div>
-        <div class="promptRow"><textarea id="prompt" aria-label="Prompt the arms" rows="2" maxlength="4000" required>place green block on plate</textarea><div id="runButtons"><button class="primary" id="run" type="submit" disabled>Setup LLM Keys and run</button><button type="button" id="openCodexInstructions">Run Locally through Subscription</button><button type="button" id="runAstra" hidden disabled>Run with Astra</button><button type="button" id="runClaude" hidden disabled>Run with Opus</button><button type="button" id="runGroot" hidden disabled>Run GR00T</button></div></div>
+        <div class="promptRow"><textarea id="prompt" aria-label="Prompt the arms" rows="2" maxlength="4000" required>place green block on plate</textarea><div id="runButtons"><button class="primary" id="run" type="submit" disabled>Run online</button><button type="button" id="openCodexInstructions">Run Locally through Subscription</button><button type="button" id="runAstra" hidden disabled>Run with Astra</button><button type="button" id="runClaude" hidden disabled>Run with Opus</button><button type="button" id="runGroot" hidden disabled>Run GR00T</button></div></div>
         <details id="runSettings"><summary>Settings</summary>
         <label for="runnerName">Your name</label><input id="runnerName" required maxlength="32" autocomplete="nickname" placeholder="Name shown with your run">
         <p class="help">Your name, task, and readable Astra conversation will be visible to everyone watching.</p>
         <label for="email">Email (optional)</label><input id="email" type="email" maxlength="254" placeholder="you@example.com" autocomplete="email" autocapitalize="none" spellcheck="false" aria-describedby="emailHelp">
         <p class="help" id="emailHelp">This project is super new. We'd love to follow up about your experience.</p>
-        <label for="provider">Policy / provider</label>
-        <select id="provider"><option value="local_raise_lower">Built-in: raise and lower both arms · no key</option><option value="openai" selected>Bring your API key · Astra</option><option value="astra" hidden disabled>Astra · bring your key</option></select>
+        <label for="provider">Model</label>
+        <select id="provider"><option value="openai" selected>ChatGPT</option><option value="anthropic">Claude</option><option value="local_raise_lower">No AI — just wiggle arms</option><option value="astra" hidden disabled>Astra · bring your key</option></select>
+        <!-- application-payment-options -->
         <div id="providerFields">
           <label for="model" hidden>Model</label><input id="model" hidden value="gpt-6-astra" maxlength="128" spellcheck="false">
-          <label for="apiKey">Your provider API key</label>
-          <p class="help">Generate new key <a href="https://platform.openai.com/api-keys" target="_blank" rel="noopener noreferrer">here</a><br>Make sure you have OpenAI credits <a href="https://platform.openai.com/account/billing/overview" target="_blank" rel="noopener noreferrer">here</a></p>
+          <label id="apiKeyLabel" for="apiKey">OpenAI API key</label>
+          <p class="help"><a id="apiKeyCreate" href="https://platform.openai.com/api-keys" target="_blank" rel="noopener noreferrer">Create an API key</a> · <a id="apiKeyBilling" href="https://platform.openai.com/account/billing/overview" target="_blank" rel="noopener noreferrer">Manage API credits</a></p>
           <input id="apiKey" type="password" required autocomplete="off" autocapitalize="none" spellcheck="false" maxlength="4096" placeholder="Paste a dedicated API key" aria-describedby="keyHelp">
           <p class="help" id="keyHelp">Your provider bills your account for inference. Your key is reused for future runs in this browser session, including after refresh. It stays in server memory, never disk or browser storage. Forget key, ending the session, session expiry, or a server restart clears it. Use a dedicated key you can revoke.</p>
         </div>
