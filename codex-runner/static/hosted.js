@@ -366,7 +366,7 @@
     if (Array.isArray(providers)) savedKeyProviders = providers;
     const saved = savedKeyProviders.includes($('provider').value);
     const keyed = ['openai', 'astra', 'anthropic'].includes($('provider').value);
-    $('apiKey').required = keyed && !saved;
+    $('apiKey').required = keyed && !$('providerFields').hidden && !saved;
     $('apiKey').placeholder = saved ? 'Key saved for this session · enter a new key to replace it' : 'Paste a dedicated API key';
     updateRunLabel();
   }
