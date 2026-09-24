@@ -31,7 +31,10 @@ class RunnerController:
         hardware_control_enabled: bool = True,
         recording_root: Path | None = None,
         joint_counts=(6,6),
+        share_conversation: bool = True,
     ) -> None:
+        self._share_conversation = share_conversation
+        self._conversation_publisher = None
         self._session_api = session_api
         self._joint_counts = joint_counts
         self._ik_solver = ik_solver or IKSolver(joint_counts=joint_counts)
@@ -142,8 +145,22 @@ class RunnerController:
             if not directory and self._recording_root:
                 directory = self._recording_root/('run_'+uuid.uuid4().hex)
             self._interactions = InteractionLog(directory)
+            if self._conversation_publisher:
+                self._conversation_publisher.close()
+            self._conversation_publisher = None
+            if self._share_conversation and callable(getattr(self._session_api, 'publish_public_conversation', None)):
+                from .conversation_publisher import ConversationPublisher
+                config = provider.public_config()
+                self._conversation_publisher = ConversationPublisher(
+                    self._session_api, session_id, config.get('model') or provider.provider_name, prompt,
+                    secrets=(getattr(provider, '_api_key', ''),))
             if hasattr(provider, 'interaction_sink'):
-                provider.interaction_sink = self._interactions.add
+                journal, publisher = self._interactions, self._conversation_publisher
+                def record_interaction(kind, message, **details):
+                    journal.add(kind, message, **details)
+                    if publisher:
+                        publisher.add(kind, message, **details)
+                provider.interaction_sink = record_interaction
             self._interactions.add('joined', 'Joined the policy queue',
                                    session_id=session_id, task=prompt,
                                    provider=provider.provider_name)
@@ -280,6 +297,7 @@ class RunnerController:
                 "provider": provider_config,
                 "prompt_configured": bool(self._prompt),
                 "heartbeat_sent": self._heartbeat_seen,
+                "conversation_sharing": self._conversation_publisher.status() if self._conversation_publisher else {"enabled": False},
                 "last_event_type": self._last_event_type,
                 "last_model_command": self._last_model_command,
                 "last_observation": self._display_observation(),
@@ -1429,6 +1447,8 @@ class RunnerController:
     def _close_events(self) -> None:
         with self._lock:
             events, self._events = self._events, None
+            if self._conversation_publisher:
+                self._conversation_publisher.close()
         if events is not None:
             events.close()
 

@@ -100,6 +100,7 @@ def serve(args):
         groot_key_file=groot_key_file,
         hardware_control=args.allow_hardware_control, development=True,
         local_codex=True, local_claude=True,
+        share_conversation=not getattr(args, "no_share_conversation", False),
         default_provider='codex' if args.provider == 'auto' else args.provider),
         json.loads(os.environ['YAM_DASHBOARD_ROBOTS']) if os.environ.get('YAM_DASHBOARD_ROBOTS') else None)
     config = uvicorn.Config(app, host='127.0.0.1', port=args.port, access_log=False)

@@ -167,7 +167,7 @@
   let claudeModel = 'claude-opus-5-5';
   const originalProviderMarkup = $('provider').innerHTML;
   let selectedRobot = window.yamApplication?.defaultRobot || new URLSearchParams(location.search).get('robot_id') || 'yam-1', robotGeneration = 0, robotCatalog = null, pollingStarted = false;
-  let ownRunLive = false;
+  let ownRunLive = false, conversationSharingAllowed = true;
   let csrf = '', ended = false, submitting = false, active = false, lastHistory = 0, contactRequested = false;
   function message(text, error = false) { $('message').textContent = text; $('message').classList.toggle('error', error); }
   let contactDismissed = false;
@@ -212,6 +212,7 @@
     $('runGroot').disabled = !csrf || ended || active || submitting;
     $('runAstra').disabled = $('runClaude').disabled = !csrf || ended || active || submitting;
     ['runDuration', 'runnerName', 'email', 'provider', 'model', 'prompt', 'apiKey'].forEach(id => { $(id).disabled = active || submitting || ended; });
+    $('shareConversation').disabled = !conversationSharingAllowed || active || submitting || ended;
     $('stop').disabled = !csrf || ended || !active;
     $('liveRunControls').hidden = !csrf || ended || !active || !ownRunLive;
     $('leaveQueue').disabled = !csrf || ended || !active;
@@ -409,7 +410,7 @@
     if (await window.yamApplication?.submit?.(applicationContext())) return;
     window.yamAnalytics?.requested($('provider').value, $('model').value.trim());
     const payload = {runner_name: $('runnerName').value.trim(), provider: $('provider').value, model: $('model').value.trim(),
-      email: $('email').value.trim(),
+      email: $('email').value.trim(), share_conversation: $('shareConversation').checked,
       prompt: $('prompt').value, run_duration_s:Number($('runDuration').value)*60, api_key: $('apiKey').value.trim()};
     $('subscriptionHelp').close();
     submitting = true; buttons(); message(['codex', 'claude'].includes(payload.provider) ? 'Checking your subscription connection…' : 'Joining the robot queue…');
@@ -1186,6 +1187,10 @@
     try {
       const session = await api('/api/session', {}); csrf = session.csrf; ended = false;
       $('openCodexInstructions').hidden = !!session.local_runner;
+      $('conversationSharingSettings').hidden = !session.local_runner;
+      $('shareConversation').checked = session.share_conversation !== false;
+      conversationSharingAllowed = session.share_conversation !== false;
+      $('shareConversation').disabled = !conversationSharingAllowed;
       $('provider').innerHTML = originalProviderMarkup;
       window.yamAnalytics?.init(session.simulation, session.paid_runs);
       $('simulationNotice').hidden = !session.simulation;

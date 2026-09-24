@@ -126,7 +126,7 @@ class HostedRunner:
                  hardware_control: bool = False, development: bool = False,
                  max_sessions: int = 32, idle_seconds: float = 1800,
                  lifetime_seconds: float = 7200, api_factory=None,
-                 provider_factory=None, chat_database=None,
+                 provider_factory=None, chat_database=None, share_conversation=True,
                  groot_key_file="", local_codex=False, local_claude=False, default_provider="openai", robots=None, robot_id="yam-1", camera_names=CAMERA_NAMES, joint_counts=(6,6), hardware=None, policy_camera_names=None):
         parsed = urlsplit(public_origin)
         if (not parsed.hostname or parsed.path not in {"", "/"} or parsed.query
@@ -186,6 +186,7 @@ class HostedRunner:
         self.max_sessions = max_sessions
         self.idle_seconds, self.lifetime_seconds = idle_seconds, lifetime_seconds
         self.api_factory = api_factory or (lambda: HostedSessionAPI(session_api, supports_trajectories=True, robot_id=robot_id, joint_counts=self.joint_counts) if session_api else MockSessionAPI())
+        self.share_conversation = share_conversation
         self.provider_factory = provider_factory
         self.camera_source = CameraFrameSource(camera_origin, camera_names=self.camera_names)
         self.visitors: dict[str, Visitor] = {}
@@ -251,7 +252,8 @@ class HostedRunner:
         directory.mkdir(mode=0o700)
         visitor = Visitor(EphemeralController(
             LoggedSessionAPI(self.api_factory(), self.submission_log), hardware_control_enabled=self.hardware_control,
-            recording_root=directory, robot_id=self.robot_id, joint_counts=self.joint_counts), directory)
+            recording_root=directory, robot_id=self.robot_id, joint_counts=self.joint_counts,
+            share_conversation=self.share_conversation), directory)
         self.visitors[capability] = visitor
         return capability, visitor
 
@@ -458,7 +460,7 @@ class HostedRunner:
                 local_setup = {**local_setup, 'local_runner': True, 'default_provider': self.default_provider,
                                'claude': await asyncio.to_thread(subscription_status, 'claude'), 'claude_model': CLAUDE_MODEL}
             await self.json(send, 200, {**local_setup, **application_setup, "robot_id": self.robot_id, "cameras": list(self.camera_names), "model_cameras": list(self.model_camera_names()), "joint_policy": self.joint_counts != (6,6), "csrf": visitor.csrf, "astra_enabled": bool(self.astra_endpoint), "groot_enabled": bool(self.groot_key_file),
-                                      "simulation": self.simulation,
+                                      "simulation": self.simulation, "share_conversation": self.share_conversation,
                                       "expires_in": int(self.lifetime_seconds - (time.monotonic() - visitor.born))},
                             [(b"set-cookie", cookie_value.encode())] + application_headers)
             return
@@ -566,10 +568,16 @@ class HostedRunner:
                 state['public_run'] = {'run_id': (current.get('interactions') or {}).get('run_id'),
                     'runner_name': owner.runner_name, 'task': owner.runner_task,
                     'status': current['status'], 'events': events, 'error': public_run_error(current),
+                    'episode_id': current.get('episode_id'),
                     'model_name': model_display_name(current.get('provider')),
                     **{k: current.get(k) for k in ('run_duration_s', 'run_started_at', 'run_ended_at', 'run_elapsed_s')}}
             shared_run = (state.get('queue_snapshot') or {}).get('public_run')
-            if shared_run and (shared_run.get('status') in {'preparing', 'running'} or not state['public_run']):
+            same_run = (shared_run and state['public_run'] and shared_run.get('run_id')
+                        and shared_run['run_id'] == state['public_run'].get('episode_id'))
+            newer_shared_run = (shared_run and state['public_run']
+                                and (shared_run.get('run_started_at') or 0) > (state['public_run'].get('run_started_at') or 0))
+            if shared_run and not same_run and (shared_run.get('status') in {'preparing', 'running'}
+                                               or not state['public_run'] or newer_shared_run):
                 local_run = state['public_run']
                 # One station runs one policy: while this runner's run is live, the
                 # station's copy is that run, which only this runner knows the model of.
@@ -680,6 +688,9 @@ class HostedRunner:
             name, key, prompt, model = (payload.get(k, "") for k in ("provider", "api_key", "prompt", "model"))
             if not paid and key == "" and isinstance(name, str):
                 key = visitor.saved_keys.get(name, "")
+            share_conversation = payload.get("share_conversation", True)
+            if type(share_conversation) is not bool:
+                raise RequestError(400, "Conversation sharing must be true or false")
             duration = payload.get("run_duration_s", 300)
             if type(duration) is not int or not 60 <= duration <= 600:
                 raise RequestError(400, "Choose a run duration from 1 to 10 minutes")
@@ -803,6 +814,7 @@ class HostedRunner:
             visitor.last_launch = time.monotonic()
             visitor.launches += 1
             try:
+                visitor.controller._share_conversation = self.share_conversation and share_conversation
                 visitor.controller._session_api.setup(payload, paid=paid)
                 visitor.controller.join_and_run(provider, prompt.strip(), run_duration_s=duration)
                 with visitor.controller._lock:

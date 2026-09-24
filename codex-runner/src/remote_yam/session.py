@@ -149,6 +149,20 @@ class HttpSessionAPI:
         self._session_capabilities[session_id] = capability
         return created
 
+    def publish_public_conversation(self, session_id, conversation):
+        # Separate short-lived transport: publication failures must not become
+        # control-channel contact faults, and credentials must never redirect.
+        class NoRedirect(request.HTTPRedirectHandler):
+            def redirect_request(self, req, fp, code, msg, headers, newurl):
+                return None
+        payload = json.dumps({'public_conversation': conversation}, separators=(',', ':')).encode()
+        req = request.Request(self._url(f"/v1/sessions/{parse.quote(session_id, safe='')}/public-conversation"),
+                              data=payload, method='POST', headers={
+                                  'Content-Type': 'application/json',
+                                  'Authorization': f'Bearer {self._capability(session_id)}'})
+        with request.build_opener(NoRedirect).open(req, timeout=2) as response:
+            return json.loads(response.read(1024 * 1024).decode())
+
     def get_robot_observation(self, jetson_id: str) -> dict[str, Any]:
         return self._request(
             "GET", f"/v1/robots/{parse.quote(jetson_id, safe='')}/observation"

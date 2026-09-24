@@ -207,6 +207,23 @@ class HostedTests(unittest.IsolatedAsyncioTestCase):
         self.assertNotIn('test-visitor-key', json.dumps(state))
         self.assertEqual((await self.call('/api/status', **b))[1]['whats_running'], [])
 
+    async def test_conversation_sharing_opt_out_and_local_snapshot_precedence(self):
+        browser = await self.session()
+        payload = dict(provider='openai', model='test-model', api_key='test-visitor-key',
+                       prompt='Place green block', runner_name='Andrew', share_conversation=False)
+        self.assertEqual((await self.call('/api/run', method='POST', payload={**payload, 'share_conversation':'false'}, **browser))[0], 400)
+        self.assertEqual((await self.call('/api/run', method='POST', payload=payload, **browser))[0], 200)
+        owner = next(v for v in self.app.visitors.values() if v.runner_session_id)
+        self.assertFalse(owner.controller._share_conversation)
+        owner.controller._interactions.add('model_response', 'Full local answer')
+        current = owner.controller.status()
+        shared = dict(run_id='episode-one', status='running', events=[], model_name='Cloud copy')
+        self.app.queue = {'schema_version':1, 'type':'queue_snapshot', 'entries':[], 'stations':[], 'public_run':shared}
+        owner.controller.update_queue_snapshot(self.app.queue)
+        with patch.object(owner.controller, 'status', return_value={**owner.controller.status(), 'status':'running', 'episode_id':'episode-one'}):
+            state = (await self.call('/api/status', **browser))[1]
+        self.assertEqual(state['public_run']['events'][-1]['message'], 'Full local answer')
+
     async def test_run_error_is_shared_with_all_spectators_and_clears(self):
         owner_browser, b, c = await self.session(), await self.session(), await self.session()
         await self.launch(owner_browser)

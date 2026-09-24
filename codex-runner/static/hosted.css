@@ -288,3 +288,5 @@ main > .coffeeSupport{grid-column:1 / -1;margin-top:4px;width:100%}
 #setupRunActions #runButtons #openCodexInstructions:hover{color:var(--ink)}
 #setupRunActions #runButtons #run{flex:0 1 180px;min-height:48px;margin:0}
 @media(max-width:600px){#setupRunActions #runButtons #run{flex:1;width:100%}}
+
+.conversationSharing{display:flex;align-items:center;gap:8px}.conversationSharing input{width:auto}

@@ -161,3 +161,25 @@ BluPe Remote YAM is an independent BluPe project.
 open directly. Archived videos are fetched completely before playback: the bar
 shows server preparation first, then received MB and percentage when the response
 provides a total size. Closing the replay cancels the request.
+
+### Public conversation streaming
+
+Local playground runs share their task, current observation text, and readable
+model responses through the Session API to the public playground by default.
+This works with OpenAI/Claude API keys and Codex/Claude subscriptions. Camera
+video continues through the existing station stream. Raw provider payloads,
+image blobs, encrypted reasoning, credentials and downloadable logs are not
+uploaded by this feature.
+
+Uncheck **Share conversation on the public playground** in local Settings before
+starting a run to keep its model messages local. To disable publication for the
+whole runner, launch `./run-playground.sh --no-share-conversation` (also accepted
+by `./run-codex.sh` and `./run-claude.sh`). This does not disable robot recordings
+or remove the public task/queue information already required by the API.
+
+Publication runs in a separate worker, coalesces updates, retries outages and
+flushes the last snapshot on Stop without delaying robot control. The API keeps
+the task plus the newest messages within its 64-message / 64,000-character
+limit (8,000 per message). The runner's status includes `conversation_sharing`
+with `shared`, `pending` or `retrying` state. Sharing is live text, not a transfer
+of the private local recording archive; retained API data expires as usual.

@@ -84,3 +84,29 @@ All paths below are relative to the base URL. Session routes require the capabil
 The legacy `/actions` route is rejected by the current service; use trajectories.
 Different robots have different joint layouts. Select the matching profile in the
 runner instead of assuming every robot has two six-joint arms.
+
+## Streaming model messages to public viewers
+
+The local playground publishes readable model messages automatically. Use its
+**Share conversation on the public playground** setting or launch with
+`--no-share-conversation` to opt out. This setting affects conversation text,
+not robot recordings or the public queue/task.
+
+For your own policy loop, send snapshots after each visible model message:
+
+```http
+POST /v1/sessions/{session_id}/public-conversation
+Authorization: Bearer <session_capability>
+Content-Type: application/json
+
+{"public_conversation":{"model":"My model","messages":[{"role":"user","content":"Stack the blocks"},{"role":"assistant","content":"Picking up the green block."}]}}
+```
+
+Each snapshot replaces the previous one; retries do not duplicate messages.
+`GET /v1/robots/{robot_id}/queue` returns it as `public_run` once the session is
+assigned, and the public playground renders it. Use only public plain text:
+never include API keys, private context, image bytes or raw provider payloads.
+Limits: 64 messages, 8,000 characters per message, 64,000 total characters, and
+an 80-character model label. Roles: `user`, `assistant`, `tool`, `system`, or
+`developer`. Send `{"public_conversation":null}` to withdraw the shared snapshot.
+Custom API clients opt in explicitly; omitting this field does not publish text.

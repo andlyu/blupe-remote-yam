@@ -411,6 +411,7 @@ def main() -> None:
     parser.add_argument("--claude-login", action="store_true", help="Sign in to Claude Code with your Claude account if needed, then launch the runner")
     parser.add_argument("--no-key-prompt", action="store_true", help="Do not request a missing provider key when Join Queue is invoked")
     parser.add_argument("--no-browser", action="store_true")
+    parser.add_argument("--no-share-conversation", action="store_true", help="Keep model conversation local instead of publishing it to the public playground")
     parser.add_argument("--legacy-ui", action="store_true", help="Use the older developer monitor instead of the shared playground UI")
     control = parser.add_mutually_exclusive_group()
     control.add_argument("--allow-hardware-control", dest="allow_hardware_control", action="store_true", default=True, help="Allow command submission (the default); execution safety checks still apply")
@@ -470,7 +471,7 @@ def main() -> None:
         else MockSessionAPI()
     )
     credentials = CredentialVault.from_local_sources()
-    controller = RunnerController(session_api, robot_id=args.robot_id, hardware_control_enabled=args.allow_hardware_control, recording_root=PROJECT_ROOT / 'recordings')
+    controller = RunnerController(session_api, robot_id=args.robot_id, hardware_control_enabled=args.allow_hardware_control, recording_root=PROJECT_ROOT / 'recordings', share_conversation=not args.no_share_conversation)
     monitor_stop = threading.Event()
 
     def monitor_live_observation() -> None:
