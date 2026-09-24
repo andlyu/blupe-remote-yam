@@ -133,7 +133,9 @@ class InteractionTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as root:
             c=RunnerController(session,recording_root=Path(root))
             c.update_monitor_observation(session.get_robot_observation('yam-1'))
-            c.join(TinyTrajectoryProvider(),'test')
+            provider = TinyTrajectoryProvider()
+            provider.measured_step_displacement = lambda start, end: {'left_displacement_m': .05, 'right_displacement_m': 0.0}
+            c.join(provider,'test')
             c._run_loop(None)
             state=c.status()
             kinds=[e['kind'] for e in state['interactions']['events']]
@@ -147,6 +149,8 @@ class InteractionTests(unittest.TestCase):
             self.assertIsNone(timings[0]['gap_s'])
             for number, timing in enumerate(timings, 1):
                 self.assertEqual(timing['step'], number)
+                self.assertEqual(timing['left_displacement_m'], .05)
+                self.assertEqual(timing['right_displacement_m'], 0.0)
                 self.assertGreaterEqual(timing['planning_s'], 0)
                 self.assertGreaterEqual(timing['movement_feedback_s'], 0)
                 self.assertAlmostEqual(timing['total_s'], timing['planning_s'] + timing['movement_feedback_s'])

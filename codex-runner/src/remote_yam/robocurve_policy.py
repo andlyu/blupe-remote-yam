@@ -90,6 +90,24 @@ class RoboCurveResponsesAdapter(ResponsesAdapter):
         if self._recorder:
             self._recorder.write(kind, **values)
 
+    def measured_step_displacement(self, start, end):
+        """Start-to-end grasp-point translation from measured joints, in metres."""
+        import math
+        _, before, _ = self._geometry.observe(start)
+        _, after, _ = self._geometry.observe(end)
+        result = {}
+        for side in ('left', 'right'):
+            names = [f'{side}_{axis}' for axis in ('x', 'y', 'z')]
+            if side == 'left' and 'x' in self._names:
+                names = ['x', 'y', 'z']  # Single SO101 uses the left transport arm.
+            if not all(name in self._names for name in names):
+                continue
+            indexes = [self._names.index(name) for name in names]
+            values = [float(after[i]) - float(before[i]) for i in indexes]
+            if all(math.isfinite(value) for value in values):
+                result[side + '_displacement_m'] = math.sqrt(sum(value * value for value in values))
+        return result
+
     def _observation_message(self, prompt, observation, first_step_id):
         _, eef, joints = self._geometry.observe(observation)
         text = ('Current observation.\nInstruction: ' + prompt

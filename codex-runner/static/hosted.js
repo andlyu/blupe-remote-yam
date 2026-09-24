@@ -672,9 +672,9 @@
       $('stepTimingEmpty').hidden = !!timings.length;
       const rows = timings.slice(-20).map(timing => {
         const row = document.createElement('tr');
-        for (const key of ['step', 'planning_s', 'movement_feedback_s', 'total_s', 'gap_s']) {
+        for (const key of ['step', 'planning_s', 'movement_feedback_s', 'total_s', 'gap_s', 'left_displacement_m', 'right_displacement_m']) {
           const cell = document.createElement('td');
-          cell.textContent = Number.isFinite(timing[key]) ? (key === 'step' ? String(timing[key]) : `${timing[key].toFixed(2)}s`) : '—';
+          cell.textContent = Number.isFinite(timing[key]) ? (key === 'step' ? String(timing[key]) : key.endsWith('_displacement_m') ? `${(timing[key] * 100).toFixed(1)} cm` : `${timing[key].toFixed(2)}s`) : '—';
           cell.style.padding = '4px 8px';
           row.appendChild(cell);
         }

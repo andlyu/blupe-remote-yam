@@ -935,6 +935,8 @@ class RunnerController:
             "dispatched_at": None,
             "dispatch_started_monotonic": time.monotonic(),
             "planning_started_monotonic": model_started,
+            "start_feedback": {k: observation.get(k) for k in (
+                'settled', 'left_joints_deg', 'right_joints_deg', 'left_gripper', 'right_gripper')},
             "step_number": step_number,
             "gap_s": max(0.0, model_started - previous_completed) if previous_completed is not None else None,
         }
@@ -1118,6 +1120,14 @@ class RunnerController:
                     "gap_s": trajectory["gap_s"],
                     "outcome": "position_mismatch" if mismatch else "completed",
                 }
+                timing.update(left_displacement_m=None, right_displacement_m=None)
+                measure = getattr(provider, "measured_step_displacement", None)
+                if callable(measure) and final_payload:
+                    try:
+                        timing.update(measure(trajectory["start_feedback"], final_payload))
+                    except Exception:
+                        # Optional telemetry must never prevent feedback or the next step.
+                        pass
                 self._last_step_completed_monotonic = completed_at
                 self._step_timings.append(timing)
                 self._step_timings = self._step_timings[-200:]
