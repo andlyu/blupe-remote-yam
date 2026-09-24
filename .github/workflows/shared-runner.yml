@@ -2,7 +2,9 @@ name: Shared runner
 on: [push, pull_request]
 jobs:
   test:
-    runs-on: macos-latest
+    runs-on: ubuntu-24.04
+    env:
+      MUJOCO_GL: osmesa
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -11,6 +13,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
+      - run: sudo apt-get update && sudo apt-get install -y libosmesa6
       - run: python -m pip install -r codex-runner/requirements.txt pytest
       - run: PYTHONPATH=codex-runner/src:codex-runner python -m pytest codex-runner/tests -q
       - run: node --test codex-runner/tests/*.cjs

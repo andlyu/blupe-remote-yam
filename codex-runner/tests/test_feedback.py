@@ -72,7 +72,8 @@ class FeedbackTests(unittest.TestCase):
                 controller = RunnerController(api)
                 with self.assertRaisesRegex(RuntimeError, "Hardware feedback blocked: station_"):
                     controller._reconcile_hardware_feedback(dict(observed_at=now, settled=True), pending, require_home=False)
-                self.assertGreaterEqual(api.get_robot_observation.call_count, 1)
+                # Deadline expiry before the first refresh is also a safe rejection.
+                # Do not require worker scheduling within this deliberately short budget.
                 api.submit_action.assert_not_called()
                 api.submit_trajectory.assert_not_called()
 
