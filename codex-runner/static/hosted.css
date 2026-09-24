@@ -158,6 +158,12 @@ main > .coffeeSupport{grid-column:1 / -1;margin-top:4px;width:100%}
 
 /* Compact prompt-first entry. Setup opens from the primary action. */
 .promptRow{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.runHeading{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:12px}
+.runHeading h2{margin:0}
+.runTimeControl{display:flex;align-items:center;gap:8px;margin-left:auto;white-space:nowrap}
+.runTimeControl label{margin:0}
+.runTimeControl #runDuration{width:64px;margin:0;padding:8px}
+.runTimeControl span{font-size:14px;color:var(--muted)}
 .promptRow #prompt{flex:1 1 280px;min-width:0;min-height:68px;margin:0}
 
 #runSettings{margin-top:18px}
