@@ -38,8 +38,8 @@
         <div id="providerFields">
           <label for="model" hidden>Model</label><input id="model" hidden value="gpt-6-astra" maxlength="128" spellcheck="false">
           <label id="apiKeyLabel" for="apiKey">OpenAI API key</label>
-          <p class="help"><a id="apiKeyCreate" href="https://platform.openai.com/api-keys" target="_blank" rel="noopener noreferrer">Create an API key</a> · <a id="apiKeyBilling" href="https://platform.openai.com/account/billing/overview" target="_blank" rel="noopener noreferrer">Manage API credits</a></p>
-          <input id="apiKey" type="password" required autocomplete="off" autocapitalize="none" spellcheck="false" maxlength="4096" placeholder="Paste a dedicated API key">
+          <input id="apiKey" type="password" required autocomplete="off" autocapitalize="none" spellcheck="false" maxlength="4096" placeholder="Paste a dedicated API key here" aria-describedby="apiKeyLinks">
+          <p class="help" id="apiKeyLinks">Generate new key <a id="apiKeyCreate" href="https://platform.openai.com/api-keys" target="_blank" rel="noopener noreferrer">here</a><br>Make sure you have <span id="apiKeyCreditProvider">OpenAI</span> credits <a id="apiKeyBilling" href="https://platform.openai.com/account/billing/overview" target="_blank" rel="noopener noreferrer">here</a></p>
         </div>
         <div id="codexSetup" hidden><p id="codexStatus" class="help" role="status"></p><button type="button" id="codexCheck">Check Codex connection</button><p class="help">First-time sign-in: <code>./run.sh --codex-login --provider codex</code></p></div>
         <div id="claudeSetup" hidden><p id="claudeStatus" class="help" role="status"></p><button type="button" id="claudeCheck">Check Claude connection</button><p class="help">First-time sign-in: <code>./run.sh --claude-login --provider claude</code></p></div>

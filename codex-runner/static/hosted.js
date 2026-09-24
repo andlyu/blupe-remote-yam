@@ -370,6 +370,7 @@
     const anthropic = $('provider').value === 'anthropic';
     $('model').value = anthropic ? 'claude-opus-5-5' : $('provider').value === 'astra' ? 'astra-default' : 'gpt-6-astra';
     $('apiKeyLabel').textContent = anthropic ? 'Claude API key' : 'OpenAI API key';
+    $('apiKeyCreditProvider').textContent = anthropic ? 'Anthropic' : 'OpenAI';
     $('apiKeyCreate').href = anthropic ? 'https://platform.claude.com/settings/keys' : 'https://platform.openai.com/api-keys';
     $('apiKeyBilling').href = anthropic ? 'https://platform.claude.com/settings/billing' : 'https://platform.openai.com/account/billing/overview';
     if (window.yamApplication?.providerChanged?.(applicationContext())) return;
