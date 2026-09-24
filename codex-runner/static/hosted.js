@@ -6,6 +6,11 @@
   const dialog = $('pastRunDialog'), player = $('pastRunVideo');
   const zeroSecondVideo = duration => typeof duration === 'number' && Number.isFinite(duration) && duration >= 0 && duration < 1;
   let selectedRun = null;
+  let preview = null;
+  function stopPreview() {
+    if (preview) preview.pause();
+    preview = null;
+  }
   const speedButton = document.createElement('button');
   speedButton.type = 'button'; speedButton.textContent = 'Live speed';
   $('pastRunDetails').after(speedButton);
@@ -18,6 +23,7 @@
   });
   function openRun(run, live = false) {
     if (zeroSecondVideo(run.video_duration_s) || (live && run.original_available === false)) return;
+    stopPreview();
     $('pastRunTitle').textContent = `${run.runner_name || 'Name not recorded'} · ${run.episode_index == null ? 'Recent run' : 'Run #'+run.episode_index}`;
     $('pastRunPrompt').textContent = run.prompt;
     selectedRun = run;
@@ -51,13 +57,21 @@
       if (!response.ok) throw new Error('Past runs are temporarily unavailable. Select Refresh to retry.');
       const data = await response.json();
       if (generation !== historyGeneration) return;
-      if (reset) $('pastRunsList').replaceChildren();
+      if (reset) { stopPreview(); $('pastRunsList').replaceChildren(); }
       for (const run of data.runs) {
         const li = document.createElement('li'), button = document.createElement('button');
         button.type = 'button'; button.className = 'pastRunCard';
         button.setAttribute('aria-label', `Watch run ${run.episode_index}: ${run.prompt}`);
         const video = document.createElement('video');
-        video.preload = 'metadata'; video.muted = true; video.playsInline = true;
+        video.preload = 'metadata'; video.muted = true; video.playsInline = true; video.loop = true;
+        button.addEventListener('pointerenter', event => {
+          if (event.pointerType !== 'mouse' || dialog.open || zeroSecondVideo(run.video_duration_s)) return;
+          stopPreview();
+          preview = video;
+          video.defaultPlaybackRate = video.playbackRate = playbackSource(run, false).rate;
+          video.play().catch(() => {});
+        });
+        button.addEventListener('pointerleave', () => { if (preview === video) stopPreview(); });
         video.addEventListener('loadedmetadata', () => {
           if (zeroSecondVideo(video.duration)) { showEmptyRun(); return; }
           if (Number.isFinite(video.duration) && video.duration > .2) video.currentTime = Math.min(1, video.duration/2);
@@ -97,6 +111,7 @@
         li.append(reasonDetails, liveButton);
         $('pastRunsList').append(li);
         function showEmptyRun() {
+          if (preview === video) stopPreview();
           run.video_duration_s = 0;
           liveButton.remove();
           const card = document.createElement('div'); card.className = 'pastRunCard';
@@ -116,7 +131,9 @@
   }
   $('refreshPastRuns').addEventListener('click', () => load(true));
   $('morePastRuns').addEventListener('click', () => load());
+  document.addEventListener('visibilitychange', () => { if (document.hidden) stopPreview(); });
   window.addEventListener('blupe-robot-selected', event => {
+    stopPreview();
     historyRobot = event.detail; historyGeneration++; loading = false; next = 0;
     const selectedName = $('robotSelector')?.selectedOptions?.[0]?.textContent ||
       {'yam-1':'YAM', 'robot-3652c537a175cbae':'MakerMods Bimanual SO101', 'robot-abecb4cd868ab24b':'SO101'}[historyRobot] || historyRobot;
