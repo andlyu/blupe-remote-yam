@@ -98,6 +98,9 @@ class CodexPolicyTests(unittest.TestCase):
         self.assertTrue(all(not path.exists() for _, _, paths in captured for path in paths))
         self.assertIn('forced_login_method="chatgpt"', captured[0][0])
         self.assertIn('features.shell_tool=false', captured[0][0])
+        for command, _, _ in captured:
+            self.assertIn('model_reasoning_effort="low"', command)
+        self.assertEqual(provider.public_config()['reasoning_effort'], 'low')
         self.assertFalse(provider.public_config()['api_key_configured'])
 
     def test_invalid_decisions_never_reach_motion(self):

@@ -196,7 +196,7 @@ class CodexAdapter(RoboCurveResponsesAdapter):
     def public_config(self):
         return {**super().public_config(), 'api_key_configured': False,
                 'authentication': 'chatgpt', 'transport': 'codex_exec',
-                'codex_connected': True}
+                'codex_connected': True, 'reasoning_effort': 'low'}
 
     def _post_json(self, payload):
         root = Path(self._workspace.name)
@@ -240,6 +240,7 @@ class CodexAdapter(RoboCurveResponsesAdapter):
         command += ['--ignore-user-config', '--skip-git-repo-check', '--json',
                     '--model', self.model, '--output-schema', str(schema),
                     '-c', 'forced_login_method="chatgpt"', '-c', 'model_provider="openai"',
+                    '-c', 'model_reasoning_effort="low"',
                     '-c', 'sandbox_mode="read-only"', '-c', 'approval_policy="never"',
                     '-c', 'web_search="disabled"', '-c', 'features.shell_tool=false',
                     '-c', 'features.multi_agent=false', '-c', 'features.apps=false',
