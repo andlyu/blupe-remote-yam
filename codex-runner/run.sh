@@ -8,7 +8,7 @@ if [ ! -x "$VENV/bin/python" ]; then
   python3 -m venv "$VENV"
 fi
 
-if ! "$VENV/bin/python" -c 'import mujoco, numpy, websocket, stripe, uvicorn' >/dev/null 2>&1; then
+if ! "$VENV/bin/python" -c 'import mujoco, numpy, websocket, uvicorn' >/dev/null 2>&1; then
   "$VENV/bin/python" -m pip install --disable-pip-version-check -r "$PROJECT_ROOT/requirements.txt"
 fi
 

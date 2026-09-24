@@ -5,13 +5,23 @@ import unittest
 from types import SimpleNamespace
 from unittest.mock import patch
 
-from hosted import HostedRunner
+from playground import HostedRunner
 from local_playground import LocalPlayground
 from remote_yam.providers import ScriptedAdapter
 from remote_yam.session import MockSessionAPI
 
 
 class LauncherTests(unittest.TestCase):
+    def test_local_launcher_passes_external_groot_key_path(self):
+        from local_playground import serve
+        args = SimpleNamespace(port=8787, session_api=None, camera_origin=None,
+                               allow_hardware_control=False, provider='codex', no_browser=True)
+        with patch.dict('os.environ', {'YAM_GROOT_KEY_FILE':'/private/service/runpod-key'}), \
+                patch('multi_robot.fleet') as fleet, patch('uvicorn.Config') as config, \
+                patch('uvicorn.Server'):
+            serve(args)
+        self.assertEqual(fleet.call_args.args[1]['groot_key_file'], '/private/service/runpod-key')
+
     def test_command_submission_defaults_on_with_explicit_monitor_opt_out(self):
         from run import main
         for flags, enabled in [([], True), (['--read-only'], False),
@@ -99,3 +109,16 @@ class LocalPlaygroundTests(unittest.IsolatedAsyncioTestCase):
         with self.assertRaisesRegex(ValueError,'restricted to the local runner'):
             HostedRunner(public_origin='https://robot.example',session_api='https://session.example',
                 camera_origin='https://session.example',local_codex=True)
+
+    async def test_past_runs_proxy_preserves_selected_robot(self):
+        from unittest.mock import MagicMock
+        self.app.robot_id = 'robot-maker'
+        response = MagicMock()
+        response.__enter__.return_value = response
+        response.status = 200
+        response.headers.get.return_value = 'application/json'
+        response.read.return_value = b'{"runs":[]}'
+        with patch('local_playground.request.urlopen', return_value=response) as fetch:
+            code, body = await self.call('/api/past-runs')
+        self.assertEqual(code, 200)
+        self.assertIn('robot_id=robot-maker', fetch.call_args.args[0].full_url)

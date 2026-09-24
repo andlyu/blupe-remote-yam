@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import math
+from concurrent.futures import ThreadPoolExecutor
 import threading
 import time
 from pathlib import Path
@@ -14,6 +15,10 @@ from .feedback import feedback_decision, feedback_fields
 from .providers import PolicyComplete, ProviderAdapter
 from .interactions import InteractionLog
 from .session import MAX_COMMANDS, MAX_WAYPOINTS_PER_PACKET, SCHEMA_VERSION, TERMINAL_STATES, SessionAPI, SessionAPIError, SessionEventStream
+
+
+FEEDBACK_WAIT_S = 5.0
+FEEDBACK_POLL_S = 0.5
 
 
 class RunnerController:
@@ -110,6 +115,11 @@ class RunnerController:
             self._command_step_id = 0
             self._packets_submitted = 0
             self._status = str(created.get("status", "queued"))
+            # Publish timing with the new status: status polling must never see
+            # a new start time paired with the previous run's terminal state.
+            self._run_duration_s = run_duration_s
+            self._run_started_at = created.get("run_started_at")
+            self._run_ended_at = None
             self._queue_position = created.get("position")
             self._last_event_type = None
             self._heartbeat_seen = False
@@ -152,6 +162,10 @@ class RunnerController:
         if max_steps is not None and not 1 <= max_steps <= MAX_COMMANDS:
             raise ValueError(f"max_steps must be between 1 and {MAX_COMMANDS}")
         result = self.join(provider, prompt, run_duration_s)
+        preparation = getattr(provider, 'start_preparation', None)
+        if callable(preparation):
+            preparation(lambda: self._stop_event.is_set() or self._provider is not provider
+                        or self._status not in {'queued', 'preparing', 'running'})
         with self._lock:
             self._worker = threading.Thread(
                 target=self._run_loop,
@@ -627,6 +641,25 @@ class RunnerController:
             raise RuntimeError("Observation is missing runner lease context")
         if step_id >= MAX_COMMANDS:
             raise RuntimeError(f"Session command limit of {MAX_COMMANDS} reached")
+        readiness = getattr(provider, 'wait_ready', None)
+        if callable(readiness):
+            cancelled = lambda: self._stop_event.is_set() or self._provider is not provider
+            if readiness(cancelled):
+                # A cold start can outlive the original completion sample.
+                # Re-establish the same lease and fresh measured feedback.
+                live = self._session_api.get_session(session_id)
+                if (live.get('status') != 'running' or live.get('episode_id') != episode_id or live.get('lease_id') != lease_id
+                        or live.get('latest_observation_step') != step_id or live.get('active_trajectory') is not None):
+                    raise RuntimeError('Session changed while GR00T was warming')
+                fresh = self._session_api.get_robot_observation(self._robot_id)
+                if payload.get('source') == 'hardware' and (payload.get('settled') is not True or (step_id == 0 and payload.get('homed') is not True)):
+                    raise RuntimeError('GR00T requires confirmed completion before waiting')
+                payload = dict(payload)
+                for key in ('left_joints_deg','right_joints_deg','left_gripper','right_gripper','observed_at','settled','homed'):
+                    payload[key] = fresh.get(key)
+                self.update_monitor_observation(fresh)
+            if cancelled():
+                return
         provider_observation = dict(payload)
         provider_observation["episode_id"] = episode_id
         observation = parse_observation(provider_observation, self._joint_counts)
@@ -759,32 +792,61 @@ class RunnerController:
             self._last_action_submitted_monotonic = time.monotonic()
 
     def _reconcile_hardware_feedback(self, payload, station, *, require_home):
-        # A monitor sample less than ten seconds old can still predate completion.
-        # Refresh that sample instead of treating its moving flag as a new failure.
-        for attempt in range(4):
-            if self._stop_event.is_set():
-                raise RuntimeError("Feedback reconciliation interrupted by Stop")
-            decision, reason = feedback_decision(
-                payload, station, now=time.time(), require_home=require_home,
-            )
-            with self._lock:
-                self._feedback_checks.append({
+        started = time.monotonic()
+        deadline = started + FEEDBACK_WAIT_S
+        attempt = 0
+        received_at = None
+        pool = ThreadPoolExecutor(max_workers=1, thread_name_prefix="station-refresh")
+        try:
+            while True:
+                if self._stop_event.is_set():
+                    raise RuntimeError("Feedback reconciliation interrupted by Stop")
+                checked_at = time.time()
+                decision, reason = feedback_decision(
+                    payload, station, now=checked_at, require_home=require_home,
+                )
+                elapsed = time.monotonic() - started
+                check = {
                     "attempt": attempt, "decision": decision, "reason": reason,
+                    "checked_at": checked_at, "received_at": received_at,
+                    "elapsed_ms": elapsed * 1000,
                     "completion": feedback_fields(payload), "station": feedback_fields(station),
-                })
-                self._feedback_checks = self._feedback_checks[-16:]
-            if decision == "ready":
-                return station
-            if decision == "reject" or attempt == 3:
-                raise RuntimeError(f"Hardware feedback blocked: {reason}")
-            # Gateway station status is published every 0.5 seconds. Allow three
-            # publication opportunities rather than exhausting retries in 0.3s.
-            if self._stop_event.wait(0.5):
-                raise RuntimeError("Feedback reconciliation interrupted by Stop")
-            self.update_monitor_observation(self._session_api.get_robot_observation(self._robot_id))
-            with self._lock:
-                station = deepcopy_dict(self._monitor_observation or {})
-        raise AssertionError("Unreachable feedback state")
+                }
+                with self._lock:
+                    self._feedback_checks.append(check)
+                    self._feedback_checks = self._feedback_checks[-16:]
+                self._interactions.add("feedback_check", "Hardware feedback: " + reason, **check)
+                if decision == "reject" or time.monotonic() >= deadline:
+                    raise RuntimeError(f"Hardware feedback blocked: {reason}")
+                if decision == "ready":
+                    return station
+                if self._stop_event.wait(min(FEEDBACK_POLL_S, max(0, deadline-time.monotonic()))):
+                    raise RuntimeError("Feedback reconciliation interrupted by Stop")
+                if time.monotonic() >= deadline:
+                    raise RuntimeError(f"Hardware feedback blocked: {reason}")
+                # An HTTP status read can itself stall. Only one read is in flight;
+                # Stop and the overall deadline do not wait for its network timeout.
+                future = pool.submit(self._session_api.get_robot_observation, self._robot_id)
+                while not future.done():
+                    if self._stop_event.wait(min(.05, max(0, deadline-time.monotonic()))):
+                        raise RuntimeError("Feedback reconciliation interrupted by Stop")
+                    if time.monotonic() >= deadline:
+                        self._interactions.add("feedback_timeout", "Station status fetch exceeded feedback deadline",
+                                               elapsed_ms=(time.monotonic()-started)*1000)
+                        raise RuntimeError("Hardware feedback blocked: station_refresh_timeout")
+                if time.monotonic() >= deadline:
+                    raise RuntimeError("Hardware feedback blocked: station_refresh_timeout")
+                station = future.result()
+                received_at = time.time()
+                # Late results after cancellation never update runner state.
+                if self._stop_event.is_set():
+                    raise RuntimeError("Feedback reconciliation interrupted by Stop")
+                self.update_monitor_observation(station)
+                with self._lock:
+                    station = deepcopy_dict(self._monitor_observation or {})
+                attempt += 1
+        finally:
+            pool.shutdown(wait=False, cancel_futures=True)
 
     def _dispatch_trajectory(
         self,

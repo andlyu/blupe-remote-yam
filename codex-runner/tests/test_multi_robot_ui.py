@@ -2,7 +2,7 @@ import asyncio
 import json
 import unittest
 from unittest.mock import Mock
-from hosted import HostedRunner
+from playground import HostedRunner
 from multi_robot import fleet
 from remote_yam.session import HttpSessionAPI, MockSessionAPI
 from remote_yam.ik import IKSolver, IKCommand, ArmIKCommand, parse_observation
@@ -11,7 +11,8 @@ from remote_yam.model_trajectory import build_model_trajectory
 class MultiRobotTests(unittest.IsolatedAsyncioTestCase):
     async def test_sessions_and_status_are_isolated_and_switchable(self):
         app=fleet(HostedRunner,dict(public_origin='https://test.example',session_api='https://api.example',camera_origin='https://api.example',api_factory=lambda:MockSessionAPI(auto_activate=False)),[
-            {'id':'yam-1','name':'YAM'}, {'id':'so101','name':'SO101','cameras':['front'],'joint_counts':[5,0]}])
+            {'id':'yam-1','name':'YAM'}, {'id':'so101','name':'SO101','cameras':['front'],'joint_counts':[5,0], 'policy_cameras':['front']},
+            {'id':'bimanual','name':'Bimanual','cameras':['overhead','side','left','right'],'joint_counts':[5,5]}])
         async def call(robot,path,method='GET',cookie=''):
             events=[]
             scope={'type':'http','method':method,'path':path,'query_string':b'', 'headers':[(b'host',b'test.example'),(b'origin',b'https://test.example'),(b'content-type',b'application/json'),(b'x-blupe-robot',robot.encode()),(b'cookie',cookie.encode())]}
@@ -21,7 +22,13 @@ class MultiRobotTests(unittest.IsolatedAsyncioTestCase):
             return events[0],json.loads(events[1]['body'])
         a,sa=await call('yam-1','/api/session','POST')
         b,sb=await call('so101','/api/session','POST')
+        self.assertEqual(app.apps['so101'].policy_camera_names, ('front',))
         self.assertNotEqual(sa['csrf'],sb['csrf']);self.assertEqual(sb['cameras'],['front'])
+        self.assertEqual(sa['model_cameras'], ['left','top','right'])
+        self.assertEqual(sb['model_cameras'], ['front'])
+        _, multi = await call('bimanual','/api/session','POST')
+        self.assertEqual(multi['cameras'], ['overhead','side','left','right'])
+        self.assertEqual(multi['model_cameras'], ['overhead','side','left','right'])
         ca=dict(a['headers'])[b'set-cookie'].decode().split(';')[0]
         cb=dict(b['headers'])[b'set-cookie'].decode().split(';')[0]
         self.assertNotEqual(ca.split('=')[0],cb.split('=')[0])

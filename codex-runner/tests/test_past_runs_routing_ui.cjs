@@ -34,7 +34,7 @@ test('history waits for robot selection and ignores a previous robot response', 
   const handler = full.match(/selector\.onchange = async \(\) => \{([\s\S]*?)\n      \};/)[1];
   let started = 0, replaced = 0;
   const node = {value:'so101', textContent:'', replaceChildren(){}};
-  const context = {submitting:false, selector:node, selectedRobot:'yam-1', robotGeneration:0,
+  const context = {makerModsPage:false, makerModsRobot:'robot-3652c537a175cbae', robotCatalog:{robots:[]}, submitting:false, selector:node, selectedRobot:'yam-1', robotGeneration:0,
     URL, location:{href:'http://localhost/?robot_id=yam-1'},
     history:async()=>{}, window:{history:{replaceState(a,b,url){replaced++;assert.equal(url.searchParams.get('robot_id'),'so101');}},dispatchEvent(){}},
     CustomEvent:class {}, $:()=>node, document:{querySelectorAll:()=>[]}, buttons(){}, renderRobotStatus(){},

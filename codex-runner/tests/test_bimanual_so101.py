@@ -56,11 +56,11 @@ def test_openai_prompt_tools_images(manifest):
     source=Cameras()
     p=BimanualSO101OpenAIAdapter('test','test',calibration_path=manifest,camera_source=source, camera_names=source.camera_names)
     assert source.camera_names == ('overhead','side','left','right')
-    assert p._camera_source.camera_names == ('overhead','left','right')
+    assert p._camera_source.camera_names == ('overhead','side','left','right')
     def reply(payload):
         prompt=payload['input'][0]['content'];assert 'Two SO101' in prompt and 'OWN fixed robot base' in prompt
         assert '9.5 cm' not in prompt and 'Two identical 6-DoF' not in prompt
-        assert len([v for v in payload['input'][-1]['content'] if v['type']=='input_image'])==3
+        assert len([v for v in payload['input'][-1]['content'] if v['type']=='input_image'])==4
         assert set(payload['tools'][0]['parameters']['properties']['targets']['properties'])==set(NAMES)
         return {'output':[{'type':'function_call','call_id':'t','name':'move_to','arguments':json.dumps({'targets':{'right_gripper':.32},'note':'Open right slightly.'})}]}
     p._post_json=reply
@@ -71,7 +71,7 @@ def test_openai_prompt_tools_images(manifest):
 def test_codex_schema(manifest):
     with patch('remote_yam.codex_policy.codex_status',return_value={'ready':True}),patch('remote_yam.codex_policy.codex_binary',return_value='/unused'):
         p=BimanualSO101CodexAdapter(calibration_path=manifest,camera_source=Cameras())
-    assert p._expected_camera_count==3
+    assert p._expected_camera_count==4
     value=dict(action='move_to',targets={n:None for n in NAMES},note='Open right',summary='',reason='',hindsight='')
     value['targets']['right_gripper']=.4
     assert json.loads(p._decision_response(value)['output'][0]['arguments'])['targets']=={'right_gripper':.4}
@@ -93,7 +93,7 @@ def test_bundled_makermods_profiles_match_calibrated_limits():
 
 @pytest.mark.parametrize('provider_name',['openai','codex'])
 def test_fresh_checkout_launches_bimanual_without_local_files(tmp_path,provider_name):
-    from hosted import HostedRunner
+    from playground import HostedRunner
     from remote_yam.session import MockSessionAPI
     from unittest.mock import Mock
     import shutil
@@ -105,7 +105,7 @@ def test_fresh_checkout_launches_bimanual_without_local_files(tmp_path,provider_
     app.remember_runner=Mock();visitor.controller.join_and_run=Mock()
     provider=None
     try:
-        with patch('hosted.ROOT',tmp_path),patch('remote_yam.codex_policy.codex_status',return_value={'ready':True}),patch('remote_yam.codex_policy.codex_binary',return_value='/unused'):
+        with patch('playground.ROOT',tmp_path),patch('remote_yam.codex_policy.codex_status',return_value={'ready':True}),patch('remote_yam.codex_policy.codex_binary',return_value='/unused'):
             app.launch(visitor,{'provider':provider_name,'api_key':'test-key-123','prompt':'test','runner_name':'test'})
         provider=visitor.controller.join_and_run.call_args.args[0]
         assert isinstance(provider,BimanualSO101CodexAdapter if provider_name=='codex' else BimanualSO101OpenAIAdapter)
@@ -113,3 +113,48 @@ def test_fresh_checkout_launches_bimanual_without_local_files(tmp_path,provider_
     finally:
         if provider is not None and hasattr(provider,'_workspace'):provider._workspace.cleanup()
         visitor.close();shutil.rmtree(app.root,ignore_errors=True)
+
+@pytest.mark.parametrize('provider', ['openai', 'codex'])
+def test_wrist_only_observation_without_overhead(manifest, provider):
+    class WristCameras:
+        camera_names = ('overhead', 'side', 'left', 'right')
+        def capture(self, observation):
+            assert self.camera_names == ('left', 'right')
+            return [CameraFrame(n, b'\xff\xd8test\xff\xd9', 123.) for n in self.camera_names]
+    source = WristCameras()
+    kwargs = dict(calibration_path=manifest, camera_source=source, camera_names=('left','right'))
+    with patch('remote_yam.codex_policy.codex_status', return_value={'ready':True}), patch('remote_yam.codex_policy.codex_binary', return_value='/unused'):
+        p = BimanualSO101CodexAdapter(**kwargs) if provider == 'codex' else BimanualSO101OpenAIAdapter('test', 'test', **kwargs)
+    try:
+        message = p._observation_message('Inspect the scene', obs(), 0)
+        assert len([v for v in message['content'] if v['type'] == 'input_image']) == 2
+        assert p._expected_camera_count == 2
+        assert 'No overhead view is supplied' in p._system_prompt
+        assert source.camera_names == ('overhead', 'side', 'left', 'right')
+    finally:
+        if provider == 'codex': p._workspace.cleanup()
+
+
+def test_codex_attaches_all_four_labeled_images(manifest):
+    from pathlib import Path
+    from remote_yam.providers import PolicyComplete
+    with patch('remote_yam.codex_policy.codex_status', return_value={'ready': True}), patch('remote_yam.codex_policy.codex_binary', return_value='/unused'):
+        p = BimanualSO101CodexAdapter(calibration_path=manifest, camera_source=Cameras())
+    calls = []
+    def execute(command, prompt, root):
+        paths = [Path(command[i+1]) for i, arg in enumerate(command) if arg == '--image']
+        assert len(paths) == 4
+        assert all(path.read_bytes() == b'\xff\xd8test\xff\xd9' for path in paths)
+        for role in Cameras.camera_names:
+            assert f"camera '{role}_cam'" in prompt
+        calls.append(paths)
+        value = dict(action='done', targets=dict.fromkeys(NAMES), note='', summary='Observed', reason='', hindsight='')
+        return [{'type':'thread.started','thread_id':'12345678-1234-1234-1234-123456789abc'},
+                {'type':'item.completed','item':{'type':'agent_message','text':json.dumps(value)}},
+                {'type':'turn.completed'}]
+    try:
+        with patch.object(p, '_execute', side_effect=execute), pytest.raises(PolicyComplete):
+            p.build_trajectory('Inspect all four views', obs(), 0)
+        assert len(calls) == 1
+    finally:
+        p._workspace.cleanup()

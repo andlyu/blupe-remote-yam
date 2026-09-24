@@ -19,3 +19,11 @@ When the user asks to run BluPe with a Codex or ChatGPT subscription:
 Python 3 and Node.js/npm must be installed. The account needs Astra access.
 The subscription implementation lives in `codex-runner/`; the root `run.sh`
 is the original API-key runner.
+
+# Code ownership
+
+Shared runner/UI/model work belongs in this repository's codex-runner directory.
+BluPe-only hosted billing, analytics, moderation and deployment belong in
+blupe-evals/apps/blupe_web. Do not reintroduce an editable bundled copy there.
+See docs/REPOSITORY-OWNERSHIP.md. Claude users launch ./run-claude.sh and complete
+their own account login; never request an API key for subscription use.

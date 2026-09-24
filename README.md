@@ -29,8 +29,17 @@ and launch it with my Codex subscription using ./run-codex.sh.”**
 Complete any OpenAI browser login yourself. Each user signs in locally;
 credentials are not shared with BluPe.
 
-The subscription runner is bundled in `codex-runner/` from the tested
-`blupe-evals` runner. The existing API-key runner below remains available.
+The shared runner and general playground UI are maintained here in `codex-runner/`.
+`blupe-evals` consumes a pinned commit from this repository; do not copy changes
+between editable runner trees. See [repository ownership](docs/REPOSITORY-OWNERSHIP.md).
+The existing API-key runner below remains available.
+
+### Claude subscription
+
+Install Claude Code and run `./run-claude.sh`. Complete the Claude login yourself.
+The same local playground exposes **Run with Opus** for YAM. Its model integration,
+UI controls and tests are maintained in this repository alongside Codex.
+
 
 ---
 

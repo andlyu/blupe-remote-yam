@@ -1,1 +1,19 @@
 .codex-runtime/
+
+.local/
+
+# Keep these rules in this project when publishing it as a standalone repo.
+.env
+.env.*
+*.env
+!.env.example
+!.env.*.example
+.secrets/
+secrets/
+api-key
+groot-api-key
+s3-credentials
+*.pem
+*.key
+.venv/
+__pycache__/

@@ -5,12 +5,12 @@
   <title>BluPe · Run a policy</title><link rel="stylesheet" href="/static/hosted.css">
   <script src="/static/hls.light.min.js" defer></script>
   <script src="/synchronized/reader.js" defer></script>
-  <script src="/static/analytics.js" defer></script>
+  <!-- application-head -->
   <script src="/static/stream-health.js" defer></script>
   <script src="/static/hosted.js" defer></script>
 </head>
 <body><main><div class="runnerContent"><nav class="robotNavigation" aria-label="Robot selection"><label for="robotSelector">Robot / Env</label><select id="robotSelector" disabled><option>YAM</option></select><span id="robotSelectorStatus" class="help" role="status"></span></nav>
-  <section class="intro"><p class="eyebrow" hidden>Your model. A real robot.</p><h1>Run a policy.</h1><p><a href="#tryForYourselfTitle">Run via local API — control the model calls</a> · <a href="#pastRunsTitle">See what others did</a> · <a href="https://operator-blupe-yam.100-61-149-60.sslip.io/" target="_blank" rel="noopener noreferrer">Operator dashboard ↗</a></p></section>
+  <section class="intro"><p class="eyebrow" hidden>Your model. A real robot.</p><h1>BluPe Playground</h1><p><a href="#tryForYourselfTitle">Run via local API — control the model calls</a> · <a href="#pastRunsTitle">See what others did</a><!-- application-operator --></p></section>
   <dialog id="codexInstructions" aria-labelledby="codexInstructionsTitle">
     <div class="codexDialogHeader"><h2 id="codexInstructionsTitle">Run using Codex</h2><form method="dialog"><button class="codexDialogClose" aria-label="Close Codex instructions"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18"/></svg></button></form></div>
     <div class="codexPromptLabel"><p>Paste this into Codex</p></div>
@@ -20,7 +20,7 @@
   <div class="runSetup">
     <section class="panel"><h2>Prompt the arms</h2>
       <form id="runForm" autocomplete="off">
-        <div class="promptRow"><textarea id="prompt" aria-label="Prompt the arms" rows="2" maxlength="4000" required>place green block on plate</textarea><div id="runButtons"><button class="primary" id="run" type="submit" disabled>Setup keys and run</button><button type="button" id="openCodexInstructions">Run using Codex subscription</button></div></div>
+        <div class="promptRow"><textarea id="prompt" aria-label="Prompt the arms" rows="2" maxlength="4000" required>place green block on plate</textarea><div id="runButtons"><button class="primary" id="run" type="submit" disabled>Setup keys and run</button><button type="button" id="openCodexInstructions">Run using Codex subscription</button><button type="button" id="runAstra" hidden disabled>Run with Astra</button><button type="button" id="runClaude" hidden disabled>Run with Opus</button><button type="button" id="runGroot" hidden disabled>Run GR00T</button></div></div>
         <details id="runSettings"><summary>Settings</summary>
         <label for="runnerName">Your name</label><input id="runnerName" required maxlength="32" autocomplete="nickname" placeholder="Name shown with your run">
         <p class="help">Your name, task, and readable Astra conversation will be visible to everyone watching.</p>
@@ -37,6 +37,7 @@
           <p class="help" id="keyHelp">Your provider bills your account for inference. Your key is reused for future runs in this browser session, including after refresh. It stays in server memory, never disk or browser storage. Forget key, ending the session, session expiry, or a server restart clears it. Use a dedicated key you can revoke.</p>
         </div>
         <div id="codexSetup" hidden><p id="codexStatus" class="help" role="status"></p><button type="button" id="codexCheck">Check Codex connection</button><p class="help">First-time sign-in: <code>./run.sh --codex-login --provider codex</code></p></div>
+        <div id="claudeSetup" hidden><p id="claudeStatus" class="help" role="status"></p><button type="button" id="claudeCheck">Check Claude connection</button><p class="help">First-time sign-in: <code>./run.sh --claude-login --provider claude</code></p></div>
         <label for="runDuration">Run time (minutes)</label><input id="runDuration" type="number" min="1" max="10" step="1" value="3" required>
 
         <p id="policyHelp" class="help">The model observes the cameras, chooses a move, and waits for robot feedback before deciding again.</p>
@@ -55,12 +56,17 @@
     </aside>
   </div>
   <p class="help" id="videoDelayNotice">Four live views, synchronized. <span id="streamHealth" class="streamHealth" role="status">Checking stream</span> <span id="streamHealthDetail" aria-live="off"></span></p>
+  <div class="conversationModes" role="group" aria-label="Conversation display">
+    <button type="button" data-conversation-mode="reasoning" aria-pressed="true" aria-controls="liveConversationPanel">Astra reasoning</button>
+    <button type="button" data-conversation-mode="conversation" aria-pressed="false" aria-controls="liveConversationPanel">Convo mode</button>
+    <button type="button" data-conversation-mode="hide" aria-pressed="false" aria-controls="liveConversationPanel">Hide</button>
+  </div>
   <div class="watchLayout">
-  <section id="liveConversationPanel" class="panel liveConversation" aria-label="Current run conversation">
-    <div class="statusHeader"><h2>Prompt</h2><button id="closeLiveConversation" type="button">Close the convo</button></div>
+  <section id="liveConversationPanel" data-mode="reasoning" class="panel liveConversation" aria-label="Current run conversation">
+    <div class="statusHeader"><h2 id="conversationModeTitle">Astra reasoning</h2></div>
     <p id="sideRunner" class="help">Runner: —</p>
-    <p id="sidePrompt">Waiting for someone to run a policy.</p>
-    <div class="statusHeader"><h2>Conversation with Astra</h2><span id="sideConversationState" class="tag">Waiting for a run</span></div>
+    <details class="runPrompt" open><summary>Prompt</summary><p id="sidePrompt">Waiting for someone to run a policy.</p></details>
+    <div class="statusHeader"><h2 id="sideConversationTitle">Response notes</h2><span id="sideConversationState" class="tag">Waiting for a run</span></div>
     <ol id="sideConversationMessages" tabindex="0" aria-label="Live conversation messages" aria-live="polite" aria-relevant="additions"><li>Astra’s replies and robot feedback from the current run appear here for everyone.</li></ol>
   </section>
 <div class="watchVisuals">
@@ -80,9 +86,9 @@
       <span id="runTimerDetail" hidden>Waiting for a run</span>
     </div>
   </section>
-  <div class="cameraStatusLine"><p id="station" role="status" aria-live="polite">Checking / unavailable</p><span id="status" hidden class="tag">Checking / unavailable</span><p id="publicRunError" class="publicRunError" role="status" aria-live="polite" hidden></p></div>
+  <div class="cameraStatusLine"><p id="station" role="status" aria-live="polite">Checking / unavailable</p><span id="status" hidden class="tag">Connecting</span><p id="publicRunError" class="publicRunError" role="status" aria-live="polite" hidden></p></div>
   <section class="panel astraStream" aria-labelledby="astraStreamTitle">
-    <div class="statusHeader"><h2 id="astraStreamTitle">Stream of consciousness</h2><button id="openLiveConversation" type="button" hidden aria-label="Expand prompt and conversation" aria-expanded="true" aria-controls="liveConversationPanel">Expand ↗</button></div>
+    <div class="statusHeader"><h2 id="astraStreamTitle">Stream of consciousness</h2></div>
     <span id="astraStreamState" hidden>Waiting for a run</span>
     <div role="status" aria-live="polite" aria-atomic="true">
       <p id="astraStreamOutput">Astra’s next note will appear here.</p>
@@ -164,6 +170,6 @@ export OPENAI_API_KEY="xyz"
   <p class="help">Recent messages clear when the server restarts.</p>
 </aside>
   <div class="coffeeSupport">
-    <a id="buyCoffee" href="https://buymeacoffee.com/andlyu" target="_blank" rel="noopener noreferrer">☕ Buy me a coffee</a>
+    <!-- application-funding -->
   </div>
 </main></body></html>

@@ -139,7 +139,7 @@ def test_invalid_joint_profile_is_rejected(change):
 
 @pytest.mark.parametrize('provider_name',['openai','codex'])
 def test_hosted_so101_uses_bundled_limits_without_local_calibration(tmp_path,provider_name):
-    from hosted import HostedRunner
+    from playground import HostedRunner
     from remote_yam.session import MockSessionAPI
     from unittest.mock import Mock
     app=HostedRunner(public_origin='http://127.0.0.1:8791',session_api='https://api.example',
@@ -150,7 +150,7 @@ def test_hosted_so101_uses_bundled_limits_without_local_calibration(tmp_path,pro
     app.remember_runner=Mock()
     visitor.controller.join_and_run=Mock()
     try:
-        with patch('hosted.ROOT',tmp_path), patch('remote_yam.codex_policy.codex_status',return_value={'ready':True}):
+        with patch('playground.ROOT',tmp_path), patch('remote_yam.codex_policy.codex_status',return_value={'ready':True}):
             app.launch(visitor,{'provider':provider_name,'api_key':'test-key-123','prompt':'test','runner_name':'test'})
         provider=visitor.controller.join_and_run.call_args.args[0]
         assert isinstance(provider,SO101CodexAdapter if provider_name=='codex' else SO101OpenAIAdapter)

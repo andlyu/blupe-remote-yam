@@ -1,8 +1,10 @@
 # Remote YAM Local Runner
 
-For browser-only access with a user-provided API key, see [HOSTING.md](HOSTING.md).
-The hosted service gives every visitor a separate session and accepts keys for
-one run without installing anything on the visitor's computer.
+For MakerMods MakerArm setup, its Astra prompt, XYZ IK, and the robot selector,
+see [MakerArm integration](docs/MAKERARM.md).
+
+This repository owns the shared local playground. BluPe-specific browser hosting
+lives in `blupe-evals/apps/blupe_web`; see [ownership](../docs/REPOSITORY-OWNERSHIP.md).
 
 Developer-focused local runner for model inference and YAM Session API commands. Provider credentials remain in the local process and are never sent to YAM Session or BluPe.
 
@@ -78,10 +80,57 @@ Codex also retains its own session history under its normal local storage.
 This provider is local-only. Browser-only hosted visitors continue to use their
 own API keys; their Codex subscription would require a local companion runner.
 
+### Opus through your Claude subscription
+
+The same no-demo RoboCurve policy, driven by Claude Code on this computer instead
+of Codex. Run from this directory:
+
+```bash
+./run.sh --claude-login --provider claude --session-api https://yam-session-api.n5hthc3gj4cqy.us-east-1.cs.amazonlightsail.com
+```
+
+The launcher checks the installed Claude Code version and reuses your existing
+Claude account login; if sign-in is needed, `claude auth login` opens its browser
+flow. Later launches can omit `--claude-login`. Requires Claude Code 2.1 or newer
+on `PATH`, in `~/.local/bin`, or in `~/.npm-global/bin` — the launcher does not
+install it. The latter locations also work when a desktop launcher supplies a
+minimal `PATH`. On macOS the launcher needs normal Keychain access to read your
+subscription login; a sandboxed launch may incorrectly report that sign-in is needed.
+
+In the UI the prompt row shows **Run with Astra** and **Run with Opus** side by
+side; either joins the same robot queue with the same task. **Run with Opus**
+selects provider **Claude subscription · Opus** and model `claude-opus-5-5`.
+**Check Claude connection** reports local setup only — never the account email,
+organization, or plan owner.
+
+Three things this provider does deliberately:
+
+* **The subscription is the only credential.** `ANTHROPIC_API_KEY` and
+  `ANTHROPIC_AUTH_TOKEN` are withheld from the subprocess, because either one
+  silently overrides the subscription login and bills API credit instead. A
+  Claude Code signed in with an API key is reported as not ready.
+* **The model is pinned, never defaulted.** Claude Code prints
+  `unrecognized_model` and falls back to another model; the run is refused
+  instead, so an eval never reports a model it did not use. If you see this,
+  update Claude Code or pass `--model` with one it lists.
+* **A blind decision never reaches the arms.** Claude Code has no image flag, so
+  each observation's three camera frames are written into a per-run temporary
+  workspace and read back with the Read tool. Read is the only tool granted,
+  `--restricted` confines it to that workspace, and any permission denial fails
+  the turn rather than letting Claude decide without seeing the cameras.
+
+Each robot run has one Claude conversation, resumed by session id between
+decisions. Stop cancels inference; timeout, invalid output, or exhausted
+subscription usage halts the run. As with Codex, Claude produces JSON decisions
+and the existing local IK and gateway validate and execute them. Token counts and
+reported cost are recorded with the run for the eval report.
+
+This provider is local-only, on the same terms as Codex above.
+
 ### API-key or built-in provider
 
 ```bash
-cd public-projects/Remote-yam
+cd codex-runner
 ./run.sh
 ```
 
@@ -261,3 +310,5 @@ with the session capability as the bearer token. Each update replaces the shared
 snapshot. Omit it to keep conversation private; send `null` to stop displaying it.
 Only include text intended for public display, never API keys or private context.
 See `docs/YAM-PUBLIC-CONVERSATION.md` in the BluPe API repository for limits and examples.
+
+For two SO101 followers, see [bimanual SO101 prompt, IK, and runner configuration](docs/BIMANUAL-SO101.md).

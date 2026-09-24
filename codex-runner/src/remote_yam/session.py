@@ -396,9 +396,9 @@ class MockSessionAPI:
     supports_trajectories = True
 
     DEFAULT_OBSERVATIONS = (
-        {"left_joints_deg": [0.0, -14.0, 28.0, 0.0, 11.0, 0.0], "right_joints_deg": [0.0, -14.0, 28.0, 0.0, 11.0, 0.0], "left_gripper": 0.5, "right_gripper": 0.5, "images": {"left": {"url": "/static/mock-camera-0.svg"}, "top": {"url": "/static/mock-camera-1.svg"}, "right": {"url": "/static/mock-camera-2.svg"}}},
-        {"left_joints_deg": [3.0, -11.0, 25.0, 0.0, 11.0, 3.0], "right_joints_deg": [-3.0, -11.0, 25.0, 0.0, 11.0, -3.0], "left_gripper": 0.5, "right_gripper": 0.4, "images": {"left": {"url": "/static/mock-camera-0.svg"}, "top": {"url": "/static/mock-camera-1.svg"}, "right": {"url": "/static/mock-camera-2.svg"}}},
-        {"left_joints_deg": [5.0, -9.0, 23.0, 1.0, 10.0, 5.0], "right_joints_deg": [-5.0, -9.0, 23.0, -1.0, 10.0, -5.0], "left_gripper": 0.4, "right_gripper": 0.3, "images": {"left": {"url": "/static/mock-camera-0.svg"}, "top": {"url": "/static/mock-camera-1.svg"}, "right": {"url": "/static/mock-camera-2.svg"}}},
+        {"left_joints_deg": [0.0, 45.5, 28.0, 0.0, 11.0, 0.0], "right_joints_deg": [0.0, 45.5, 28.0, 0.0, 11.0, 0.0], "left_gripper": 0.5, "right_gripper": 0.5, "images": {"left": {"url": "/static/mock-camera-0.svg"}, "top": {"url": "/static/mock-camera-1.svg"}, "right": {"url": "/static/mock-camera-2.svg"}}},
+        {"left_joints_deg": [3.0, 48.5, 25.0, 0.0, 11.0, 3.0], "right_joints_deg": [-3.0, 48.5, 25.0, 0.0, 11.0, -3.0], "left_gripper": 0.5, "right_gripper": 0.4, "images": {"left": {"url": "/static/mock-camera-0.svg"}, "top": {"url": "/static/mock-camera-1.svg"}, "right": {"url": "/static/mock-camera-2.svg"}}},
+        {"left_joints_deg": [5.0, 50.5, 23.0, 1.0, 10.0, 5.0], "right_joints_deg": [-5.0, 50.5, 23.0, -1.0, 10.0, -5.0], "left_gripper": 0.4, "right_gripper": 0.3, "images": {"left": {"url": "/static/mock-camera-0.svg"}, "top": {"url": "/static/mock-camera-1.svg"}, "right": {"url": "/static/mock-camera-2.svg"}}},
     )
 
     def __init__(

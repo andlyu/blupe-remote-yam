@@ -12,7 +12,7 @@ from urllib import error, request
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
-import hosted
+import playground as hosted
 from remote_yam.providers import ScriptedAdapter, PolicyComplete, OpenAIAdapter
 from remote_yam.session import MockSessionAPI
 from remote_yam.cameras import CameraFrame
@@ -40,6 +40,27 @@ class HostedTests(unittest.IsolatedAsyncioTestCase):
                                        provider_factory=provider_factory)
         from remote_yam.past_runs import RunNames
         self.app.run_names = RunNames(self.app.root/'names.sqlite3')
+
+    async def test_groot_joins_same_queue_without_visitor_key_and_starts_preparation(self):
+        keyfile = self.app.root/'groot-test-key'
+        keyfile.write_text('service-secret')
+        self.app.groot_key_file = str(keyfile)
+        capability, visitor = self.app.new_visitor()
+        prepared = []
+        from remote_yam.groot_policy import GrootAdapter
+        def prepare(provider, cancelled):
+            prepared.append((visitor.controller.status()['status'], cancelled))
+        with patch.object(GrootAdapter, 'start_preparation', prepare):
+            result = self.app.launch(visitor, {'provider':'groot', 'model':'groot-reviewed-step10000',
+                'prompt':'Put the orange block in the purple bin', 'runner_name':'Tester', 'run_duration_s':300})
+        self.assertTrue(result['ok'])
+        self.assertEqual(prepared[0][0], 'queued')
+        self.assertNotIn('groot', visitor.saved_keys)
+        self.assertNotIn('service-secret', str(visitor.controller.status()))
+        self.assertEqual(visitor.controller.status()['provider']['provider'], 'groot')
+        visitor.controller.stop()
+        self.assertTrue(prepared[0][1]())
+
 
     async def test_public_robot_selector_catalog(self):
         self.app.robots = [
@@ -138,48 +159,8 @@ class HostedTests(unittest.IsolatedAsyncioTestCase):
         self.assertFalse(any(e['kind'] == 'disconnect' for e in
                              controller._interactions.snapshot()['events']))
 
-    async def test_paid_routes_use_server_key_and_block_unpaid_runs(self):
-        from remote_yam.payments import Payments
-        from test_payments import Sessions
-        from types import SimpleNamespace as NS
-        browser = await self.session()
-        browser['cookie'] += '; __Host-yam-payment=fixture-owner'
-        sessions = Sessions()
-        self.app.payments = Payments(self.app.root/'payments.sqlite', 'sk_test_fixture',
-                                    'whsec_fixture', self.app.origin,
-                                    client=NS(v1=NS(checkout=NS(sessions=sessions))))
-        self.app.paid_model_key = 'server-only-model-key'
-        self.assertEqual((await self.call('/api/run', method='POST', payload={'provider':'stripe'}, **browser))[0], 402)
-        code, checkout, _ = await self.call('/api/checkout', method='POST',
-            payload={'runner_name':'Andrew','prompt':'Move block'}, **browser)
-        self.assertEqual(code, 200)
-        code, result, _ = await self.call('/api/purchase/redeem', method='POST',
-            payload={'order':checkout['order']}, **browser)
-        self.assertEqual(result['payment_state'], 'pending')
-        self.assertFalse(self.providers)
-        sessions.session.payment_status = 'paid'
-        code, result, _ = await self.call('/api/purchase/redeem', method='POST',
-            payload={'order':checkout['order'],'api_key':'attacker-key','model':'wrong'}, **browser)
-        self.assertEqual(code, 200)
-        self.assertEqual(result['payment_state'], 'used')
-        self.assertEqual(self.providers[0]._api_key, 'server-only-model-key')
 
-    async def test_paid_site_still_allows_visitor_key(self):
-        browser = await self.session()
-        self.app.payments = object()
-        self.app.paid_model_key = 'server-only-key'
-        code, _, _ = await self.launch(browser, secret='visitor-supplied-key')
-        self.assertEqual(code, 200)
-        self.assertEqual(self.providers[0]._api_key, 'visitor-supplied-key')
 
-    async def test_paid_site_allows_builtin_without_key(self):
-        browser = await self.session()
-        self.app.payments = object()
-        code, _, _ = await self.call('/api/run', method='POST', payload={
-            'provider':'local_raise_lower', 'prompt':'Raise and lower both arms.',
-            'runner_name':'Fixture'}, **browser)
-        self.assertEqual(code, 200)
-        self.assertEqual(self.providers[0]._api_key, '')
 
     async def test_builtin_cannot_publish_an_unrelated_object_task(self):
         browser = await self.session()
@@ -319,10 +300,6 @@ class HostedTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual((await self.launch(browser, ''))[0], 400)
         self.assertEqual(visitor.saved_keys, {})
 
-    async def test_paid_service_key_is_not_saved(self):
-        _, visitor = self.app.new_visitor()
-        self.app.launch(visitor, {'provider':'openai', 'api_key':'paid-server-key', 'prompt':'test', 'model':'test'}, paid=True)
-        self.assertEqual(visitor.saved_keys, {})
 
     async def test_forget_stops_run_and_clears_retained_key(self):
         browser = await self.session()
@@ -344,18 +321,6 @@ class HostedTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(b['status'], 'queued')
         self.assertTrue(a['key_configured'])
         self.assertEqual(list(self.app.visitors.values())[0].controller._session_api.get_queue_snapshot()['entries'], [])
-
-    async def test_monitor_outage_clears_public_readiness_and_recovers(self):
-        browser = await self.session()
-        self.app.queue = self.app.monitor_api.get_queue_snapshot()
-        state = (await self.call('/api/status', **browser))[1]
-        self.assertIsNotNone(state['queue_snapshot'])
-        self.app.queue = None
-        state = (await self.call('/api/status', **browser))[1]
-        self.assertIsNone(state['queue_snapshot'])
-        self.app.queue = self.app.monitor_api.get_queue_snapshot()
-        state = (await self.call('/api/status', **browser))[1]
-        self.assertIsNotNone(state['queue_snapshot'])
 
     async def test_startup_fault_reaches_waiting_visitor_and_clears(self):
         from YAM_control.public_fault import gripper_fault_message

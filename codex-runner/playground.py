@@ -1,9 +1,4 @@
-"""Browser runner with optional Stripe-funded runs. Run with uvicorn hosted:create_app --factory.
-
-One process/replica owns all in-memory visitor sessions. No provider credentials
-are loaded by default; paid mode explicitly loads a private server configuration.
-See HOSTING.md for deployment.
-"""
+"""Shared browser playground. Hosting products extend its application hooks."""
 from __future__ import annotations
 
 import hashlib
@@ -39,6 +34,18 @@ from remote_yam.session import HttpSessionAPI, MockSessionAPI
 
 ACTIVE = {"queued", "preparing", "running"}
 COOKIE = "__Host-yam-visitor"
+
+
+def model_display_name(provider):
+    """Name the public conversation panel shows for the model driving the run."""
+    provider = provider if isinstance(provider, dict) else {}
+    name, model = provider.get("provider"), str(provider.get("model") or "")
+    if name == "claude":
+        family, major, minor = (model.split("-") + ["", "", "", ""])[1:4]
+        if family in {"opus", "sonnet", "haiku", "fable"} and major.isdigit():
+            return family.title() + " " + major + ("." + minor if minor.isdigit() else "")
+        return "Claude"
+    return {"groot": "GR00T", "local_raise_lower": "Built-in policy"}.get(name, "Astra")
 
 
 class RequestError(Exception):
@@ -117,8 +124,8 @@ class HostedRunner:
                  hardware_control: bool = False, development: bool = False,
                  max_sessions: int = 32, idle_seconds: float = 1800,
                  lifetime_seconds: float = 7200, api_factory=None,
-                 provider_factory=None, payments=None, paid_model_key="", paid_model="gpt-6-astra", chat_database=None,
-                 local_codex=False, default_provider="openai", robots=None, robot_id="yam-1", camera_names=CAMERA_NAMES, joint_counts=(6,6), hardware=None):
+                 provider_factory=None, chat_database=None,
+                 groot_key_file="", local_codex=False, local_claude=False, default_provider="openai", robots=None, robot_id="yam-1", camera_names=CAMERA_NAMES, joint_counts=(6,6), hardware=None, policy_camera_names=None):
         parsed = urlsplit(public_origin)
         if (not parsed.hostname or parsed.path not in {"", "/"} or parsed.query
                 or parsed.fragment or parsed.username or parsed.password):
@@ -139,6 +146,9 @@ class HostedRunner:
         if self.hardware == 'makerarm' and self.joint_counts != (6,0):
             raise ValueError('MakerArm requires joint_counts [6,0]')
         self.camera_names = tuple(camera_names)
+        self.policy_camera_names = tuple(policy_camera_names) if policy_camera_names is not None else self.camera_names
+        if not self.policy_camera_names or not set(self.policy_camera_names).issubset(self.camera_names):
+            raise ValueError("Policy cameras must be selected from the robot cameras")
         self.robot_id = robot_id
         self.robots = robots if robots is not None else [
             {"id": robot_id, "name": "YAM", "url": public_origin.rstrip("/") + "/"}]
@@ -156,7 +166,11 @@ class HostedRunner:
         self.origin = public_origin.rstrip("/")
         if local_codex and not (development and parsed.scheme == 'http' and parsed.hostname in {'127.0.0.1', 'localhost'}):
             raise ValueError('Codex subscription access is restricted to the local runner')
+        if local_claude and not (development and parsed.scheme == 'http' and parsed.hostname in {'127.0.0.1', 'localhost'}):
+            raise ValueError('Claude subscription access is restricted to the local runner')
+        self.groot_key_file = groot_key_file if robot_id == "yam-1" and self.hardware == "yam" else ""
         self.local_codex = local_codex
+        self.local_claude = local_claude
         self.default_provider = default_provider
         self.authority = parsed.netloc
         self.secure = parsed.scheme == "https"
@@ -170,9 +184,6 @@ class HostedRunner:
         self.max_sessions = max_sessions
         self.idle_seconds, self.lifetime_seconds = idle_seconds, lifetime_seconds
         self.api_factory = api_factory or (lambda: HostedSessionAPI(session_api, supports_trajectories=True, robot_id=robot_id, joint_counts=self.joint_counts) if session_api else MockSessionAPI())
-        self.payments = payments
-        self.paid_model_key = paid_model_key
-        self.paid_model = paid_model
         self.provider_factory = provider_factory
         self.camera_source = CameraFrameSource(camera_origin, camera_names=self.camera_names)
         self.visitors: dict[str, Visitor] = {}
@@ -195,6 +206,24 @@ class HostedRunner:
         self.run_names = RunNames(os.environ.get('YAM_RUN_NAMES_DATABASE', ROOT / 'data/run-names.sqlite3'))
         self.submission_log = SubmissionLog(os.environ.get("YAM_SUBMISSION_DATABASE", ROOT / "data/queue-submissions.sqlite3"))
         self.remembered_names = set()
+
+    async def public_extension(self, scope, receive, send, headers):
+        """Optional application endpoints; Host is checked, visitor auth is not."""
+        return False
+
+    async def session_extension(self, cookies, visitor):
+        """Additional session metadata/headers; Origin and JSON are checked."""
+        return {}, []
+
+    async def action_extension(self, path, visitor, payload, cookies, send):
+        """Optional actions after visitor, Origin and CSRF validation."""
+        return False
+
+    def validate_launch(self, visitor, payload, paid):
+        """Application admission rules, before shared robot/provider validation."""
+
+    def page(self):
+        return (ROOT / "static/hosted.html").read_bytes()
 
     def remember_runner(self, visitor):
         state = visitor.controller.status()
@@ -224,6 +253,24 @@ class HostedRunner:
         self.visitors[capability] = visitor
         return capability, visitor
 
+    def model_camera_names(self):
+        if self.joint_counts == (5,5) and self.hardware != 'makerarm':
+            from remote_yam.bimanual_so101_policy import BimanualSO101PolicyMixin
+            return BimanualSO101PolicyMixin.model_camera_names(self.policy_camera_names)
+        if self.joint_counts == (5,0) and self.hardware != 'makerarm':
+            return ('front',)
+        return self.camera_names
+
+    def robot_connected(self, robot_id):
+        peer = getattr(self, '_fleet_apps', {}).get(robot_id, self if robot_id == self.robot_id else None)
+        if peer is None or time.monotonic() - getattr(peer, 'queue_observed_at', 0) > 10:
+            return None
+        queue = getattr(peer, 'queue', None)
+        if not isinstance(queue, dict):
+            return None
+        station = next((s for s in queue.get('stations', []) if s.get('jetson_id') == robot_id), None)
+        return bool(station.get('connected')) if station else False
+
     def refresh_monitor(self):
         from remote_yam.operator_status import read_auto_queue
         self.operator_auto_queue = read_auto_queue() if self.hardware_control and self.robot_id == "yam-1" else None
@@ -233,6 +280,7 @@ class HostedRunner:
             self.observation = None
         try:
             self.queue = self.monitor_api.get_queue_snapshot()
+            self.queue_observed_at = time.monotonic()
         except Exception:
             self.queue = None
 
@@ -337,37 +385,18 @@ class HostedRunner:
             return
         if headers.get("host") != self.authority:
             raise RequestError(421, "Unrecognized website host")
-        if path == '/api/stripe/webhook' and method == 'POST':
-            if self.payments is None:
-                raise RequestError(503, 'Payments are not configured')
-            async def webhook_body():
-                raw = bytearray()
-                while True:
-                    part = await receive()
-                    if part['type'] == 'http.disconnect':
-                        raise RequestError(400, 'Incomplete webhook')
-                    raw.extend(part.get('body', b''))
-                    if len(raw) > 1048576:
-                        raise RequestError(413, 'Webhook too large')
-                    if not part.get('more_body'):
-                        return bytes(raw)
-            raw = await asyncio.wait_for(webhook_body(), 10)
-            try:
-                await asyncio.to_thread(self.payments.webhook, raw, headers.get('stripe-signature', ''))
-            except Exception:
-                raise RequestError(400, 'Webhook could not be verified or processed') from None
-            await self.json(send, 200, {'received':True})
+        if await self.public_extension(scope, receive, send, headers):
             return
         if headers.get("sec-fetch-site") == "cross-site" and not (path == "/" and method == "GET"):
             raise RequestError(403, "Open the runner directly to continue")
         if method == "GET" and path == "/api/robots":
             await self.json(send, 200, {"selected": self.robot_id, "robots": [
-                {**{k: robot[k] for k in ("id", "name", "url")}, "hardware": robot.get("hardware", "")} for robot in self.robots]})
+                {**{k: robot[k] for k in ("id", "name", "url")}, "hardware": robot.get("hardware", ""), "connected": self.robot_connected(robot["id"])} for robot in self.robots]})
             return
-        if method == "GET" and path in {"/", "/static/hosted.js", "/static/hosted.css", "/static/analytics.js", "/static/stream-health.js", "/static/hls.light.min.js"}:
+        if method == "GET" and path in {"/", "/static/hosted.js", "/static/hosted.css", "/static/stream-health.js", "/static/hls.light.min.js"}:
             asset = ROOT / "static" / ("hosted.html" if path == "/" else path.rsplit("/", 1)[1])
-            kind = "text/html" if path == "/" else "text/javascript" if path.endswith(".js") else "text/css"
-            await self.respond(send, 200, asset.read_bytes(), kind + "; charset=utf-8")
+            kind = "image/png" if path.endswith(".png") else "text/html" if path == "/" else "text/javascript" if path.endswith(".js") else "text/css"
+            await self.respond(send, 200, (self.page() if path == "/" else asset.read_bytes()), kind if kind == "image/png" else kind + "; charset=utf-8")
             return
         if method == 'GET' and path == '/api/past-runs':
             try:
@@ -393,9 +422,6 @@ class HostedRunner:
             cookie.load(headers.get("cookie", ""))
         except CookieError:
             pass
-        pay_cookie_name = '__Host-yam-payment' if self.secure else 'yam-payment'
-        payment_cookie = cookie.get(pay_cookie_name)
-        payment_owner = payment_cookie.value if payment_cookie else ''
         token = cookie.get(self.cookie_name)
         capability = token.value if token else ""
         visitor = self.visitors.get(capability)
@@ -417,23 +443,20 @@ class HostedRunner:
             cookie_value = f"{self.cookie_name}={capability}; Path=/; HttpOnly; SameSite=Strict"
             if self.secure:
                 cookie_value += "; Secure"
-            payment_headers = []
-            if self.payments is not None and not payment_owner:
-                payment_owner = secrets.token_urlsafe(32)
-                value = f'{pay_cookie_name}={payment_owner}; Path=/; HttpOnly; SameSite=Lax; Max-Age=2592000'
-                if self.secure:
-                    value += '; Secure'
-                payment_headers.append((b'set-cookie', value.encode()))
+            application_setup, application_headers = await self.session_extension(cookie, visitor)
             local_setup = {}
             if self.local_codex:
                 from remote_yam.codex_policy import codex_status
                 local_setup = {'local_runner': True, 'default_provider': self.default_provider,
                                'codex': await asyncio.to_thread(codex_status)}
-            await self.json(send, 200, {**local_setup, "robot_id": self.robot_id, "cameras": list(self.camera_names), "joint_policy": self.joint_counts != (6,6), "paid_runs": self.payments is not None, "csrf": visitor.csrf, "astra_enabled": bool(self.astra_endpoint),
+            if self.local_claude:
+                from remote_yam.claude_policy import claude_status, DEFAULT_MODEL as CLAUDE_MODEL
+                local_setup = {**local_setup, 'local_runner': True, 'default_provider': self.default_provider,
+                               'claude': await asyncio.to_thread(claude_status), 'claude_model': CLAUDE_MODEL}
+            await self.json(send, 200, {**local_setup, **application_setup, "robot_id": self.robot_id, "cameras": list(self.camera_names), "model_cameras": list(self.model_camera_names()), "joint_policy": self.joint_counts != (6,6), "csrf": visitor.csrf, "astra_enabled": bool(self.astra_endpoint), "groot_enabled": bool(self.groot_key_file),
                                       "simulation": self.simulation,
-                                      "recover_purchase": await asyncio.to_thread(self.payments.recover, payment_owner) if self.payments and payment_owner else None,
                                       "expires_in": int(self.lifetime_seconds - (time.monotonic() - visitor.born))},
-                            [(b"set-cookie", cookie_value.encode())] + payment_headers)
+                            [(b"set-cookie", cookie_value.encode())] + application_headers)
             return
         if visitor is None or visitor.retired:
             raise RequestError(401, "Your browser session ended. Reload to start a new one.")
@@ -442,6 +465,8 @@ class HostedRunner:
             if not secrets.compare_digest(headers.get("x-yam-runner-token", ""), visitor.csrf):
                 raise RequestError(403, "Invalid browser session token")
             payload = await self.body(receive)
+            if await self.action_extension(path, visitor, payload, cookie, send):
+                return
             if path == "/api/stream-health":
                 from remote_yam.stream_health import public_report, log_report
                 try:
@@ -464,38 +489,14 @@ class HostedRunner:
                 visitor.last_chat = time.monotonic()
                 await asyncio.to_thread(self.chat_history.append, visitor.chat_id, name, text)
                 result = {"ok": True}
-            elif path in {'/api/checkout', '/api/purchase/redeem'}:
-                from remote_yam.payments import PaymentError
-                if self.payments is None or not self.paid_model_key or not payment_owner:
-                    raise RequestError(503, 'Paid runs are not configured')
-                if visitor.controller.busy() or visitor.controller.status()['status'] in ACTIVE:
-                    raise RequestError(409, 'Finish your current run first')
-                try:
-                    if path == '/api/checkout':
-                        result = await asyncio.to_thread(self.payments.checkout, payment_owner, payload)
-                    else:
-                        def paid_launch(saved):
-                            self.launch(visitor, {**saved, 'provider':'openai', 'model':self.paid_model,
-                                                   'api_key':self.paid_model_key}, paid=True)
-                            return visitor.runner_session_id
-                        result = await asyncio.to_thread(self.payments.redeem, payment_owner,
-                                                         payload.get('order', ''), paid_launch)
-                except PaymentError as exc:
-                    confirmed = False
-                    if path == '/api/purchase/redeem':
-                        try:
-                            confirmed = self.payments.get(payment_owner, payload.get('order', ''))['state'] in {'paid', 'dispatching', 'used', 'review'}
-                        except PaymentError:
-                            pass
-                    await self.json(send, 409, {'error': str(exc), 'payment_confirmed': confirmed})
-                    return
-                except Exception:
-                    raise RequestError(503, 'Payment service unavailable. Your purchase has not been retried.') from None
             elif path == "/api/run":
                 result = await asyncio.to_thread(self.launch, visitor, payload)
             elif path == '/api/codex/check' and self.local_codex:
                 from remote_yam.codex_policy import codex_status
                 result = await asyncio.to_thread(codex_status)
+            elif path == '/api/claude/check' and self.local_claude:
+                from remote_yam.claude_policy import claude_status
+                result = await asyncio.to_thread(claude_status)
             elif path in {"/api/stop", "/api/credentials/clear", "/api/disconnect", "/api/operator"}:
                 result = await asyncio.to_thread(self.control, visitor, path)
                 if path == "/api/disconnect":
@@ -516,9 +517,8 @@ class HostedRunner:
             if self.queue is not None:
                 controller.update_queue_snapshot(self.queue)
             state = controller.status()
-            # A failed monitor refresh must not keep advertising cached readiness.
             if self.queue is None:
-                state['queue_snapshot'] = None
+                state["queue_snapshot"] = None
             from remote_yam.operator_status import fresh_auto_queue
             state['robot_auto_queue_enabled'] = fresh_auto_queue(self.operator_auto_queue)
             # Station faults can happen before any visitor is assigned a run.
@@ -550,9 +550,16 @@ class HostedRunner:
                 state['public_run'] = {'run_id': (current.get('interactions') or {}).get('run_id'),
                     'runner_name': owner.runner_name, 'task': owner.runner_task,
                     'status': current['status'], 'events': events, 'error': public_run_error(current),
+                    'model_name': model_display_name(current.get('provider')),
                     **{k: current.get(k) for k in ('run_duration_s', 'run_started_at', 'run_ended_at', 'run_elapsed_s')}}
             shared_run = (state.get('queue_snapshot') or {}).get('public_run')
             if shared_run and (shared_run.get('status') in {'preparing', 'running'} or not state['public_run']):
+                local_run = state['public_run']
+                # One station runs one policy: while this runner's run is live, the
+                # station's copy is that run, which only this runner knows the model of.
+                if (local_run and local_run.get('status') in {'preparing', 'running'}
+                        and not shared_run.get('model_name')):
+                    shared_run = {**shared_run, 'model_name': local_run['model_name']}
                 state['public_run'] = shared_run
             names = {v.runner_session_id: v.runner_name for v in list(self.visitors.values()) if v.runner_session_id}
             for entry in (state.get('queue_snapshot') or {}).get('entries', []):
@@ -644,8 +651,7 @@ class HostedRunner:
 
     def launch(self, visitor, payload, *, paid=False):
         self.remember_runner(visitor)
-        if self.payments is not None and not paid and payload.get('provider') not in {'local_raise_lower', 'openai'}:
-            raise RequestError(402, 'Choose a built-in run, bring your API key, or pay through Checkout')
+        self.validate_launch(visitor, payload, paid)
         with visitor.lock:
             if visitor.retired:
                 raise RequestError(401, "Browser session ended")
@@ -668,13 +674,14 @@ class HostedRunner:
                 raise RequestError(400, str(exc)) from None
             if not isinstance(runner_name, str) or not 1 <= len(runner_name.strip()) <= 32 or any(ord(c) < 32 for c in runner_name):
                 raise RequestError(400, 'Enter a name of 1–32 characters')
-            if name not in ({"local_raise_lower", "openai", "astra", "codex"} if self.local_codex else {"local_raise_lower", "openai", "astra"}):
+            if name not in ({"local_raise_lower", "openai", "astra"} | ({"codex"} if self.local_codex else set())
+                            | ({"claude"} if self.local_claude else set())) | ({"groot"} if self.groot_key_file else set()):
                 raise RequestError(400, "Choose a supported provider")
             if not isinstance(prompt, str) or not 1 <= len(prompt.strip()) <= 4000:
                 raise RequestError(400, "Enter a task of up to 4,000 characters")
             if not isinstance(model, str) or len(model) > 128 or any(ord(c) < 32 for c in model):
                 raise RequestError(400, "Invalid model name")
-            if name not in {"local_raise_lower", "codex"} and (not isinstance(key, str) or not 8 <= len(key) <= 4096 or any(ord(c) < 33 or ord(c) > 126 for c in key)):
+            if name not in {"local_raise_lower", "codex", "claude", "groot"} and (not isinstance(key, str) or not 8 <= len(key) <= 4096 or any(ord(c) < 33 or ord(c) > 126 for c in key)):
                 raise RequestError(400, "Enter your provider API key")
             if payload.get("endpoint"):
                 raise RequestError(400, "Provider endpoints are configured by the service")
@@ -682,9 +689,14 @@ class HostedRunner:
                 raise RequestError(400, "Astra is not configured on this service")
             if name == "local_raise_lower":
                 prompt = "Raise and lower both arms for three cycles."
-            if self.joint_counts != (6,6) and name not in ({'openai','codex'} if self.local_codex else {'openai'}):
+            if self.joint_counts != (6,6) and name not in {'openai'} | ({'codex'} if self.local_codex else set()):
                 raise RequestError(400, 'This robot requires an OpenAI or supported local Codex runner')
-            if self.hardware == 'makerarm' and not self.provider_factory:
+            if name == 'groot':
+                from remote_yam.groot_policy import GrootAdapter
+                if model not in ('', 'groot-reviewed-step10000'):
+                    raise RequestError(400, 'Unknown GR00T checkpoint')
+                provider = GrootAdapter(Path(self.groot_key_file).read_text().strip(), camera_source=self.camera_source)
+            elif self.hardware == 'makerarm' and not self.provider_factory:
                 from remote_yam.makerarm_policy import MakerArmOpenAIAdapter, MakerArmCodexAdapter
                 mapping = ROOT / '.local' / 'robot-calibrations' / (hashlib.sha256(self.robot_id.encode()).hexdigest() + '.json')
                 if not mapping.is_file():
@@ -706,7 +718,7 @@ class HostedRunner:
                 if calibration_path is None and joint_profile is None:
                     raise RequestError(400, 'No bimanual SO101 joint limits configured for this robot. Add robot-specific profiles or local calibrations.')
                 kwargs = dict(camera_source=self.camera_source, recording_root=visitor.directory,
-                              calibration_path=calibration_path, joint_profile=joint_profile, camera_names=self.camera_names)
+                              calibration_path=calibration_path, joint_profile=joint_profile, camera_names=self.policy_camera_names)
                 try:
                     provider = (BimanualSO101CodexAdapter(model or 'gpt-6-astra', **kwargs) if name == 'codex'
                                 else BimanualSO101OpenAIAdapter(key, model or 'gpt-6-astra', **kwargs))
@@ -747,6 +759,13 @@ class HostedRunner:
                                             recording_root=visitor.directory)
                 except RuntimeError as exc:
                     raise RequestError(400, str(exc)) from None
+            elif name == 'claude':
+                from remote_yam.claude_policy import ClaudeAdapter, DEFAULT_MODEL as CLAUDE_MODEL
+                try:
+                    provider = ClaudeAdapter(model or CLAUDE_MODEL, camera_source=self.camera_source,
+                                             recording_root=visitor.directory)
+                except (RuntimeError, ValueError) as exc:
+                    raise RequestError(400, str(exc)) from None
             elif name == "local_raise_lower":
                 provider = RepeatingRaiseLowerAdapter(cycles=3)
             else:
@@ -779,7 +798,7 @@ class HostedRunner:
                 print('[contacts] save_failed error_type=' + type(exc).__name__, flush=True)
                 visitor.controller._session_api.note(
                     'contact_save_failed', {'error_type': type(exc).__name__}, visitor.runner_session_id)
-            if not paid and name not in {"local_raise_lower", "codex"}:
+            if not paid and name not in {"local_raise_lower", "codex", "claude", "groot"}:
                 visitor.saved_keys[name] = key
             return {"ok": True, "saved_key_providers": sorted(visitor.saved_keys)}
 
@@ -816,30 +835,3 @@ class HostedRunner:
 
     async def json(self, send, status, payload, extra=()):
         await self.respond(send, status, json.dumps(payload, allow_nan=False).encode(), "application/json", extra)
-
-
-def create_app():
-    development = os.environ.get("YAM_WEB_DEVELOPMENT") == "1"
-    session_api = os.environ.get("YAM_SESSION_API")
-    payment_service = None
-    model_key = ''
-    if os.environ.get('YAM_PAID_RUNS') == '1':
-        from remote_yam.payments import Payments
-        config = json.loads(Path(os.environ['YAM_PAYMENT_CONFIG']).read_text())
-        model_key = config['model_key']
-        if not model_key or not config['stripe_key'] or not config['webhook_secret']:
-            raise ValueError('Payment credentials are incomplete')
-        payment_service = Payments(os.environ['YAM_PAYMENT_DB'], config['stripe_key'],
-                                   config['webhook_secret'], os.environ['YAM_WEB_ORIGIN'])
-    from multi_robot import fleet
-    return fleet(HostedRunner, dict(
-        payments=payment_service, paid_model_key=model_key,
-        chat_database=os.environ.get("YAM_CHAT_DATABASE", str(ROOT / "data/chat.sqlite3")),
-        public_origin=os.environ.get("YAM_WEB_ORIGIN", "http://127.0.0.1:8790" if development else ""),
-        session_api=session_api,
-        camera_origin=os.environ.get("YAM_CAMERA_ORIGIN", session_api or "http://127.0.0.1:8089"),
-        astra_endpoint=os.environ.get("YAM_WEB_ASTRA_ENDPOINT", ""),
-        hardware_control=os.environ.get("YAM_WEB_HARDWARE_CONTROL") == "1",
-        development=development,
-        max_sessions=int(os.environ.get("YAM_WEB_MAX_SESSIONS", "32")),
-    ), json.loads(os.environ["YAM_DASHBOARD_ROBOTS"]) if os.environ.get("YAM_DASHBOARD_ROBOTS") else None)

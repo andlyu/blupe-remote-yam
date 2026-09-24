@@ -1,0 +1,499 @@
+<!-- Source: https://github.com/makermods-robotics/lerobot/blob/2115f638667c6b1625527cd4284a400e8efad093/docs/source/maker.mdx; fetched 2026-09-13 -->
+# Maker Arm
+
+The Maker Arm v1 is a seven-actuator follower from MakerMods. It has six revolute joints and a
+permanent gripper. All seven actuators are RobStride motors on one classic CAN bus. LeRobot talks
+to them directly through `python-can`. It does not require ROS or the vendor SDK.
+
+## What's unique
+
+- The motors run RobStride's MIT protocol (11-bit CAN ids), the one LeRobot's `RobstrideMotorsBus`
+  speaks. Motors ship in RobStride's private protocol, so a one-time switch is needed, see
+  [motor configuration](#motor-configuration).
+- `shoulder_lift` and `elbow_flex` use RS02 motors. The other four joints and the gripper use
+  RS00 motors.
+- The arm exposes degrees at the robot boundary. Joint limits, gains, motor CAN ids, and the CAN
+  transport are configuration fields.
+- Joint names match the reBot convention: `shoulder_pan`, `shoulder_lift`, `elbow_flex`,
+  `wrist_flex`, `wrist_yaw`, `wrist_roll`, and `gripper`.
+- A Star Arm 102 leader uses the `rebot_102_leader_maker` preset. The preset supplies the Maker
+  direction and range mapping.
+
+## Platform requirements
+
+Maker Arm uses one of two `python-can` transports:
+
+- `slcan` works on Linux, macOS, and Windows. It is the default. `python-can` opens the adapter's
+  serial port through `pyserial`.
+- `socketcan` uses the Linux kernel CAN stack. Select it when the adapter is exposed as an
+  interface such as `can0`.
+
+The `port` value depends on the transport. For `slcan`, use a serial port such as
+`/dev/ttyACM0`, `/dev/cu.usbmodem1101`, or `COM5`. For `socketcan`, use an interface name such as
+`can0`.
+
+## Install LeRobot 🤗
+
+Follow the [installation guide](./installation), then install the Maker extra:
+
+```bash
+pip install -e ".[maker]"
+```
+
+Teleoperation with a Star Arm 102 leader also needs the `rebot` extra:
+
+```bash
+pip install -e ".[maker,rebot]"
+```
+
+The equivalent `uv` command is:
+
+```bash
+uv sync --extra maker --extra rebot
+```
+
+## Hardware and CAN setup
+
+Maker Arm uses classic CAN at 1 Mbps. It does not use CAN FD. The seven motor CAN ids are `1`
+through `7`. One arm uses one CAN bus. A bimanual follower needs two
+independent CAN buses because both arms use the same motor ids.
+
+### Option A: slcan (default, any OS)
+
+Point `port` at the USB-CAN adapter's serial device. `can_interface` already defaults to
+`slcan`.
+
+```bash
+--robot.port=/dev/ttyACM0
+--robot.port=/dev/cu.usbmodem1101
+--robot.port=COM5
+```
+
+On Linux, do not run `slcand` on the same serial port while LeRobot uses `slcan`. Only one
+process can own the device.
+
+### Option B: SocketCAN (Linux only)
+
+Bring up a native CAN interface at 1 Mbps:
+
+```bash
+sudo ip link set can0 up type can bitrate 1000000
+sudo ip link set can0 txqueuelen 1000
+```
+
+For an slcan-compatible USB adapter, expose it through SocketCAN first:
+
+```bash
+sudo slcand -o -f -s8 /dev/ttyACM0 can0
+sudo ip link set up can0
+sudo ip link set can0 txqueuelen 1000
+```
+
+Then select SocketCAN explicitly:
+
+```bash
+--robot.port=can0 --robot.can_interface=socketcan
+```
+
+### Finding the serial port
+
+Unplug the adapter and run:
+
+```bash
+lerobot-find-port
+```
+
+The command lists current ports, waits for one device to be disconnected, and reports the port
+that disappeared. On Linux, stable by-id paths are useful when two adapters are connected:
+
+```bash
+ls /dev/serial/by-id/
+```
+
+Use the reported path as `--robot.port`.
+
+## Motor configuration
+
+The default bus order, motor types, ids, limits, and follow gains are:
+
+| Joint           | Model | CAN id | Joint limits (deg) |  Kp |  Kd |
+| --------------- | ----- | -----: | -----------------: | --: | --: |
+| `shoulder_pan`  | RS00  |      1 |    -158.2 .. 156.1 |  60 | 4.0 |
+| `shoulder_lift` | RS02  |      2 |     -175.3 .. -3.2 | 150 | 4.5 |
+| `elbow_flex`    | RS02  |      3 |       2.8 .. 236.1 |  90 | 3.0 |
+| `wrist_flex`    | RS00  |      4 |     -65.2 .. 104.0 |  30 | 2.0 |
+| `wrist_yaw`     | RS00  |      5 |      -97.6 .. 78.0 |  30 | 2.0 |
+| `wrist_roll`    | RS00  |      6 |    -153.2 .. 152.0 |  30 | 2.0 |
+| `gripper`       | RS00  |      7 |     -120.1 .. -2.5 |  20 | 0.5 |
+
+Zero is the calibration pose (the folded resting pose, gripper open). The limits are the
+vendor's mechanical stop captures with a 0.05 rad backoff, re-expressed against that zero. In
+LeRobot's `RobstrideMotorsBus` tables RS00 is model `O0` and RS02 is model `O1`.
+
+Every commanded position is clipped to its configured limit. `gripper.pos` is the gripper
+motor angle in degrees. It is not a jaw opening in millimetres.
+
+### Switching the motors to the MIT protocol
+
+RobStride motors ship in RobStride's private protocol (29-bit extended CAN ids). LeRobot's
+`RobstrideMotorsBus` speaks the MIT protocol (11-bit ids), the same choice the reBot B601-DM
+makes. A motor speaks one protocol at a time. The setting is stored in the motor and takes effect
+after a power cycle, so this is a one-time step per arm. Motors that were never switched show
+up as "did not respond" in the handshake.
+
+Run this once with the arm powered and no other program on the port, then power-cycle the arm:
+
+```python
+import time
+import can
+
+PORT = "/dev/cu.usbmodem1101"  # slcan serial port, or channel="can0" with interface="socketcan"
+MOTOR_IDS = range(1, 8)
+HOST_ID = 0xFD
+
+bus = can.interface.Bus(channel=PORT, interface="slcan", bitrate=1_000_000)
+for motor_id in MOTOR_IDS:
+    # Private-protocol type 25 "set protocol": magic bytes 1..6, then 2 for MIT (0 = private).
+    arbitration_id = (25 << 24) | (HOST_ID << 8) | motor_id
+    bus.send(can.Message(arbitration_id=arbitration_id, data=bytes([1, 2, 3, 4, 5, 6, 2, 0]), is_extended_id=True))
+    reply = bus.recv(timeout=0.3)
+    acked = reply is not None and reply.arbitration_id == (motor_id << 8) | 0xFE
+    print(f"motor {motor_id}: {'switched' if acked else 'no reply'}")
+    time.sleep(0.05)
+bus.shutdown()
+```
+
+Each motor answers the switch with a device-id frame on `(motor_id << 8) | 0xFE`. After the
+power cycle the `maker-arm` CLI from the
+[Maker Arm SDK](https://github.com/makermods-robotics/maker-arm-sdk) no longer sees the motors;
+sending the same frame with `0` instead of `2` in byte 6 switches them back. The motor zero set
+while in the private protocol carries over.
+
+## Calibration
+
+Maker calibration sets the current motor positions to zero. The zero pose is the folded resting
+pose the arm ships in: arm tucked against the base, gripper fully open. The soft limits in
+`joint_limits` are measured from that pose, so calibrating anywhere else shifts the whole
+envelope.
+
+LeRobot sends a set-zero frame to each motor. The calibration file records each
+motor id and its soft limits. Use a distinct `id` for each physical arm and leader so their
+calibration files do not collide.
+
+Calibrate the Maker follower:
+
+```bash
+lerobot-calibrate \
+    --robot.type=maker_follower \
+    --robot.port=/dev/cu.usbmodem1101 \
+    --robot.id=my_maker_follower
+```
+
+Calibrate the Star Arm 102 leader that will drive it:
+
+```bash
+lerobot-calibrate \
+    --teleop.type=rebot_102_leader_maker \
+    --teleop.port=/dev/cu.usbserial-0001 \
+    --teleop.id=star_maker
+```
+
+Calibrate the Star leader in the pose that matches the Maker's resting pose joint for joint
+(fold it the same way, gripper fully open). The leader's zero must coincide with the follower's
+zero: the preset only scales and flips each joint, it does not add an offset. Later connections
+reuse the calibration files for those ids.
+
+## Usage
+
+### Follower arm
+
+```python
+from lerobot.robots.maker_follower import MakerFollower, MakerFollowerConfig
+
+config = MakerFollowerConfig(
+    port="/dev/ttyACM0",
+    id="my_maker_follower",
+)
+follower = MakerFollower(config)
+follower.connect()
+
+observation = follower.get_observation()
+print(observation)
+
+# Support the arm before disconnecting. Torque is disabled by default.
+follower.disconnect()
+```
+
+Positions returned by `get_observation()` are in degrees. Actions passed to `send_action()` use
+the same seven names with a `.pos` suffix.
+
+### Teleoperation with a Star Arm 102 leader
+
+Use a [Seeed Studio Star Arm 102 or reBot Arm 102](./rebot_b601) leader. Its FashionStar servos
+connect over a UART serial port. Install both extras before starting teleoperation:
+
+```bash
+pip install -e ".[maker,rebot]"
+```
+
+Use `rebot_102_leader_maker`, not `rebot_102_leader`. The stock type contains the mapping for a
+reBot B601 follower. The Maker preset supplies its own `joint_directions` and `joint_ranges`.
+
+This macOS example uses one slcan serial port for the follower and one UART serial port for the
+leader:
+
+```bash
+lerobot-teleoperate \
+    --robot.type=maker_follower \
+    --robot.port=/dev/cu.usbmodem1101 \
+    --robot.id=my_maker_follower \
+    --teleop.type=rebot_102_leader_maker \
+    --teleop.port=/dev/cu.usbserial-0001 \
+    --teleop.id=star_maker
+```
+
+The same settings can be stored in `star_maker.json`:
+
+```json
+{
+  "robot": {
+    "type": "maker_follower",
+    "port": "/dev/cu.usbmodem1101",
+    "id": "my_maker_follower"
+  },
+  "teleop": {
+    "type": "rebot_102_leader_maker",
+    "port": "/dev/cu.usbserial-0001",
+    "id": "star_maker"
+  }
+}
+```
+
+Run it with:
+
+```bash
+lerobot-teleoperate --config_path star_maker.json
+```
+
+The leader can also be used directly from Python:
+
+```python
+from lerobot.teleoperators.rebot_102_leader import (
+    RebotArm102Leader,
+    RebotArm102LeaderMakerTeleopConfig,
+)
+
+config = RebotArm102LeaderMakerTeleopConfig(
+    port="/dev/ttyUSB0",
+    id="star_maker",
+)
+leader = RebotArm102Leader(config)
+leader.connect()
+
+action = leader.get_action()
+print(action)
+
+leader.disconnect()
+```
+
+`joint_directions` contains signed scale factors. The sign sets direction and the magnitude
+rescales leader travel. `joint_ranges` also selects the Star servo's 360 degree unwrap window.
+Keep those ranges aligned with the follower soft limits.
+
+#### Capping per-step motion
+
+`max_relative_target` limits how many degrees a follower joint may move in one control step. It
+accepts one float for every joint or a dictionary keyed by joint name. The default is `None`, so
+there is no per-step cap.
+
+This setting acts per step, not per second. Its speed bound therefore depends on the teleoperation
+loop rate. Choose a value from the permitted motion per control step for the task and hardware.
+
+### Recording data
+
+The JSON file can also configure recording:
+
+```bash
+lerobot-record \
+    --config_path star_maker.json \
+    --dataset.repo_id=my_hf_username/my_maker_dataset \
+    --dataset.single_task="Pick up the block and place it in the box." \
+    --dataset.fps=30 \
+    --dataset.num_episodes=10
+```
+
+### Bimanual
+
+`bi_maker_follower` composes two Maker followers. It prefixes action and observation keys with
+`left_` and `right_`. Each follower needs its own CAN bus. The two buses may use the same motor
+ids because they are physically separate.
+
+`bi_rebot_102_leader_maker` supplies the Maker mapping for both Star leaders. Its two nested arm
+configs only require these port flags:
+
+```bash
+--teleop.left_arm_config.port=/dev/ttyUSB0
+--teleop.right_arm_config.port=/dev/ttyUSB1
+```
+
+A complete bimanual command is:
+
+```bash
+lerobot-teleoperate \
+    --robot.type=bi_maker_follower \
+    --robot.id=bi_maker \
+    --robot.left_arm_config.port=/dev/ttyACM0 \
+    --robot.right_arm_config.port=/dev/ttyACM1 \
+    --teleop.type=bi_rebot_102_leader_maker \
+    --teleop.id=bi_star_maker \
+    --teleop.left_arm_config.port=/dev/ttyUSB0 \
+    --teleop.right_arm_config.port=/dev/ttyUSB1
+```
+
+The matching Python configuration is:
+
+```python
+from lerobot.robots.bi_maker_follower import BiMakerFollower, BiMakerFollowerConfig
+from lerobot.robots.maker_follower import MakerFollowerConfigBase
+from lerobot.teleoperators.bi_rebot_102_leader import (
+    BiRebot102Leader,
+    BiRebot102LeaderMakerConfig,
+)
+from lerobot.teleoperators.rebot_102_leader import RebotArm102LeaderMakerConfig
+
+robot = BiMakerFollower(
+    BiMakerFollowerConfig(
+        id="bi_maker",
+        left_arm_config=MakerFollowerConfigBase(port="/dev/ttyACM0"),
+        right_arm_config=MakerFollowerConfigBase(port="/dev/ttyACM1"),
+    )
+)
+
+teleop = BiRebot102Leader(
+    BiRebot102LeaderMakerConfig(
+        id="bi_star_maker",
+        left_arm_config=RebotArm102LeaderMakerConfig(port="/dev/ttyUSB0"),
+        right_arm_config=RebotArm102LeaderMakerConfig(port="/dev/ttyUSB1"),
+    )
+)
+```
+
+## Why the follower talks to one motor at a time
+
+`RobstrideMotorsBus` has two ways to reach the motors. `sync_read` and `sync_write` send all seven
+frames back to back and collect the replies afterwards. `read` and `write` handle one motor and
+wait for its reply before returning. The Maker follower uses the second pair.
+
+The reason is the adapter, not the protocol. A CANable running normaldotcom's firmware holds about
+three CAN frames in its receive FIFO and does no USB buffering, so seven replies arriving at once
+overwrite each other before the host reads them. Measured over 3500 reads on a Maker arm at 30 Hz,
+the batched calls lost 6.97% of replies while the per-motor calls lost none. A lost reply is not a
+lost command. The bus reuses the previous value, which turns up in a recorded dataset as an
+observation that repeats for several frames while the arm is moving. In one 894-frame test
+recording, 22% to 53% of frames per joint were repeats.
+
+Per-motor calls also turned out to be faster, 5.8 ms against 8.5 ms for seven reads, because the
+batched path spends its time waiting on a collection window for frames that are already gone. A
+full tick with reads and writes is 9.6 ms.
+
+On Linux with SocketCAN the kernel buffers CAN frames, so the batched calls would probably be safe
+there. That is untested, and one millisecond per joint is not worth two code paths.
+
+## Configuration options
+
+### Follower (`maker_follower`)
+
+| Parameter                      | Default         | Description                                                                      |
+| ------------------------------ | --------------- | -------------------------------------------------------------------------------- |
+| `port`                         | `None`          | Required serial port for `slcan`, or interface name for `socketcan`              |
+| `can_interface`                | `"slcan"`       | `"slcan"` or `"socketcan"`                                                       |
+| `can_bitrate`                  | `1000000`       | Classic CAN bitrate in bits per second                                           |
+| `motor_can_ids`                | ids 1 through 7 | Per-joint motor CAN ids                                                          |
+| `joint_limits`                 | per joint       | Soft limits in degrees, applied to every action                                  |
+| `gains`                        | per joint       | MIT follow gains stored as `(kp, kd)`                                            |
+| `startup_sync_speed_deg`       | `1.0`           | Maximum degrees per step during initial pose synchronization. `None` disables it |
+| `startup_sync_tolerance_deg`   | `3.0`           | Error in degrees at which a joint finishes initial synchronization               |
+| `max_relative_target`          | `None`          | Per-step motion cap in degrees. Accepts a float or per-joint dictionary          |
+| `disable_torque_on_disconnect` | `True`          | Sends stop frames before closing the CAN bus                                     |
+| `cameras`                      | `{}`            | Camera configurations keyed by camera name                                       |
+
+At startup, each joint approaches the leader pose by at most `startup_sync_speed_deg` per step.
+It switches to normal tracking inside `startup_sync_tolerance_deg`. A joint that stops making
+progress for 1 s is released from slow synchronization.
+
+The MIT protocol has no parameter access, so LeRobot does not arm the motor-side CAN watchdog.
+If the host process dies, the arm keeps holding its last target until power is cut, the same as
+the Metal and reBot followers.
+
+`disable_torque_on_disconnect` defaults to `True`. The arm has no brakes. Support the arm before
+disconnecting because gravity can move it when torque is removed.
+
+### Star leader (`rebot_102_leader_maker`)
+
+| Parameter          | Default         | Description                                                     |
+| ------------------ | --------------- | --------------------------------------------------------------- |
+| `port`             | no default      | Required UART serial port                                       |
+| `baudrate`         | `1000000`       | FashionStar servo bus baud rate                                 |
+| `joint_ids`        | ids 0 through 6 | Per-joint FashionStar servo ids                                 |
+| `joint_directions` | per joint       | Signed Star-to-Maker direction and scale factors                |
+| `joint_ranges`     | per joint       | Maker output limits in degrees and the multi-turn unwrap window |
+
+The registered bimanual types are `bi_maker_follower` and
+`bi_rebot_102_leader_maker`. Their nested configurations are named `left_arm_config` and
+`right_arm_config`.
+
+## Status notes
+
+- Maker Arm support uses the stock `RobstrideMotorsBus` (RobStride MIT protocol). The motors
+  must be switched once, see [motor configuration](#motor-configuration).
+- The joint limits are the vendor's stop captures against the resting-pose zero. Update follower
+  `joint_limits` and Star leader `joint_ranges` together if you re-measure them.
+- Gains are applied when the follower connects. RS00 frames use velocity limits of
+  `-33 .. 33 rad/s` and torque limits of `-14 .. 14 Nm`. RS02 frames use `-44 .. 44 rad/s` and
+  `-17 .. 17 Nm`.
+- The gripper is always present and reports raw motor degrees.
+- A RobStride motor can lose its multi-turn count after a power cycle. At connect time, the bus
+  can apply a one-turn correction when a calibrated soft range makes the correct branch clear.
+
+## Troubleshooting
+
+### No response from motors
+
+1. Check 24 V motor power.
+2. Check CAN-H, CAN-L, ground, and bus termination.
+3. Check that the bus uses classic CAN at 1 Mbps.
+4. Check that motor ids are 1 through 7.
+5. Check that the motors were switched to the MIT protocol and power-cycled since.
+
+For SocketCAN, inspect traffic with `candump can0`. For slcan, close `slcand` and other programs
+that may hold the serial port.
+
+### CAN interface not found
+
+For SocketCAN, check the interface state:
+
+```bash
+ip link show can0
+```
+
+Bring it up again with the commands in [Option B](#option-b-socketcan-linux-only). If a serial
+device is busy, stop the program or daemon that owns it before reconnecting.
+
+### Arm moves when disconnected
+
+The Maker Arm has no brakes. A normal disconnect removes torque because
+`disable_torque_on_disconnect` defaults to `True`. Hold or support the arm before disconnecting
+it. Removing USB power does not release torque, so the arm stays rigid until motor power is cut.
+
+### Motor reports a fault
+
+The driver reports motor faults during connection and logs new faults during operation. Stop the
+session, support the arm, and check motor power, temperature, wiring, and calibration before
+reconnecting.
+
+## Resources
+
+- [Maker Arm SDK](https://github.com/makermods-robotics/maker-arm-sdk)
+- [reBot B601-DM and Star Arm 102](./rebot_b601)
+- [Damiao motors and CAN bus](./damiao)
+- [python-can documentation](https://python-can.readthedocs.io/en/stable/)

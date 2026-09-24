@@ -28,6 +28,7 @@ from remote_yam.cameras import CameraFrameSource, NoRedirect as _NoRedirect, ori
 from remote_yam.providers import RepeatingRaiseLowerAdapter
 from remote_yam.robocurve_policy import AstraAdapter, OpenAIAdapter
 from remote_yam.codex_policy import CodexAdapter, codex_status, login_codex, ensure_codex_runtime
+from remote_yam.claude_policy import ClaudeAdapter, claude_status, login_claude, DEFAULT_MODEL as CLAUDE_MODEL
 from remote_yam.session import HttpSessionAPI, MockSessionAPI
 from remote_yam.viewer import YamBimanualViewer
 from remote_yam.interactions import list_recordings, read_recording, recording_directory
@@ -171,7 +172,9 @@ def build_handler(
                 self._json(HTTPStatus.OK, {
                     "providers": providers,
                     "codex": codex_status(),
+                    "claude": claude_status(),
                     "default_provider": selected_provider(),
+                    "claude_model": CLAUDE_MODEL,
                     "default_prompt": "place green block on plate",
                     "astra_model": os.environ.get("ASTRA_MODEL", "astra-default"),
                     "astra_endpoint": os.environ.get("ASTRA_ENDPOINT", ""),
@@ -336,13 +339,15 @@ def build_handler(
                         provider = RepeatingRaiseLowerAdapter(cycles=3)
                     elif name == "codex":
                         provider = CodexAdapter(model or "gpt-6-astra", camera_source=camera_source, recording_root=recordings)
+                    elif name == "claude":
+                        provider = ClaudeAdapter(model or CLAUDE_MODEL, camera_source=camera_source, recording_root=recordings)
                     elif not credentials.public_status().get(name, False):
                         if not allow_key_prompt or not sys.stdin.isatty():
                             raise RuntimeError(
                                 f"{name.upper()} key is missing; set its environment variable and restart"
                             )
                         credentials.prompt_for(name)
-                    if name not in ("local_raise_lower", "codex"):
+                    if name not in ("local_raise_lower", "codex", "claude"):
                         key = credentials.require(name)
                         if name == "openai":
                             provider = OpenAIAdapter(key, model or "gpt-6-astra", camera_source=camera_source, recording_root=PROJECT_ROOT / "recordings")
@@ -353,6 +358,8 @@ def build_handler(
                     result = controller.join_and_run(provider, str(payload.get("prompt", "place green block on plate")))
                 elif self.path == "/api/codex/check":
                     result = codex_status()
+                elif self.path == "/api/claude/check":
+                    result = claude_status()
                 elif self.path == "/api/stop":
                     result = controller.stop()
                 elif self.path == "/api/disconnect":
@@ -399,8 +406,9 @@ def main() -> None:
     parser.add_argument("--session-api", help="Session API base URL; defaults to mock")
     parser.add_argument("--robot-id", default="yam-1", help="Robot whose read-only live feedback is shown")
     parser.add_argument("--camera-origin", default=None, help="Trusted camera origin; defaults to the Session API origin")
-    parser.add_argument("--provider", choices=("auto", "local_raise_lower", "openai", "astra", "codex"), default="auto", help="Default inference policy/provider")
+    parser.add_argument("--provider", choices=("auto", "local_raise_lower", "openai", "astra", "codex", "claude"), default="auto", help="Default inference policy/provider")
     parser.add_argument("--codex-login", action="store_true", help="Sign in to Codex with ChatGPT if needed, then launch the runner")
+    parser.add_argument("--claude-login", action="store_true", help="Sign in to Claude Code with your Claude account if needed, then launch the runner")
     parser.add_argument("--no-key-prompt", action="store_true", help="Do not request a missing provider key when Join Queue is invoked")
     parser.add_argument("--no-browser", action="store_true")
     parser.add_argument("--legacy-ui", action="store_true", help="Use the older developer monitor instead of the shared playground UI")
@@ -420,8 +428,20 @@ def main() -> None:
         login_codex()
         if args.provider == "auto":
             args.provider = "codex"
+    if args.claude_login:
+        login_claude()
+        if args.provider == "auto":
+            args.provider = "claude"
+    if args.provider == "claude":
+        setup = claude_status()
+        if not setup["ready"]:
+            parser.error(setup["message"])
     if args.provider == "codex" and (args.check_provider or args.check_provider_sim):
         from remote_yam.codex_check import run_check
+        run_check(simulation=args.check_provider_sim)
+        return
+    if args.provider == "claude" and (args.check_provider or args.check_provider_sim):
+        from remote_yam.claude_check import run_check
         run_check(simulation=args.check_provider_sim)
         return
     if args.check_provider or args.check_provider_sim:

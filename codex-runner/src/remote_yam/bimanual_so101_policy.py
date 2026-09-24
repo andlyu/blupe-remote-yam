@@ -21,7 +21,8 @@ elbow_flex, wrist_flex, wrist_roll, gripper, then the same for right. Angles are
 grippers are normalized. Cartesian state comes from FK of measured joint positions.
 The left and right cameras are wrist views attached to their respective arms.
 The overhead view shows the scene. Use their labels, not image order, to
-identify each view. Unspecified arms hold their measured joints; unspecified target
+identify each view. When supplied, the side view shows the scene from the side.
+Unspecified arms hold their measured joints; unspecified target
 dimensions on a requested arm retain measured values. Both IK paths are checked
 before any motion is sent, then dispatched together at 10 Hz, at most 0.01 radians
 per joint per waypoint. The shorter path holds its endpoint while the other finishes.
@@ -34,10 +35,14 @@ Never report success just because a target was requested; check the new observat
 class BimanualSO101PolicyMixin:
     final_joint_tolerance_deg = 5.0
 
-    def __init__(self, *args, calibration_path=None, joint_profile=None, camera_names=('overhead','left','right'), **kwargs):
+    @staticmethod
+    def model_camera_names(names):
+        return tuple(names)
+
+    def __init__(self, *args, calibration_path=None, joint_profile=None, camera_names=('overhead','side','left','right'), **kwargs):
         self._calibration_path = calibration_path
         self._joint_profile = joint_profile
-        self._bimanual_cameras = tuple(name for name in camera_names if name != 'side')
+        self._bimanual_cameras = self.model_camera_names(camera_names)
         if not self._bimanual_cameras or len(set(self._bimanual_cameras)) != len(self._bimanual_cameras):
             raise ValueError('Provide distinct camera roles')
         # Keep the shared viewer/recorder camera source unchanged.
@@ -52,6 +57,10 @@ class BimanualSO101PolicyMixin:
     def _initialize_policy(self, recording_root):
         super()._initialize_policy(recording_root)
         self._system_prompt = SYSTEM_PROMPT
+        if "overhead" not in self._bimanual_cameras:
+            self._system_prompt = self._system_prompt.replace(
+                "The overhead view shows the scene. Use their labels, not image order, to",
+                "No overhead view is supplied. Use the camera labels, not image order, to")
         self._tools = copy.deepcopy(YAM_TOOLS)
         properties = {f'{side}_{name}': {'type':'number', 'minimum':float(lo), 'maximum':float(hi)}
             for side in SIDES for name,lo,hi in zip(ARM_NAMES,self._geometry.arms[side].low,self._geometry.arms[side].high)}

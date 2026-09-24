@@ -4,7 +4,7 @@ import pytest
 from remote_yam.makerarm_trajectory import MakerArmTrajectory, NAMES
 from remote_yam.makerarm_policy import MakerArmCodexAdapter, SYSTEM_PROMPT
 from remote_yam.robocurve_trajectory import InvalidMove
-from hosted import HostedRunner
+from playground import HostedRunner
 from multi_robot import fleet
 
 @pytest.fixture

@@ -49,14 +49,14 @@ def fleet(runner_type, options, robots=None):
         if rid in apps or not isinstance(rid, str) or not rid or len(rid)>64:
             raise ValueError('Robot IDs must be unique nonempty strings')
         settings = dict(options, robots=catalog, robot_id=rid,
-                        hardware=robot.get('hardware'), camera_names=robot.get('cameras', ['left','top','right']), joint_counts=tuple(robot.get('joint_counts', [6,6])))
+                        hardware=robot.get('hardware'), policy_camera_names=robot.get('policy_cameras'), camera_names=robot.get('cameras', ['left','top','right']), joint_counts=tuple(robot.get('joint_counts', [6,6])))
         if rid != 'yam-1':
-            # Paid entitlements and YAM-specific built-ins cannot cross robots.
-            settings.update(payments=None, paid_model_key='')
             if options.get('chat_database'):
                 import hashlib
                 path=Path(options['chat_database'])
                 settings['chat_database']=str(path.with_name(path.stem+'-'+hashlib.sha256(rid.encode()).hexdigest()[:16]+path.suffix))
         apps[rid] = runner_type(**settings)
+    for app in apps.values():
+        app._fleet_apps = apps
     default = 'yam-1' if 'yam-1' in apps else catalog[0]['id']
     return MultiRobotPlayground(apps, default)

@@ -147,9 +147,9 @@
 (() => {
   'use strict';
   const $ = id => document.getElementById(id);
-  let paidRuns = false;
+  let claudeModel = 'claude-opus-5-5';
   const originalProviderMarkup = $('provider').innerHTML;
-  let selectedRobot = new URLSearchParams(location.search).get('robot_id') || 'yam-1', robotGeneration = 0, robotCatalog = null, pollingStarted = false;
+  let selectedRobot = window.yamApplication?.defaultRobot || new URLSearchParams(location.search).get('robot_id') || 'yam-1', robotGeneration = 0, robotCatalog = null, pollingStarted = false;
   let ownRunLive = false;
   let csrf = '', ended = false, submitting = false, active = false, lastHistory = 0, contactRequested = false;
   function message(text, error = false) { $('message').textContent = text; $('message').classList.toggle('error', error); }
@@ -164,6 +164,10 @@
     phone.href = 'tel:+17033443837'; phone.textContent = '(703) 344-3837';
     $('message').classList.remove('error');
     $('message').replaceChildren(document.createTextNode('Feel free to reach out here: '), email, document.createTextNode(', '), phone);
+  }
+  function applicationContext() {
+    return {$, api, message, buttons, updateSavedKey, providerChanged,
+      setSubmitting(value) { submitting = value; }};
   }
   async function api(path, data) {
     const generation = robotGeneration;
@@ -187,6 +191,8 @@
   }
   function buttons() {
     $('run').disabled = !csrf || ended || active || submitting;
+    $('runGroot').disabled = !csrf || ended || active || submitting;
+    $('runAstra').disabled = $('runClaude').disabled = !csrf || ended || active || submitting;
     ['runDuration', 'runnerName', 'email', 'instagramHandle', 'provider', 'model', 'prompt', 'apiKey'].forEach(id => { $(id).disabled = active || submitting || ended; });
     $('stop').disabled = !csrf || ended || !active;
     $('liveRunControls').hidden = !csrf || ended || !active || !ownRunLive;
@@ -207,6 +213,21 @@
     $('codexCopyStatus').textContent = '';
     $('codexInstructions').showModal();
   };
+  function runWithProvider(value, label) {
+    if (active || submitting || ended) return;
+    $('provider').value = value;
+    providerChanged();
+    applyModelName(lastLive);
+    if (!$('runnerName').value.trim()) {
+      $('runSettings').open = true; updateRunLabel(); $('runnerName').focus();
+      message(`Enter your name, then press ${label} to join the queue.`); return;
+    }
+    window.yamAnalytics?.selected(value, $('model').value.trim());
+    $('runForm').requestSubmit();
+  }
+  $('runGroot').onclick = () => runWithProvider('groot', 'Run GR00T');
+  $('runAstra').onclick = () => runWithProvider('codex', 'Run with Astra');
+  $('runClaude').onclick = () => runWithProvider('claude', 'Run with Opus');
   async function copyCodexPrompt() {
     const prompt = document.querySelector('.codexPrompt');
     try {
@@ -227,11 +248,12 @@
     if ($('runButtons').parentElement !== runParent) runParent.append($('runButtons'));
     const firstAction = $('runSettings').open ? $('openCodexInstructions') : $('run');
     if ($('runButtons').firstElementChild !== firstAction) $('runButtons').prepend(firstAction);
+    $('openCodexInstructions').after($('runAstra'), $('runClaude'), $('runGroot'));
     $('runForm').classList.toggle('setupReady', !runSetupNeeded());
     $('runForm').classList.toggle('runActive', active || submitting);
     $('run').textContent = runSetupNeeded() && !$('runSettings').open
       ? 'Setup keys and run'
-      : $('provider').value === 'stripe' ? 'Pay $2.50 & run' : 'Run';
+      : window.yamApplication?.runLabel?.() || 'Run';
   }
   $('run').addEventListener('click', event => {
     if (runSetupNeeded() && !$('runSettings').open) {
@@ -258,35 +280,30 @@
     updateRunLabel();
   }
   function providerChanged() {
+    if ($('provider').value === 'groot') {
+      $('providerFields').hidden = true; $('apiKey').required = false;
+      $('apiKey').value = ''; $('model').value = 'groot-reviewed-step10000';
+      $('policyHelp').textContent = 'GR00T warms up as soon as you join the queue. It runs when your turn and the GPU are ready.';
+      updateRunLabel(); return;
+    }
     $('prompt').readOnly = $('provider').value === 'local_raise_lower';
     const codex = $('provider').value === 'codex';
+    const claude = $('provider').value === 'claude';
     $('codexSetup').hidden = !codex;
-    if (codex) {
+    $('claudeSetup').hidden = !claude;
+    if (codex || claude) {
       $('providerFields').hidden = true;
       $('apiKey').value = ''; $('apiKey').required = false;
       $('forget').hidden = true;
-      $('model').value = 'gpt-6-astra';
-      $('policyHelp').textContent = 'Astra runs through Codex on this computer using your ChatGPT subscription. Join the same robot queue; no model API key is needed.';
+      $('model').value = claude ? claudeModel : 'gpt-6-astra';
+      $('policyHelp').textContent = claude
+        ? `Opus runs through Claude Code on this computer using your Claude subscription (${claudeModel}). Join the same robot queue; no model API key is needed.`
+        : 'Astra runs through Codex on this computer using your ChatGPT subscription. Join the same robot queue; no model API key is needed.';
       updateRunLabel();
       return;
     }
     $('forget').hidden = false;
-    if (paidRuns) {
-      const mode = $('provider').value;
-      const keyed = mode === 'openai';
-      $('providerFields').hidden = !keyed;
-      $('apiKey').required = keyed; updateSavedKey();
-      $('apiKey').value = '';
-      $('forget').hidden = !keyed;
-      $('run').textContent = mode === 'stripe' ? 'Pay $2.50 & run' : 'Join queue & run';
-      $('policyHelp').textContent = mode === 'stripe'
-        ? 'One robot run costs $2.50 USD, including Astra inference. Return here after payment. For payment or run issues, contact a.l.andlyu@gmail.com.'
-        : keyed ? 'Use your OpenAI API key. OpenAI bills your account for inference.'
-        : 'No key or payment needed. The built-in policy raises and lowers both arms for three cycles.';
-      if (mode === 'local_raise_lower') $('prompt').value = 'Raise and lower both arms.';
-      else if ($('prompt').value === 'Raise and lower both arms.') $('prompt').value = 'place green block on plate';
-      return;
-    }
+    if (window.yamApplication?.providerChanged?.(applicationContext())) return;
     const builtIn = $('provider').value === 'local_raise_lower';
     $('providerFields').hidden = builtIn;
     $('apiKey').required = !builtIn; updateSavedKey();
@@ -295,36 +312,30 @@
     $('prompt').value = builtIn ? 'Raise and lower both arms.' : 'place green block on plate';
     $('policyHelp').textContent = builtIn ? 'The built-in policy performs three raise/lower cycles. No model calls or API key are needed.' : 'The model observes the cameras, chooses a move, and waits for robot feedback before deciding again.';
   }
-  $('provider').addEventListener('change', () => { providerChanged(); window.yamAnalytics?.selected($('provider').value, $('model').value.trim()); });
+  $('provider').addEventListener('change', () => { providerChanged(); applyModelName(lastLive); window.yamAnalytics?.selected($('provider').value, $('model').value.trim()); });
   $('codexCheck').addEventListener('click', async () => {
     $('codexCheck').disabled = true;
     try { $('codexStatus').textContent = (await api('/api/codex/check', {})).message; }
     catch (error) { $('codexStatus').textContent = error.message; }
     finally { $('codexCheck').disabled = false; }
   });
+  $('claudeCheck').addEventListener('click', async () => {
+    $('claudeCheck').disabled = true;
+    try { $('claudeStatus').textContent = (await api('/api/claude/check', {})).message; }
+    catch (error) { $('claudeStatus').textContent = error.message; }
+    finally { $('claudeCheck').disabled = false; }
+  });
   $('runForm').addEventListener('submit', async event => {
     event.preventDefault();
     if (submitting || active || ended) return;
     contactRequested = false;
-    if (paidRuns && $('provider').value === 'stripe') {
-      submitting = true; buttons(); message('Opening secure checkout…');
-      try {
-        const checkout = await api('/api/checkout', {runner_name:$('runnerName').value.trim(), prompt:$('prompt').value, run_duration_s:Number($('runDuration').value)*60,
-          email:$('email').value.trim(), instagram_handle:$('instagramHandle').value.trim()});
-        const url = new URL(checkout.url);
-        if (url.origin !== 'https://checkout.stripe.com') throw new Error('Checkout unavailable');
-        await window.yamAnalytics?.checkout($('provider').value, $('model').value.trim());
-        window.location.assign(url.href);
-      } catch (error) { window.yamAnalytics?.rejected($('provider').value, $('model').value.trim()); message(error.message, true); }
-      finally { submitting = false; buttons(); }
-      return;
-    }
+    if (await window.yamApplication?.submit?.(applicationContext())) return;
     window.yamAnalytics?.requested($('provider').value, $('model').value.trim());
     const payload = {runner_name: $('runnerName').value.trim(), provider: $('provider').value, model: $('model').value.trim(),
       email: $('email').value.trim(), instagram_handle: $('instagramHandle').value.trim(),
       prompt: $('prompt').value, run_duration_s:Number($('runDuration').value)*60, api_key: $('apiKey').value.trim()};
     submitting = true; buttons(); message('Joining the robot queue…');
-    try { const state = await api('/api/run', payload); updateSavedKey(state.saved_key_providers); window.yamAnalytics?.observe(state); $('apiKey').value = ''; $('runSettings').open = false; active = true; guideRunAttention({status:'queued'}); message('You’re in the queue. Your position is highlighted above.'); }
+    try { const state = await api('/api/run', payload); updateSavedKey(state.saved_key_providers); window.yamAnalytics?.observe(state); $('apiKey').value = ''; $('runSettings').open = false; active = true; guideRunAttention({status:'queued'}); message(payload.provider === 'groot' ? 'You’re in the queue. GR00T GPU warmup has started.' : 'You’re in the queue. Your position is highlighted above.'); }
     catch (error) { window.yamAnalytics?.rejected(payload.provider, payload.model); message(error.message, true); }
     finally { delete payload.api_key; submitting = false; buttons(); }
   });
@@ -416,7 +427,7 @@
     attentionSession = session;
     attentionPhase = phase;
   }
-  function astraStreamNote(event) {
+  function astraStreamNote(event, notesOnly = false) {
     if (event.kind !== 'model_response') return '';
     const response = event.details?.response || event.message || '';
     const notes = [];
@@ -428,15 +439,32 @@
         if (note) notes.push(note);
       } catch (_) { /* An incomplete note can arrive in a later update. */ }
     }
-    return notes.join('\n\n') || (event.speaker && typeof event.message === 'string' ? event.message : '');
+    return notes.join('\n\n') || (!notesOnly && event.speaker && typeof event.message === 'string' ? event.message : '');
+  }
+  let liveModelName = 'Astra', lastLive = null;
+  function selectedModelName() {
+    const provider = $('provider').value;
+    if (provider === 'claude') {
+      const m = /^claude-(opus|sonnet|haiku|fable)-(\d+)(?:-(\d+))?$/.exec(claudeModel);
+      return m ? m[1][0].toUpperCase() + m[1].slice(1) + ' ' + m[2] + (m[3] ? '.' + m[3] : '') : 'Claude';
+    }
+    return provider === 'groot' ? 'GR00T' : provider === 'local_raise_lower' ? 'Built-in policy' : 'Astra';
+  }
+  function applyModelName(live) {
+    lastLive = live;
+    // A run names its own model; with none showing, name the one this runner will use.
+    liveModelName = live?.model_name || (live ? 'Astra' : selectedModelName());
+    const reasoningButton = document.querySelector('[data-conversation-mode="reasoning"]');
+    if (reasoningButton) reasoningButton.textContent = liveModelName + ' reasoning';
+    if ($('liveConversationPanel').dataset.mode !== 'conversation') $('conversationModeTitle').textContent = liveModelName + ' reasoning';
   }
   function renderAstraStream(live) {
     const events = live?.events || [];
     const latest = [...events].reverse().find(event => astraStreamNote(event));
     const running = ['preparing', 'running'].includes(live?.status);
     const output = (latest && astraStreamNote(latest)) || (live
-      ? (running ? 'Waiting for Astra’s first note…' : 'No Astra note was recorded for this run.')
-      : 'Astra’s next note will appear here.');
+      ? (running ? `Waiting for ${liveModelName}’s first note…` : `No ${liveModelName} note was recorded for this run.`)
+      : `${liveModelName}’s next note will appear here.`);
     const body = $('astraStreamOutput');
     if (body.textContent !== output) {
       body.textContent = output;
@@ -451,7 +479,6 @@
     if (time.textContent !== label) time.textContent = label;
     time.dateTime = validDate ? date.toISOString() : '';
   }
-  // Keep this shared vocabulary in sync with docs/UI-LABELS.md.
   const ROBOT_STATUS = {
     ready: ['Ready for the next run', 'ready', 'The robot is home with auto-queue enabled.'],
     queued: ['Queued — waiting for your turn', 'waiting', 'The robot is home with auto-queue enabled; your prompt is waiting for assignment.'],
@@ -517,13 +544,14 @@
     $('currentRunner').textContent = 'Runner: ' + (live?.runner_name || '—');
     $('currentPrompt').textContent = live?.task || 'Waiting for someone to run a policy.';
     $('conversationState').textContent = (live?.status || 'Waiting for a run').replaceAll('_', ' ') + (live?.error ? ' · ' + live.error : '');
+    applyModelName(live);
     renderConversation(live?.events || [], 'liveConversationMessages');
     renderAstraStream(live);
     $('sideRunner').textContent = $('currentRunner').textContent;
     $('sidePrompt').textContent = $('currentPrompt').textContent;
     $('sideConversationState').textContent = $('conversationState').textContent;
     renderConversation(live?.events || [], 'sideConversationMessages');
-    document.querySelector('#liveConversationPanel .statusHeader:nth-of-type(2) h2').textContent = 'Conversation with ' + (live?.model_name || 'Astra');
+    $('sideConversationTitle').textContent = $('liveConversationPanel').dataset.mode === 'reasoning' ? 'Response notes' : 'Conversation with ' + liveModelName;
     active = ['queued', 'preparing', 'running'].includes(state.status);
     ownRunLive = ['preparing', 'running'].includes(state.status);
     $('status').textContent = state.status.replaceAll('_', ' ');
@@ -533,6 +561,8 @@
     else if (state.error || state.execution_blocked_reason) message(state.error || state.execution_blocked_reason, true);
     else if (state.feedback_warning) message(state.feedback_warning);
     else if ($('message').textContent.startsWith('Motion paused while refreshing robot status:')) message('Robot status confirmed. Continuing the run.');
+    else if (state.provider?.provider === 'groot' && state.provider.warmup === 'warming') message('In the robot queue · warming GR00T GPU…');
+    else if (state.provider?.provider === 'groot' && state.provider.warmup === 'failed') message('GR00T GPU startup failed. Leave the queue and try again.', true);
     else if (state.provider?.vision?.retry?.state === 'retrying') message(state.provider.vision.retry.message);
     else if ($('message').textContent.startsWith('Waiting for next ')) message('Camera feeds recovered. Continuing the run.');
     const queue = state.queue_snapshot;
@@ -541,8 +571,8 @@
     $('publicRunError').textContent = sharedError
       ? `${state.public_run?.error ? (state.public_run.runner_name || 'Anonymous') + (sharedError === 'Run reached time limit' ? ' — Failure: ' : ' — run error: ') : 'Robot error: '}${sharedError}` : '';
     const station = queue?.stations?.find(item => item.jetson_id === selectedRobot);
-    const faultNotice = {pending:'Notifying the operator…', submitted:'The operator has been notified.',
-      failed:'Could not notify the operator. Please contact the operator.', unavailable:'Operator attention needed.'}[station?.fault_notification] || 'Operator attention needed.';
+    if (station) updateCameraAvailability(station.connected === true);
+    const faultNotice = {pending:'Notifying the operator…', submitted:'The operator has been notified.', failed:'Could not notify the operator.', unavailable:'Operator attention needed.'}[station?.fault_notification] || 'Operator attention needed.';
     const statusKey = robotStatus(state, selectedRobot);
     renderRobotStatus(statusKey);
     if (statusKey === 'fault') $('station').title += ' ' + faultNotice;
@@ -578,9 +608,27 @@
     }));
   }
   const conversationSnapshots = {};
+  let sideConversationEvents = [];
+  document.querySelectorAll('[data-conversation-mode]').forEach(button => {
+    button.addEventListener('click', () => {
+      const mode = button.dataset.conversationMode;
+      const panel = $('liveConversationPanel');
+      panel.dataset.mode = mode;
+      panel.hidden = mode === 'hide';
+      panel.closest('.watchLayout').classList.toggle('conversationClosed', mode === 'hide');
+      $('conversationModeTitle').textContent = mode === 'reasoning' ? liveModelName + ' reasoning' : 'Convo mode';
+      $('sideConversationTitle').textContent = mode === 'reasoning' ? 'Response notes' : 'Conversation with ' + liveModelName;
+      document.querySelectorAll('[data-conversation-mode]').forEach(item => {
+        item.setAttribute('aria-pressed', String(item === button));
+      });
+      renderConversation(sideConversationEvents, 'sideConversationMessages');
+    });
+  });
   function renderConversation(events, target = 'conversationMessages') {
+    if (target === 'sideConversationMessages') sideConversationEvents = events;
+    const reasoning = target === 'sideConversationMessages' && $('liveConversationPanel').dataset.mode === 'reasoning';
     const messages = events.filter(event => ['model_request', 'model_response'].includes(event.kind));
-    const snapshot = JSON.stringify(messages);
+    const snapshot = JSON.stringify([reasoning, messages]);
     if (snapshot === conversationSnapshots[target]) return;
     conversationSnapshots[target] = snapshot;
     const list = $(target), follow = list.scrollHeight - list.scrollTop - list.clientHeight < 80;
@@ -615,17 +663,19 @@
         previousInput = input;
       }
 
+      if (reasoning && (event.kind !== 'model_response' || !astraStreamNote(event, true))) return null;
       const li = document.createElement('li'), heading = document.createElement('strong'), body = document.createElement('p');
       li.classList.add('conversationTurn');
       li.classList.add(event.kind === 'model_request' ? 'conversationOutgoing' : 'conversationIncoming');
       heading.className = 'conversationHeading';
-      const speaker = event.speaker || (event.kind === 'model_request' ? 'To Astra' : event.kind === 'model_response' ? 'Astra' : 'Robot / tool feedback');
+      const speaker = event.speaker || (event.kind === 'model_request' ? 'To ' + liveModelName : event.kind === 'model_response' ? liveModelName : 'Robot / tool feedback');
       const speakerLabel = document.createElement('span'), timestamp = document.createElement('time');
       speakerLabel.textContent = speaker;
       timestamp.textContent = new Date(event.timestamp * 1000).toLocaleTimeString([], {hour:'numeric', minute:'2-digit', second:'2-digit'});
       heading.append(speakerLabel, timestamp);
       body.textContent = event.kind === 'model_request' ? event.details?.request_text || event.details?.observation || event.message : event.details?.response || event.message;
       if (freshText !== null) body.textContent = freshText;
+      if (reasoning) body.textContent = astraStreamNote(event, true);
       li.append(heading);
       for (const ref of refs) {
         const marker = document.createElement('button'); marker.type = 'button';
@@ -664,12 +714,12 @@
         for (const item of event.images) {
           if (!/^\/api\/public-images\/(?:robocurve|run)_[a-f0-9]{32}\/[a-f0-9]{64}$/.test(item.url)) continue;
           const figure = document.createElement('figure'), image = document.createElement('img'), caption = document.createElement('figcaption');
-          image.src = item.url + (item.url.includes('?') ? '&' : '?') + 'robot_id=' + encodeURIComponent(selectedRobot); image.alt = item.name + ' image sent to Astra'; image.loading = 'lazy';
+          image.src = item.url + (item.url.includes('?') ? '&' : '?') + 'robot_id=' + encodeURIComponent(selectedRobot); image.alt = item.name + ' image sent to ' + liveModelName; image.loading = 'lazy';
           caption.textContent = item.name; figure.append(image, caption); gallery.append(figure);
         }
         li.append(gallery);
       }
-      if (event.request) {
+      if (event.request && !reasoning) {
         const details = document.createElement('details'), summary = document.createElement('summary'), pre = document.createElement('pre');
         summary.textContent = 'Request JSON · full input history and tool definitions';
         pre.textContent = JSON.stringify(event.request, null, 2);
@@ -678,7 +728,8 @@
       return li;
     });
     list.replaceChildren(...[...definitions.values()].map(ref => ref.definition),
-      ...rows);
+      ...rows.filter(Boolean));
+    if (!list.children.length) list.append(Object.assign(document.createElement('li'), {textContent: reasoning ? liveModelName + '’s response notes will appear here.' : 'No conversation yet.'}));
     list.scrollTop = follow ? list.scrollHeight : scroll;
   }
   const sampleDialog = document.createElement('dialog');
@@ -904,7 +955,27 @@
   }
   window.addEventListener('pagehide', () => { $('apiKey').value = ''; });
   const originalCameraMarkup = $('liveViewer').innerHTML;
+  let modelCameraNames = new Set();
+  let cameraNames = ['left', 'top', 'right'], camerasDisconnected = false, cameraEpoch = 0;
+  function updateCameraAvailability(connected) {
+    if (connected === !camerasDisconnected) return;
+    camerasDisconnected = !connected;
+    selectedCameras(cameraNames);
+  }
+
+  function addModelBadge(picture, name) {
+    if (!modelCameraNames.has(name)) return;
+    const badge = document.createElement('span');
+    badge.className = 'modelCameraBadge';
+    badge.title = 'Model input: this camera supplies images to the model. The displayed frame may differ from the submitted frame.';
+    badge.setAttribute('aria-label', name + ' camera is a model input');
+    badge.innerHTML = '<svg viewBox="0 0 16 16" width="13" height="13" aria-hidden="true"><rect x="4" y="4" width="8" height="8" rx="2"/><path d="M6 1v3m4-3v3M6 12v3m4-3v3M1 6h3m-3 4h3m8-4h3m-3 4h3"/></svg><span>Model</span>';
+    picture.append(badge);
+  }
+
   function selectedCameras(names) {
+    cameraNames = names;
+    const epoch = ++cameraEpoch;
     document.querySelectorAll('[data-camera]').forEach(video => video.yamStop?.());
     const runControls = $('liveRunControls');
     $('liveViewer').innerHTML = originalCameraMarkup;
@@ -912,7 +983,19 @@
     $('liveRunControls').replaceWith(runControls);
     $('videoDelayNotice').hidden = selectedRobot !== 'yam-1';
     $('liveViewer').dataset.layout = names.length === 1 ? 'single' : 'multi';
+    if (camerasDisconnected) {
+      $('liveViewer').querySelectorAll('figure, video, canvas').forEach(node => node.remove());
+      $('videoDelayNotice').hidden = true;
+      const notice = document.createElement('p');
+      notice.id = 'armsDisconnected'; notice.setAttribute('role', 'status');
+      notice.textContent = 'Arms are disconnected';
+      notice.style.cssText = 'grid-column:1/-1;text-align:center;padding:72px 20px;font-size:24px';
+      $('liveViewer').prepend(notice);
+      return;
+    }
     if (selectedRobot === 'yam-1') {
+      const roles = ['top', 'observer', 'left', 'right'];
+      $('liveViewer').querySelectorAll('[data-sync-tile]').forEach(tile => addModelBadge(tile.parentElement, roles[Number(tile.dataset.syncTile)]));
       document.querySelectorAll('[data-camera]').forEach(camera);
       return;
     }
@@ -921,9 +1004,12 @@
     for (const name of names) {
       const figure = document.createElement('figure'), image = document.createElement('img'), caption = document.createElement('figcaption');
       image.alt = name + ' robot camera'; caption.textContent = name + ' · Connecting';
-      figure.append(image, caption); $('liveViewer').prepend(figure);
+      const picture = document.createElement('div');
+      picture.className = 'modelCameraPicture'; picture.append(image);
+      addModelBadge(picture, name);
+      figure.append(picture, caption); $('liveViewer').prepend(figure);
       const update = async () => {
-        if (generation !== robotGeneration || ended) return;
+        if (generation !== robotGeneration || epoch !== cameraEpoch || ended) return;
         const pending = new Image();
         const url = '/api/monitor/cameras/' + encodeURIComponent(name) + '?robot_id=' + encodeURIComponent(selectedRobot) + '&t=' + Date.now();
         let delay = 200, timer;
@@ -933,27 +1019,49 @@
             pending.onload = resolve; pending.onerror = reject; pending.src = url;
           });
           await pending.decode();
-          if (generation !== robotGeneration || ended) return;
+          if (generation !== robotGeneration || epoch !== cameraEpoch || ended) return;
           image.src = pending.src;
           caption.textContent = name + ' · Live';
         } catch {
           // Keep the last successful frame visible while reconnecting.
-          if (generation === robotGeneration) caption.textContent = name + (image.hasAttribute('src') ? ' · Reconnecting (last frame)' : ' · Connecting');
+          if (generation === robotGeneration && epoch === cameraEpoch) caption.textContent = name + (image.hasAttribute('src') ? ' · Reconnecting (last frame)' : ' · Connecting');
           delay = 1000;
         } finally {
           clearTimeout(timer); pending.onload = pending.onerror = null;
         }
-        if (generation === robotGeneration && !ended) setTimeout(update, delay);
+        if (generation === robotGeneration && epoch === cameraEpoch && !ended) setTimeout(update, delay);
       };
       update();
     }
   }
+  async function refreshRobotAvailability() {
+    try {
+      const catalog = await api('/api/robots');
+      robotCatalog = catalog;
+      const selector = $('robotSelector');
+      catalog.robots.sort((a,b) => Number(b.connected === true) - Number(a.connected === true));
+      for (const robot of catalog.robots) {
+        const option = [...selector.options].find(option => option.value === robot.id);
+        if (option) selector.append(option);
+      }
+      for (const option of [...selector.options]) if (!option.value) selector.append(option);
+      selector.value = selectedRobot;
+      const current = catalog.robots.find(robot => robot.id === selectedRobot);
+      if (typeof current?.connected === 'boolean') updateCameraAvailability(current.connected);
+    } catch { /* Keep current selection and imagery when availability is unknown. */ }
+  }
+  setInterval(refreshRobotAvailability, 5000);
   async function loadRobotSelector() {
     const selector = $('robotSelector');
     try {
       robotCatalog = await api('/api/robots');
       if (!robotCatalog.robots.some(robot => robot.id === selectedRobot)) {
+        if (window.yamApplication?.defaultRobot) throw new Error('Selected robot unavailable');
         selectedRobot = robotCatalog.selected || robotCatalog.robots[0]?.id || '';
+      }
+      robotCatalog.robots.sort((a,b) => Number(b.connected === true) - Number(a.connected === true));
+      if (!window.yamApplication?.defaultRobot && !new URLSearchParams(location.search).get('robot_id')) {
+        selectedRobot = robotCatalog.robots.find(robot => robot.connected === true)?.id || selectedRobot;
       }
       selector.replaceChildren(...robotCatalog.robots.map(robot =>
         Object.assign(document.createElement('option'), {value: robot.id, textContent: robot.id === 'robot-abecb4cd868ab24b' ? 'SO101' : robot.name})));
@@ -965,7 +1073,9 @@
       selector.disabled = robotCatalog.robots.length < 2;
       selector.onchange = async () => {
         if (submitting) { selector.value = selectedRobot; return; }
+        if (window.yamApplication?.selectRobot?.(selector.value)) return;
         selectedRobot = selector.value; robotGeneration++;
+        camerasDisconnected = robotCatalog.robots.find(robot => robot.id === selectedRobot)?.connected === false;
         const robotUrl = new URL(location.href); robotUrl.searchParams.set('robot_id', selectedRobot);
         window.history.replaceState(null, '', robotUrl);
         window.dispatchEvent(new CustomEvent('blupe-robot-selected', {detail:selectedRobot}));
@@ -993,56 +1103,48 @@
       }
       const astra = $('provider').querySelector('[value="astra"]');
       astra.hidden = astra.disabled = !session.astra_enabled;
-      paidRuns = !!session.paid_runs;
       if (session.local_runner) {
-        const option = document.createElement('option');
-        option.value = 'codex'; option.textContent = 'Codex subscription · Astra';
-        if (!$('provider').querySelector('[value=codex]')) $('provider').prepend(option);
-        $('provider').value = session.default_provider || 'codex';
-        $('codexStatus').textContent = session.codex.message;
+        if (session.codex) {
+          const option = document.createElement('option');
+          option.value = 'codex'; option.textContent = 'Codex subscription · Astra';
+          if (!$('provider').querySelector('[value=codex]')) $('provider').prepend(option);
+          $('codexStatus').textContent = session.codex.message;
+        }
+        if (session.claude) {
+          claudeModel = session.claude_model || claudeModel;
+          const option = document.createElement('option');
+          option.value = 'claude'; option.textContent = 'Claude subscription · Opus';
+          if (!$('provider').querySelector('[value=claude]')) $('provider').prepend(option);
+          $('claudeStatus').textContent = session.claude.message;
+        }
+        // The hosted "run it locally" walkthrough is redundant inside the local runner.
+        $('openCodexInstructions').hidden = true;
+        $('runAstra').hidden = !session.codex;
+        $('runClaude').hidden = !session.claude;
+        $('provider').value = session.default_provider || (session.codex ? 'codex' : 'claude');
         $('runnerName').value ||= 'Local runner';
         document.title = 'BluPe · Local runner';
         providerChanged();
       }
-      if (paidRuns) {
-        $('providerFields').hidden = true; $('apiKey').required = false;
-        $('provider').replaceChildren(...[
-          ['local_raise_lower','No key · move arms up and down'],
-          ['openai','Bring your API key · Astra'],
-          ['stripe','Stripe · $2.50 per run']
-        ].map(([value,textContent]) => Object.assign(document.createElement('option'), {value,textContent})));
-        $('provider').value = 'openai';
-        $('run').textContent = 'Join queue & run';
-        $('forget').hidden = true;
-        document.querySelector('.intro .eyebrow').textContent = 'A real robot. Three ways to run.';
-        $('policyHelp').textContent = 'One robot run costs $2.50 USD, including Astra inference. Return here after payment to submit your task. For payment or run issues, contact a.l.andlyu@gmail.com.';
-        providerChanged();
-        const purchase = new URLSearchParams(location.search).get('purchase') || session.recover_purchase;
-        if (purchase) {
-          try {
-            const result = await api('/api/purchase/redeem', {order:purchase});
-            if (['used', 'dispatching', 'review'].includes(result.payment_state)) window.yamAnalytics?.paid(purchase);
-            if (result.payment_state === 'used') {
-              const cleanUrl = new URL(location.href);
-              cleanUrl.searchParams.delete('purchase');
-              window.history.replaceState(null, '', cleanUrl.pathname + cleanUrl.search + cleanUrl.hash);
-              message('Payment verified. Run submitted. Video uses a 8-second playback buffer; network delay is additional.');
-            } else message('Payment status: ' + result.payment_state + '. Do not pay again; contact the operator if this persists.');
-          } catch(error) { if (error.paymentConfirmed) window.yamAnalytics?.paid(purchase); message(error.message, true); }
-        }
-      }
+      await window.yamApplication?.sessionReady?.(session, applicationContext());
       if (session.joint_policy) {
         $('provider').replaceChildren(...(session.local_runner ? [['codex','Codex subscription · joint control'],['openai','OpenAI · joint control']] : [['openai','OpenAI · joint control']]).map(([value,textContent])=>Object.assign(document.createElement('option'),{value,textContent})));
-        paidRuns = false; providerChanged();
+        // Joint-control robots have no Claude policy; keep the button off the form.
+        $('runClaude').hidden = true; $('runAstra').hidden = true;
+        providerChanged();
         $('policyHelp').textContent = session.local_runner ? 'Uses your ChatGPT sign-in through Codex. Enter a task; the operator starts your turn.' : 'Enter your OpenAI API key and a task; the operator starts your turn.';
       }
+      $('runGroot').hidden = !session.groot_enabled;
+      if (session.groot_enabled) $('provider').append(Object.assign(document.createElement('option'), {value:'groot',textContent:'GR00T'}));
       buttons(); if (!new URLSearchParams(location.search).has('purchase') && !$('message').textContent.startsWith('Payment')) message('Connected. Watch the cameras or choose a policy to begin.');
+      camerasDisconnected = robotCatalog?.robots.find(robot => robot.id === selectedRobot)?.connected === false;
+      modelCameraNames = new Set(session.model_cameras || []);
       selectedCameras(session.cameras || ['left','top','right']);
       render(await api('/api/status'));
       try { await refreshChat(); } catch (error) { $('chatStatus').textContent = 'Chat unavailable'; }
       $('robotSelectorStatus').textContent = '';
       if (!pollingStarted) { pollingStarted = true; poll(); }
-    } catch (error) { if (!error.stale) message(error.message, true); }
+    } catch (error) { message(error.message, true); }
   }
   let chatSending = false, lastChatSnapshot = '';
   async function refreshChat() {
@@ -1113,29 +1215,4 @@
   try { toggle(localStorage.getItem("yam-chat-open") !== "false", false); } catch (_) {}
   close.addEventListener('click', () => toggle(false));
   open.addEventListener('click', () => toggle(true));
-})();
-
-(() => {
-  const panel = document.getElementById('liveConversationPanel');
-  const open = document.getElementById('openLiveConversation');
-  const close = document.getElementById('closeLiveConversation');
-  if (!panel || !open || !close) return;
-  function toggle(visible) {
-    panel.hidden = !visible;
-    open.hidden = visible;
-    panel.closest('.watchLayout').classList.toggle('conversationClosed', !visible);
-    open.setAttribute('aria-expanded', String(visible));
-    open.textContent = visible ? 'Collapse ↙' : 'Expand ↗';
-    open.setAttribute('aria-label', visible ? 'Collapse prompt and conversation' : 'Expand prompt and conversation');
-    if (visible) {
-      const messages = document.getElementById('sideConversationMessages');
-      messages.scrollTop = messages.scrollHeight;
-    }
-    (visible ? close : open).focus({preventScroll: true});
-  }
-  open.addEventListener('click', () => toggle(panel.hidden));
-  close.addEventListener('click', () => toggle(false));
-  panel.addEventListener('keydown', event => {
-    if (event.key === 'Escape') { event.preventDefault(); toggle(false); }
-  });
 })();

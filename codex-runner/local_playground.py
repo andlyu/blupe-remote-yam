@@ -3,7 +3,7 @@ import asyncio
 from urllib import request, error
 from urllib.parse import urlsplit
 
-from hosted import HostedRunner, RequestError
+from playground import HostedRunner, RequestError
 
 PLAYGROUND = 'https://playground.blupe.io'
 
@@ -77,7 +77,7 @@ class LocalPlayground(HostedRunner):
                     b"style-src 'self'; connect-src 'self' https://*.google-analytics.com https://*.analytics.google.com https://www.googletagmanager.com; "
                     b"img-src 'self' data: https://*.google-analytics.com https://www.googletagmanager.com; "
                     b"media-src 'self' blob: https://huggingface.co https://*.huggingface.co https://*.hf.co; "
-                    b"frame-src https://lerobot-visualize-dataset.hf.space; base-uri 'none'; frame-ancestors 'none'; form-action 'self'"))
+                    b"frame-src https://lerobot-visualize-dataset.hf.space https://huggingface.co; base-uri 'none'; frame-ancestors 'none'; form-action 'self'"))
             await send(message)
         await super().start_response(local_headers, status, content_type, size, extra)
 
@@ -88,12 +88,19 @@ def serve(args):
     import uvicorn
     origin = f'http://127.0.0.1:{args.port}'
     import json
+    from pathlib import Path
     from multi_robot import fleet
+    groot_key_file = os.environ.get('YAM_GROOT_KEY_FILE')
+    if groot_key_file is None:
+        saved_key = Path.home() / '.config/runpod/api-key'
+        groot_key_file = str(saved_key) if saved_key.is_file() else ''
     app = fleet(LocalPlayground, dict(public_origin=origin, session_api=args.session_api,
         camera_origin=args.camera_origin or args.session_api or 'http://127.0.0.1:8089',
         astra_endpoint=os.environ.get('ASTRA_ENDPOINT', ''),
+        groot_key_file=groot_key_file,
         hardware_control=args.allow_hardware_control, development=True,
-        local_codex=True, default_provider='codex' if args.provider == 'auto' else args.provider),
+        local_codex=True, local_claude=True,
+        default_provider='codex' if args.provider == 'auto' else args.provider),
         json.loads(os.environ['YAM_DASHBOARD_ROBOTS']) if os.environ.get('YAM_DASHBOARD_ROBOTS') else None)
     config = uvicorn.Config(app, host='127.0.0.1', port=args.port, access_log=False)
     # Reserve the port before opening a URL that could belong to an older runner.

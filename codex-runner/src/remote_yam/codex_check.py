@@ -28,8 +28,8 @@ def check_observation():
             'right_joints_deg': [math.degrees(v) for v in [-.0227, .7929, .6193, -.3794, -.033, -.028]]}
 
 
-class CheckAdapter(CodexAdapter):
-    """Images are explicit transport markers, never represented as a robot scene."""
+class SyntheticObservation:
+    """Shared by every subscription transport's check; see claude_check.py."""
     def _observation_message(self, prompt, observation, first_step_id):
         _, state, _ = self._geometry.observe(observation)
         content = [{'type': 'input_text', 'text': prompt + '\nMeasured mock state: ' +
@@ -41,6 +41,10 @@ class CheckAdapter(CodexAdapter):
                          base64.b64encode(color_png(rgb)).decode()}]
             self._vision_frames.append({'camera': name, 'synthetic': True})
         return {'role': 'user', 'content': content}
+
+
+class CheckAdapter(SyntheticObservation, CodexAdapter):
+    """Images are explicit transport markers, never represented as a robot scene."""
 
 
 def run_check(*, simulation=False):
