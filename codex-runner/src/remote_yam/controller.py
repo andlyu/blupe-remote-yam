@@ -72,6 +72,8 @@ class RunnerController:
         self._packets_submitted = 0
         self._trajectory: dict[str, Any] | None = None
         self._last_completed_trajectory_result: dict[str, Any] | None = None
+        self._step_timings: list[dict[str, Any]] = []
+        self._last_step_completed_monotonic: float | None = None
         self._latency: dict[str, dict[str, float | int]] = {}
         self._last_action_submitted_monotonic: float | None = None
         self._last_latency_log_monotonic = time.monotonic()
@@ -137,6 +139,8 @@ class RunnerController:
             self._last_completed_trajectory_result = None
             self._feedback_checks = []
             self._execution_blocked_reason = None
+            self._step_timings = []
+            self._last_step_completed_monotonic = None
             self._latency = {}
             self._last_action_submitted_monotonic = None
             self._last_latency_log_monotonic = time.monotonic()
@@ -315,6 +319,7 @@ class RunnerController:
                     and self._feedback_checks[-1]["decision"] == "wait" else None
                 ),
                 "latency": self._latency_status(),
+                "step_timings": [dict(row) for row in self._step_timings],
                 "run_summary": {
                     "events": [deepcopy_dict(item) for item in self._run_events],
                     "action_step_ids": list(self._submitted_step_ids),
@@ -886,6 +891,9 @@ class RunnerController:
         if hasattr(provider, "cancelled"):
             provider.cancelled = lambda: not still_running()
         model_started = time.monotonic()
+        with self._lock:
+            previous_completed = self._last_step_completed_monotonic
+            step_number = self._packets_submitted + 1
         try:
             waypoints = builder(prompt, observation, first_step_id)
         except PolicyComplete:
@@ -926,6 +934,9 @@ class RunnerController:
             "final_observation_received": False,
             "dispatched_at": None,
             "dispatch_started_monotonic": time.monotonic(),
+            "planning_started_monotonic": model_started,
+            "step_number": step_number,
+            "gap_s": max(0.0, model_started - previous_completed) if previous_completed is not None else None,
         }
         with self._lock:
             if not still_running():
@@ -1096,6 +1107,21 @@ class RunnerController:
             provider = self._provider
             self._trajectory = None
             mismatch = trajectory.get("final_position_mismatch")
+            completed_at = time.monotonic()
+            planning_started = trajectory.get("planning_started_monotonic")
+            if isinstance(started, (int, float)) and isinstance(planning_started, (int, float)):
+                timing = {
+                    "step": trajectory["step_number"],
+                    "planning_s": max(0.0, started - planning_started),
+                    "movement_feedback_s": max(0.0, completed_at - started),
+                    "total_s": max(0.0, completed_at - planning_started),
+                    "gap_s": trajectory["gap_s"],
+                    "outcome": "position_mismatch" if mismatch else "completed",
+                }
+                self._last_step_completed_monotonic = completed_at
+                self._step_timings.append(timing)
+                self._step_timings = self._step_timings[-200:]
+                self._interactions.add("step_timing", f'Step {timing["step"]}: {timing["total_s"]:.2f}s', **timing)
             self._interactions.add('packet_error' if mismatch else 'packet_completed',
                                    mismatch['message'] if mismatch else f'Completed {trajectory["waypoint_count"]} waypoints; arms settled',
                                    trajectory_id=trajectory['trajectory_id'], waypoint_count=trajectory['waypoint_count'],

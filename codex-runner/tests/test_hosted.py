@@ -196,10 +196,12 @@ class HostedTests(unittest.IsolatedAsyncioTestCase):
         owner = next(v for v in self.app.visitors.values() if v.runner_session_id)
         owner.controller._interactions.add('model_response', 'Picking up the block', private_path='/private/test', api_key='never-share')
         current = owner.controller.status()
-        with patch.object(owner.controller, 'status', return_value={**current, 'status':'running'}):
+        timings = [dict(step=1, planning_s=2.0, movement_feedback_s=3.0, total_s=5.0, gap_s=None, outcome='completed')]
+        with patch.object(owner.controller, 'status', return_value={**current, 'status':'running', 'step_timings':timings}):
             code, state, _ = await self.call('/api/status', **b)
         self.assertEqual(code, 200)
         self.assertEqual(state['whats_running'], [dict(runner_name='Andrew', task='Place green block', status='running')])
+        self.assertEqual(state['public_run']['step_timings'], timings)
         self.assertEqual(state['public_run']['task'], 'Place green block')
         self.assertEqual(state['public_run']['events'][-1]['message'], 'Picking up the block')
         self.assertNotIn('never-share', json.dumps(state))

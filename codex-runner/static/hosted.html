@@ -85,6 +85,11 @@
     <div class="statusHeader"><h2 id="conversationModeTitle">Astra reasoning</h2></div>
     <p id="sideRunner" class="help">Runner: —</p>
     <details class="runPrompt" open><summary>Prompt</summary><p id="sidePrompt">Waiting for someone to run a policy.</p></details>
+    <details class="runPrompt" open><summary>Step timing</summary>
+      <p class="help">One step = planning and one motion. Planning includes camera capture; motion includes transport and settled feedback. Gap is the wait before planning the next step. Completed motions only.</p>
+      <div style="overflow-x:auto"><table id="stepTimingTable" hidden><thead><tr><th>Step</th><th>Planning</th><th>Motion + feedback</th><th>Total</th><th>Gap before</th></tr></thead><tbody id="stepTimingRows"></tbody></table></div>
+      <p id="stepTimingEmpty" class="help">Timing appears after the first motion finishes.</p>
+    </details>
     <div class="statusHeader"><h2 id="sideConversationTitle">Response notes</h2><span id="sideConversationState" class="tag">Waiting for a run</span></div>
     <ol id="sideConversationMessages" tabindex="0" aria-label="Live conversation messages" aria-live="polite" aria-relevant="additions"><li>Astra’s replies and robot feedback from the current run appear here for everyone.</li></ol>
   </section>

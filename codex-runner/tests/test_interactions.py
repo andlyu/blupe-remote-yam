@@ -142,6 +142,16 @@ class InteractionTests(unittest.TestCase):
             self.assertLess(kinds.index('packet_dispatched'),kinds.index('packet_accepted'))
             self.assertLess(kinds.index('packet_progress'),kinds.index('packet_completed'))
             self.assertIsNone(state['error'])
+            timings = state['step_timings']
+            self.assertTrue(timings)
+            self.assertIsNone(timings[0]['gap_s'])
+            for number, timing in enumerate(timings, 1):
+                self.assertEqual(timing['step'], number)
+                self.assertGreaterEqual(timing['planning_s'], 0)
+                self.assertGreaterEqual(timing['movement_feedback_s'], 0)
+                self.assertAlmostEqual(timing['total_s'], timing['planning_s'] + timing['movement_feedback_s'])
+            recorded = [e['details'] for e in state['interactions']['events'] if e['kind'] == 'step_timing']
+            self.assertEqual(recorded, timings)
             self.assertEqual(run_artifacts(root, state['interactions']['run_id'])['episode_id'], state['episode_id'])
 
     def test_legacy_wire_recording_shows_rejection_and_outcome(self):
