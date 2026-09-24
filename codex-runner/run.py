@@ -449,15 +449,8 @@ def main() -> None:
         if not credentials.public_status().get("openai"):
             credentials.prompt_for("openai")
         if args.check_provider_sim:
-            repo = PROJECT_ROOT.parents[1]
-            sys.path[:0] = [str(repo), str(repo / "src")]
-            from scripts.yam_live_api_sim import run_check
-            try:
-                run_check(credentials.require("openai"), repo / "outputs/yam-api/live-astra-sim-check.json")
-            except RuntimeError as exc:
-                print(str(exc), file=sys.stderr)
-                raise SystemExit(1)
-            return
+            raise SystemExit('Full gateway simulation lives in blupe-evals/scripts/yam_live_api_sim.py. '
+                             'Use --check-provider for the standalone API transport check.')
         try:
             OpenAIAdapter(credentials.require("openai"), "gpt-6-astra")._post_json({
                 "model": "gpt-6-astra", "input": "Reply with OK.", "store": False,

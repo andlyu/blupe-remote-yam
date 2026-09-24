@@ -323,14 +323,14 @@ class HostedTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(list(self.app.visitors.values())[0].controller._session_api.get_queue_snapshot()['entries'], [])
 
     async def test_startup_fault_reaches_waiting_visitor_and_clears(self):
-        from YAM_control.public_fault import gripper_fault_message
         browser = await self.session()
-        error = ('RuntimeError: right driver returned invalid normalized gripper feedback: '
-                 'values=[1.020001], shape=(1,); expected one finite value in [-0.02, 1.02]')
+        # Public Session API fixture; controller-side formatting is tested in blupe-evals.
+        reason = ('Right gripper feedback 1.020001 is outside the accepted range '
+                  '[-0.02, 1.02]. Robot unavailable; operator attention needed.')
         observation = self.app.monitor_api.get_robot_observation('yam-1')
         payload = observation.get('observation') or observation.get('payload') or observation
         payload.update(mode='FAULT', safety={'ok':False, 'estop_engaged':False,
-                                             'reason':gripper_fault_message(error)})
+                                             'reason':reason})
         self.app.observation = observation
         state = (await self.call('/api/status', **browser))[1]
         self.assertIn('Right gripper feedback 1.020001', state['robot_fault'])
