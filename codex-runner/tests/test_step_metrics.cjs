@@ -29,10 +29,10 @@ test('run totals show three metrics and disclose incomplete execution', () => {
   assert.match(target.textContent, /Execution: 7.00 s/);
 });
 test('comparison keeps run totals distinct from legacy per-step measurements', () => {
-  const modern = ctx.runComparisonMetrics({run_metrics:{model_s:15,execution_s:8,left_path_m:.4,right_path_m:.1,model_calls:2,execution_packets:1,accepted_packets:1,distance_waypoints:5,confirmed_waypoints:5}});
+  const modern = ctx.runComparisonBaseMetrics({run_metrics:{model_s:15,execution_s:8,left_path_m:.4,right_path_m:.1,model_calls:2,execution_packets:1,accepted_packets:1,distance_waypoints:5,confirmed_waypoints:5}});
   assert.equal(modern.distance,50); assert.equal(modern.thinking,15); assert.equal(modern.execution,8);
   assert.equal(modern.legacy,false); assert.equal(modern.partial,false);
-  const legacy = ctx.runComparisonMetrics({step_timings:[{model_s:7,arm_motion_s:3,left_displacement_m:.1}]});
+  const legacy = ctx.runComparisonBaseMetrics({step_timings:[{model_s:7,arm_motion_s:3,left_displacement_m:.1}]});
   assert.equal(legacy.distance,10); assert.equal(legacy.legacy,true); assert.equal(legacy.partial,true);
   assert.equal(ctx.runComparisonMetrics({}).distance,null);
 });
@@ -45,4 +45,12 @@ test('speed uses total distance divided by execution, excluding thinking', () =>
   assert.equal(ctx.runComparisonMetrics({}).speed,null);
   const legacy={step_timings:[{arm_motion_s:1,left_displacement_m:.1},{arm_motion_s:9,left_displacement_m:.1}]};
   assert.equal(ctx.runComparisonMetrics(legacy).speed,2); // Ratio of sums, not mean of step speeds.
+});
+
+test('run plots average completed steps rather than using totals or final model calls', () => {
+  const run={run_metrics:{model_s:999,model_calls:4,execution_s:12,execution_packets:2,accepted_packets:2,left_path_m:.6,right_path_m:0,distance_waypoints:4,confirmed_waypoints:4},step_timings:[
+    {model_s:4,execution_robot_s:2,path_m:.2},{model_s:8,execution_robot_s:10,path_m:.4}]};
+  const m=ctx.runComparisonMetrics(run);
+  assert.ok(Math.abs(m.distance-30)<1e-9);assert.equal(m.thinking,6);assert.equal(m.execution,6);assert.equal(m.steps,2);assert.equal(m.legacy,false);
+  assert.equal(ctx.runComparisonMetrics({run_metrics:run.run_metrics}).thinking,null);
 });

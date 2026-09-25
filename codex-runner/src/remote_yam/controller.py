@@ -1054,6 +1054,7 @@ class RunnerController:
         elapsed = end - start
         if not math.isfinite(elapsed) or elapsed < 0:
             return
+        trajectory['execution_robot_s'] = elapsed
         trajectory['execution_time_recorded'] = True
         self._run_metrics['execution_s'] += elapsed
         self._run_metrics['execution_packets'] += 1
@@ -1171,6 +1172,8 @@ class RunnerController:
                     "step": trajectory["step_number"],
                     "planning_s": max(0.0, started - planning_started),
                     "model_s": trajectory.get("model_s"),
+                    "execution_robot_s": trajectory.get("execution_robot_s"),
+                    "path_m": sum(sum(segment.values()) for segment in trajectory['path_segments']) if len(trajectory.get('path_segments', [])) == trajectory['waypoint_count'] else None,
                     "arm_motion_s": max(0.0, completed_at - trajectory["accepted_monotonic"]) if "accepted_monotonic" in trajectory else None,
                     "movement_feedback_s": max(0.0, completed_at - started),
                     "total_s": max(0.0, completed_at - planning_started),

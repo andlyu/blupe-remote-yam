@@ -240,7 +240,7 @@ class RunNames:
             metrics = []
             for row in (state.get('step_timings') or [])[-200:]:
                 metrics.append({key: value for key, value in row.items()
-                                if key in {'step', 'model_s', 'arm_motion_s', 'left_displacement_m', 'right_displacement_m'}
+                                if key in {'step', 'model_s', 'arm_motion_s', 'left_displacement_m', 'right_displacement_m', 'path_m', 'execution_robot_s'}
                                 and isinstance(value, (int, float)) and not isinstance(value, bool)
                                 and math.isfinite(value) and value >= 0})
             if metrics:

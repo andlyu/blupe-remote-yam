@@ -17,6 +17,21 @@ function runComparisonMetrics(run) {
     (Number.isFinite(row.left_displacement_m) || Number.isFinite(row.right_displacement_m)));
   metrics.speed = Number.isFinite(metrics.distance) && Number.isFinite(metrics.execution) && metrics.execution > 0 &&
     (metrics.legacy ? pairedLegacy : !metrics.partial) ? metrics.distance / metrics.execution : null;
+  const rows = run.step_timings || [];
+  const valid = value => Number.isFinite(value) && value >= 0;
+  const mean = values => values.length ? values.reduce((a,b) => a+b,0)/values.length : null;
+  const pathRecorded = rows.length > 0 && rows.every(row => valid(row.path_m));
+  const robotTiming = rows.length > 0 && rows.every(row => valid(row.execution_robot_s));
+  const distances = rows.map(row => pathRecorded ? row.path_m :
+    (valid(row.left_displacement_m) || valid(row.right_displacement_m) ? (row.left_displacement_m || 0) + (row.right_displacement_m || 0) : null)).filter(valid);
+  metrics.distance = distances.length ? mean(distances)*100 : null;
+  metrics.thinking = mean(rows.map(row => row.model_s).filter(valid));
+  metrics.execution = mean(rows.map(row => robotTiming ? row.execution_robot_s : row.arm_motion_s).filter(valid));
+  metrics.steps = rows.length;
+  metrics.legacy = !pathRecorded || !robotTiming;
+  metrics.partial = rows.some(row => !valid(row.model_s)) || distances.length !== rows.length;
+  metrics.samples = {distance:distances.length, thinking:rows.filter(row => valid(row.model_s)).length,
+    execution:rows.filter(row => valid(robotTiming ? row.execution_robot_s : row.arm_motion_s)).length};
   return metrics;
 }
 
@@ -26,13 +41,13 @@ function renderRunComparison(container, runs) {
     .sort((a,b) => (a.started_at || 0) - (b.started_at || 0)).slice(-20);
   container.replaceChildren();
   const note = document.createElement('p'); note.className = 'help';
-  note.textContent = 'One column per run, oldest to newest (latest 20 locally recorded runs). Solid bars: run totals. Faded bars: legacy completed-step totals; distance is endpoint displacement and execution includes feedback. Compare matching measurement types and tasks. Movement speed = combined gripper distance / execution time, including settling and excluding thinking. Incomplete or zero-duration measurements have no speed value. Missing metrics are blank.';
+  note.textContent = 'One column per run, oldest to newest (latest 20 locally recorded runs). Bars show averages per recorded completed step, excluding final-only model calls. Solid bars: trajectory and robot-clock measurements. Faded bars: older step measurements; distance is endpoint displacement and execution includes feedback. Compare matching measurement types and tasks. Movement speed = combined gripper distance / execution time, including settling and excluding thinking. Incomplete or zero-duration measurements have no speed value. Missing metrics are blank.';
   container.appendChild(note);
   if (!entries.length) return;
   const w = Math.max(650, entries.length * 65 + 80), slot = (w-80)/entries.length;
   let svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="645" role="img" aria-label="Run-to-run comparison of trajectory distance, thinking time, execution time and movement speed"><style>text{font:12px system-ui;fill:currentColor}</style>`;
   const metrics = entries.map(runComparisonMetrics);
-  for (const [index, key, label, color] of [[0,'distance','Distance (cm)','#e0a126'],[1,'thinking','Thinking (seconds)','#818cf8'],[2,'execution','Execution (seconds)','#34d399'],[3,'speed','Movement speed (cm/s)','#38bdf8']]) {
+  for (const [index, key, label, color] of [[0,'distance','Average distance per step (cm)','#e0a126'],[1,'thinking','Average thinking per step (seconds)','#818cf8'],[2,'execution','Average execution per step (seconds)','#34d399'],[3,'speed','Movement speed (cm/s)','#38bdf8']]) {
     const top = index*155+25, base = top+105, max = Math.max(1,...metrics.map(m => Number.isFinite(m[key]) ? m[key] : 0));
     svg += `<text x="55" y="${top-8}">${label}</text>`;
     for (let tick=0; tick<=2; tick++) {
@@ -43,7 +58,7 @@ function renderRunComparison(container, runs) {
       const x=55+slot*(i+.5);
       if (Number.isFinite(m[key])) {
         const h=m[key]/max*90;
-        svg += `<rect x="${x-15}" y="${base-h}" width="30" height="${h}" fill="${color}" opacity="${m.legacy ? .4 : 1}"><title>Run ${i+1}: ${m[key].toFixed(2)}${m.legacy ? ' (legacy)' : ''}${m.partial ? ' (partial)' : ''}</title></rect>`;
+        svg += `<rect x="${x-15}" y="${base-h}" width="30" height="${h}" fill="${color}" opacity="${m.legacy ? .4 : 1}"><title>Run ${i+1}: ${m[key].toFixed(2)}${m.legacy ? ' (legacy)' : ''}${m.partial ? ' (partial)' : ''}${m.samples[key] !== undefined ? ' · '+m.samples[key]+' samples' : ''}</title></rect>`;
       }
       svg += `<text x="${x}" y="${base+17}" text-anchor="middle">${i+1}${m.legacy ? '*' : ''}</text>`;
     });
@@ -53,7 +68,7 @@ function renderRunComparison(container, runs) {
   entries.forEach((run,i) => {
     const row=document.createElement('li'), m=metrics[i];
     const val=(v,unit)=>Number.isFinite(v)?v.toFixed(1)+unit:'unavailable';
-    row.textContent = `${run.episode_index == null ? run.episode_id : 'Run #'+run.episode_index} · ${run.started_at ? new Date(run.started_at*1000).toLocaleString() : 'Time not recorded'} · ${run.result || 'Unknown'} · ${run.prompt || ''} — distance ${val(m.distance,' cm')}, thinking ${val(m.thinking,' s')}, execution ${val(m.execution,' s')}, movement speed ${val(m.speed,' cm/s')}${m.legacy ? ' [legacy step totals]' : m.partial ? ' [partial]' : ''}`;
+    row.textContent = `${run.episode_index == null ? run.episode_id : 'Run #'+run.episode_index} · ${run.started_at ? new Date(run.started_at*1000).toLocaleString() : 'Time not recorded'} · ${run.result || 'Unknown'} · ${run.prompt || ''} — ${m.steps} recorded steps; average distance ${val(m.distance,' cm')}, average thinking ${val(m.thinking,' s')}, average execution ${val(m.execution,' s')}, movement speed ${val(m.speed,' cm/s')}${m.legacy ? ' [older step measurements]' : m.partial ? ' [partial]' : ''}`;
     const notes = document.createElement('p');
     notes.style.whiteSpace = 'pre-line';
     notes.textContent = 'Changes since previous run:\n' + (run.change_notes || ['Change notes were not recorded for this older run.']).join('\n');
