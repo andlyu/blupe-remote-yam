@@ -233,7 +233,7 @@ class HostedRunner:
         eid = state.get('episode_id')
         if eid and state.get('session_id') == visitor.runner_session_id:
             try:
-                self.run_names.remember_metadata(eid, self.robot_id, visitor.runner_task, state.get("run_started_at"))
+                self.run_names.remember_metadata(eid, self.robot_id, visitor.runner_task, state.get("run_started_at"), state.get("run_configuration"))
                 self.run_names.remember_result(eid, state)
             except (OSError, sqlite3.Error):
                 pass

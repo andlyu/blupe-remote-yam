@@ -54,6 +54,10 @@ function renderRunComparison(container, runs) {
     const row=document.createElement('li'), m=metrics[i];
     const val=(v,unit)=>Number.isFinite(v)?v.toFixed(1)+unit:'unavailable';
     row.textContent = `${run.episode_index == null ? run.episode_id : 'Run #'+run.episode_index} · ${run.started_at ? new Date(run.started_at*1000).toLocaleString() : 'Time not recorded'} · ${run.result || 'Unknown'} · ${run.prompt || ''} — distance ${val(m.distance,' cm')}, thinking ${val(m.thinking,' s')}, execution ${val(m.execution,' s')}, movement speed ${val(m.speed,' cm/s')}${m.legacy ? ' [legacy step totals]' : m.partial ? ' [partial]' : ''}`;
+    const notes = document.createElement('p');
+    notes.style.whiteSpace = 'pre-line';
+    notes.textContent = 'Changes since previous run:\n' + (run.change_notes || ['Change notes were not recorded for this older run.']).join('\n');
+    row.appendChild(notes);
     list.appendChild(row);
   });
   container.appendChild(list);

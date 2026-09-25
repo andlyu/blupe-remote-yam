@@ -10,6 +10,7 @@ from pathlib import Path
 import uuid
 from typing import Any, Mapping
 
+from .run_changes import snapshot as run_configuration
 from .ik import IKSolver, parse_observation
 from .feedback import feedback_decision, feedback_fields
 from .providers import PolicyComplete, ProviderAdapter
@@ -73,6 +74,7 @@ class RunnerController:
         self._trajectory: dict[str, Any] | None = None
         self._last_completed_trajectory_result: dict[str, Any] | None = None
         self._run_metrics = dict(model_s=0.0, execution_s=0.0, left_path_m=0.0, right_path_m=0.0, model_calls=0, execution_packets=0, accepted_packets=0, distance_waypoints=0, confirmed_waypoints=0)
+        self._run_configuration = None
         self._step_timings: list[dict[str, Any]] = []
         self._last_step_completed_monotonic: float | None = None
         self._latency: dict[str, dict[str, float | int]] = {}
@@ -114,6 +116,7 @@ class RunnerController:
                                    "provider": provider.public_config().get("provider"),
                                    "model": provider.public_config().get("model")}
             self._provider = provider
+            self._run_configuration = run_configuration(provider, prompt, run_duration_s)
             self._prompt = prompt
             self._session_id = session_id
             self._episode_id = created.get("episode_id")
@@ -174,6 +177,7 @@ class RunnerController:
                     if publisher:
                         publisher.add(kind, message, **details)
                 provider.interaction_sink = record_interaction
+            self._interactions.add('run_configuration', 'Configuration used for this run', configuration=self._run_configuration)
             self._interactions.add('joined', 'Joined the policy queue',
                                    session_id=session_id, task=prompt,
                                    provider=provider.provider_name)
@@ -330,6 +334,7 @@ class RunnerController:
                 "latency": self._latency_status(),
                 "step_timings": [dict(row) for row in self._step_timings],
                 "run_metrics": dict(self._run_metrics),
+                "run_configuration": self._run_configuration,
                 "run_summary": {
                     "events": [deepcopy_dict(item) for item in self._run_events],
                     "action_step_ids": list(self._submitted_step_ids),

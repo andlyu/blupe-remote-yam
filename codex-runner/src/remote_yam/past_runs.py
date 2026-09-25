@@ -144,7 +144,7 @@ class RunNames:
     def __init__(self, path):
         self.path = Path(path)
 
-    def remember_metadata(self, episode_id, robot_id, task, started_at):
+    def remember_metadata(self, episode_id, robot_id, task, started_at, configuration=None):
         if not re.fullmatch(r'ep_[A-Za-z0-9_-]+', episode_id or ''):
             return
         self.path.parent.mkdir(parents=True, exist_ok=True)
@@ -152,14 +152,20 @@ class RunNames:
         with sqlite3.connect(self.path) as db:
             db.execute('CREATE TABLE IF NOT EXISTS run_metadata (episode_id TEXT PRIMARY KEY, robot_id TEXT, task TEXT, started_at REAL)')
             db.execute('INSERT OR IGNORE INTO run_metadata VALUES (?, ?, ?, ?)', (episode_id, robot_id, task, started_at))
+            if configuration:
+                db.execute('CREATE TABLE IF NOT EXISTS run_configuration (episode_id TEXT PRIMARY KEY, configuration TEXT NOT NULL)')
+                db.execute('INSERT OR IGNORE INTO run_configuration VALUES (?, ?)', (episode_id, json.dumps(configuration)))
 
     def comparisons(self, robot_id):
         results = self.results()
         metadata = {}
+        configurations = {}
         if self.path.exists():
             with sqlite3.connect(self.path) as db:
                 if db.execute("SELECT name FROM sqlite_master WHERE name='run_metadata'").fetchone():
                     metadata = {eid: (robot, task, started) for eid, robot, task, started in db.execute('SELECT * FROM run_metadata')}
+                if db.execute("SELECT name FROM sqlite_master WHERE name='run_configuration'").fetchone():
+                    configurations = {eid: json.loads(value) for eid, value in db.execute('SELECT * FROM run_configuration')}
         runs = []
         for eid, result in results.items():
             if not (result.get('run_metrics') or result.get('step_timings')):
@@ -168,6 +174,13 @@ class RunNames:
             if robot is not None and robot != robot_id:
                 continue
             runs.append({'episode_id': eid, 'robot_id': robot, 'prompt': task, 'started_at': started, **result})
+        runs.sort(key=lambda run: run.get('started_at') or 0)
+        from .run_changes import changes
+        previous = None
+        for run in runs:
+            current = configurations.get(run['episode_id'])
+            run['change_notes'] = changes(previous, current)
+            previous = current
         return runs[-100:]
 
     def remember(self, episode_id, name):

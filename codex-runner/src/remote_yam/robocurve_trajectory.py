@@ -38,6 +38,7 @@ def relative_rotation(yaw, pitch, roll):
 
 
 class RoboCurveTrajectory:
+    speed_multiplier = TRAJECTORY_SPEED
     def __init__(self):
         self.ik = BimanualRelativeIK()
         self.start_rotations = None
