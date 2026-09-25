@@ -1,3 +1,47 @@
+// Numeric-only chart shared by the current run and saved run history.
+function renderStepMetricsChart(container, timings) {
+  if (!container) return;
+  const rows = (timings || []).filter(row => Number.isFinite(row.step)).slice(-200);
+  if (!rows.length) {
+    container.textContent = 'No step metrics recorded for this run yet.';
+    return;
+  }
+  const valid = value => Number.isFinite(value) && value >= 0;
+  const timeMax = Math.max(1, ...rows.flatMap(row => [row.model_s, row.arm_motion_s].filter(valid)));
+  const distanceMax = Math.max(1, ...rows.flatMap(row => [row.left_displacement_m, row.right_displacement_m].filter(valid).map(v => v * 100)));
+  const width = Math.max(640, rows.length * 36 + 70), left = 48, plotWidth = width - 64;
+  const slot = plotWidth / rows.length, x = i => left + slot * (i + .5);
+  let svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="360" role="img" aria-label="Per-step model thinking time, arm-motion time and gripper displacement"><style>text{font:12px system-ui;fill:currentColor}</style>`;
+  svg += '<text x="48" y="18">Time (seconds): model thinking / arm motion</text><text x="48" y="193">Gripper displacement (cm): left / right</text>';
+  for (const [base, max] of [[145, timeMax], [320, distanceMax]]) {
+    for (let i = 0; i <= 4; i++) {
+      const y = base - i * 27;
+      svg += `<line x1="${left}" y1="${y}" x2="${width-16}" y2="${y}" stroke="currentColor" opacity=".15"/><text x="4" y="${y+4}">${(max*i/4).toFixed(1)}</text>`;
+    }
+  }
+  rows.forEach((row, i) => {
+    for (const [key, offset, color, label] of [['model_s', -10, '#818cf8', 'Model thinking'], ['arm_motion_s', 1, '#34d399', 'Arm motion']]) {
+      if (!valid(row[key])) continue;
+      const height = row[key] / timeMax * 108;
+      svg += `<rect x="${x(i)+offset}" y="${145-height}" width="9" height="${height}" fill="${color}"><title>Step ${row.step}: ${label} ${row[key].toFixed(2)} s</title></rect>`;
+    }
+    svg += `<text x="${x(i)}" y="163" text-anchor="middle">${row.step}</text><text x="${x(i)}" y="340" text-anchor="middle">${row.step}</text>`;
+  });
+  for (const [key, color, label] of [['left_displacement_m', '#fbbf24', 'Left'], ['right_displacement_m', '#38bdf8', 'Right']]) {
+    let previous = null;
+    rows.forEach((row, i) => {
+      if (!valid(row[key])) { previous = null; return; }
+      const point = [x(i), 320 - row[key] * 100 / distanceMax * 108];
+      if (previous) svg += `<line x1="${previous[0]}" y1="${previous[1]}" x2="${point[0]}" y2="${point[1]}" stroke="${color}" stroke-width="2"/>`;
+      svg += `<circle cx="${point[0]}" cy="${point[1]}" r="4" fill="${color}"><title>Step ${row.step}: ${label} ${(row[key]*100).toFixed(1)} cm</title></circle>`;
+      previous = point;
+    });
+  }
+  svg += '</svg>';
+  container.style.overflowX = 'auto';
+  container.innerHTML = '<p class="help"><span style="color:#818cf8">■ Model thinking</span> · <span style="color:#34d399">■ Arm motion</span> · <span style="color:#fbbf24">● Left distance</span> · <span style="color:#38bdf8">● Right distance</span><br>Horizontal axis: step number. Hover for values. Missing data is left blank.</p>' + svg;
+}
+
 (() => {
   'use strict';
   const $ = id => document.getElementById(id);
@@ -33,6 +77,7 @@
     const cameras = live ? 'Top, left and right cameras' : run.camera_order.includes('observer') ? 'Top, side, left and right cameras' : 'Three cameras · side view was not recorded';
     $('pastRunDetails').textContent = (live ? 'Live speed · 1× · all pauses retained' : run.compressed ? '10× speed · idle pauses removed' : '10× playback · original recording, pauses retained') + ' · ' + cameras + ' · ' + (run.result || 'Unknown') + ': ' + ((run.result === 'Failure' && run.errors) || run.result_reason || 'Result was not recorded');
     $('pastRunError').textContent = '';
+    renderStepMetricsChart($('pastRunMetricsChart'), run.step_timings);
     const source = playbackSource(run, live);
     player.pause();
     player.src = source.url;
@@ -667,12 +712,13 @@
     const live = state.public_run;
     syncStopwatch(live, state.queue_snapshot?.generated_at);
     const timings = live?.step_timings || [];
+    renderStepMetricsChart($('stepMetricsChart'), timings);
     if ($('stepTimingRows')) {
       $('stepTimingTable').hidden = !timings.length;
       $('stepTimingEmpty').hidden = !!timings.length;
       const rows = timings.slice(-20).map(timing => {
         const row = document.createElement('tr');
-        for (const key of ['step', 'planning_s', 'movement_feedback_s', 'total_s', 'gap_s', 'left_displacement_m', 'right_displacement_m']) {
+        for (const key of ['step', 'model_s', 'arm_motion_s', 'planning_s', 'movement_feedback_s', 'total_s', 'gap_s', 'left_displacement_m', 'right_displacement_m']) {
           const cell = document.createElement('td');
           cell.textContent = Number.isFinite(timing[key]) ? (key === 'step' ? String(timing[key]) : key.endsWith('_displacement_m') ? `${(timing[key] * 100).toFixed(1)} cm` : `${timing[key].toFixed(2)}s`) : '—';
           cell.style.padding = '4px 8px';

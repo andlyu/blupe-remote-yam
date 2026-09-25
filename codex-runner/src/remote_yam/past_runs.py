@@ -192,6 +192,16 @@ class RunNames:
         with sqlite3.connect(self.path) as db:
             db.execute('CREATE TABLE IF NOT EXISTS run_results (episode_id TEXT PRIMARY KEY, result TEXT NOT NULL, reason TEXT NOT NULL)')
             db.execute('CREATE TABLE IF NOT EXISTS run_details (episode_id TEXT PRIMARY KEY, errors TEXT, ending_reason TEXT)')
+            metrics = []
+            for row in (state.get('step_timings') or [])[-200:]:
+                metrics.append({key: value for key, value in row.items()
+                                if key in {'step', 'model_s', 'arm_motion_s', 'left_displacement_m', 'right_displacement_m'}
+                                and isinstance(value, (int, float)) and not isinstance(value, bool)
+                                and math.isfinite(value) and value >= 0})
+            if metrics:
+                db.execute('CREATE TABLE IF NOT EXISTS run_metrics (episode_id TEXT PRIMARY KEY, metrics TEXT NOT NULL)')
+                db.execute('INSERT INTO run_metrics VALUES (?, ?) ON CONFLICT(episode_id) DO UPDATE SET metrics=excluded.metrics',
+                           (episode_id, json.dumps(metrics)))
             if not specific:
                 previous_error = db.execute('SELECT errors FROM run_details WHERE episode_id=?', (episode_id,)).fetchone()
                 if previous_error and previous_error[0] and (re.match(r'(Left|Right) arm joint [0-5] ', previous_error[0]) or re.fullmatch(r'ValueError: gripper delta limit at waypoint [0-9]{1,6}', previous_error[0])):
@@ -222,6 +232,10 @@ class RunNames:
                         result[eid]['errors'] = errors
                         if ending:
                             result[eid]['ending_reason'] = ending
+            if db.execute("SELECT name FROM sqlite_master WHERE name='run_metrics'").fetchone():
+                for eid, metrics in db.execute('SELECT episode_id, metrics FROM run_metrics'):
+                    if eid in result:
+                        result[eid]['step_timings'] = json.loads(metrics)
             return result
 
 

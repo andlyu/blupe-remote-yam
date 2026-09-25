@@ -151,6 +151,8 @@ class InteractionTests(unittest.TestCase):
                 self.assertEqual(timing['step'], number)
                 self.assertEqual(timing['left_displacement_m'], .05)
                 self.assertEqual(timing['right_displacement_m'], 0.0)
+                self.assertGreaterEqual(timing['arm_motion_s'], 0)
+                self.assertLessEqual(timing['arm_motion_s'], timing['movement_feedback_s'])
                 self.assertGreaterEqual(timing['planning_s'], 0)
                 self.assertGreaterEqual(timing['movement_feedback_s'], 0)
                 self.assertAlmostEqual(timing['total_s'], timing['planning_s'] + timing['movement_feedback_s'])

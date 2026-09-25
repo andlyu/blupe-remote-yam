@@ -177,6 +177,7 @@ class RoboCurveResponsesAdapter(ResponsesAdapter):
         raise RuntimeError('RoboCurve policy requires the joint-waypoint packet transport')
 
     def build_trajectory(self, prompt, observation, first_step_id):
+        self.last_step_model_s = 0.0
         if self._pending is not None:
             raise RuntimeError('Cannot ask the model again before its motion completes')
         if self._outcome is not None:
@@ -206,12 +207,17 @@ class RoboCurveResponsesAdapter(ResponsesAdapter):
                               cameras=list(self._vision_frames), prompt=prompt,
                               request_text=request_text(payload), request_display=request_display(payload, self._recorder),
                               images=__import__('remote_yam.public_conversation', fromlist=['request_images']).request_images(self._history[-1]['content'], self._recorder))
+            request_started = time.monotonic()
             try:
                 raw = self._post_json(payload)
             except Exception as exc:
                 self._vision_state = 'request_error'
                 self._interaction('model_error', str(exc))
                 raise
+            finally:
+                elapsed = time.monotonic() - request_started
+                self.last_step_model_s += elapsed
+                self._interaction('model_timing', f'Model request: {elapsed:.2f}s', elapsed_s=elapsed)
             self._vision_state = 'response_received'
             self._record('response', call=self._calls, response=raw)
             from .interactions import wire_events

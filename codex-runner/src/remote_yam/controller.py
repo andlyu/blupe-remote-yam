@@ -935,6 +935,7 @@ class RunnerController:
             "dispatched_at": None,
             "dispatch_started_monotonic": time.monotonic(),
             "planning_started_monotonic": model_started,
+            "model_s": getattr(provider, "last_step_model_s", None),
             "start_feedback": {k: observation.get(k) for k in (
                 'settled', 'left_joints_deg', 'right_joints_deg', 'left_gripper', 'right_gripper')},
             "step_number": step_number,
@@ -1063,6 +1064,7 @@ class RunnerController:
             if status == "accepted":
                 if trajectory["state"] not in {"dispatched", "accepted"}:
                     raise RuntimeError("Trajectory acceptance arrived out of order")
+                trajectory.setdefault("accepted_monotonic", time.monotonic())
                 trajectory["state"] = "accepted"
                 self._interactions.add('packet_accepted', 'Gateway safety checks passed; executing packet',
                                        trajectory_id=trajectory['trajectory_id'])
@@ -1115,6 +1117,8 @@ class RunnerController:
                 timing = {
                     "step": trajectory["step_number"],
                     "planning_s": max(0.0, started - planning_started),
+                    "model_s": trajectory.get("model_s"),
+                    "arm_motion_s": max(0.0, completed_at - trajectory["accepted_monotonic"]) if "accepted_monotonic" in trajectory else None,
                     "movement_feedback_s": max(0.0, completed_at - started),
                     "total_s": max(0.0, completed_at - planning_started),
                     "gap_s": trajectory["gap_s"],

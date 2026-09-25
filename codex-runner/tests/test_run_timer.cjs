@@ -7,6 +7,7 @@ const end = source.indexOf('  let attentionSession = null;', start);
 let now = 1000, tick;
 const elements = {runTimer:{},ownRunTimer:{},runTimerDetail:{}};
 const context = vm.createContext({$:id=>elements[id],performance:{now:()=>now},setInterval:fn=>{tick=fn;}});
+vm.runInContext(source.split('(() => {')[0],context);
 vm.runInContext(source.slice(start,end),context);
 function render(run) { context.syncStopwatch(run); return elements.runTimer.textContent; }
 assert.equal(render(null), '—:—');
