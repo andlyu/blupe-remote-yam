@@ -233,6 +233,7 @@ class HostedRunner:
         eid = state.get('episode_id')
         if eid and state.get('session_id') == visitor.runner_session_id:
             try:
+                self.run_names.remember_metadata(eid, self.robot_id, visitor.runner_task, state.get("run_started_at"))
                 self.run_names.remember_result(eid, state)
             except (OSError, sqlite3.Error):
                 pass
@@ -402,6 +403,10 @@ class HostedRunner:
             asset = ROOT / "static" / ("hosted.html" if path == "/" else path.rsplit("/", 1)[1])
             kind = "image/png" if path.endswith(".png") else "text/html" if path == "/" else "text/javascript" if path.endswith(".js") else "text/css"
             await self.respond(send, 200, (self.page() if path == "/" else asset.read_bytes()), kind if kind == "image/png" else kind + "; charset=utf-8")
+            return
+        if method == 'GET' and path == '/api/run-comparisons':
+            runs = await asyncio.to_thread(self.run_names.comparisons, self.robot_id)
+            await self.json(send, 200, {'runs': runs})
             return
         if method == 'GET' and path == '/api/past-runs':
             try:

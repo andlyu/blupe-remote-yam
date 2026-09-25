@@ -42,3 +42,13 @@ def test_run_totals_survive_history_restart(tmp_path):
     totals = dict(model_s=12, execution_s=7, left_path_m=.3, right_path_m=.2, model_calls=2, execution_packets=1, accepted_packets=1, distance_waypoints=3, confirmed_waypoints=3)
     RunNames(path).remember_result('ep_test', {'error':'failed', 'run_metrics':totals})
     assert RunNames(path).results()['ep_test']['run_metrics'] == totals
+
+
+def test_comparisons_do_not_depend_on_published_video_catalog(tmp_path):
+    names = RunNames(tmp_path/'history.db')
+    names.remember_result('ep_old', {'error':'failed', 'step_timings':[dict(step=1,model_s=7)]})
+    names.remember_metadata('ep_new','yam-1','Move block',123)
+    names.remember_result('ep_new', {'error':'failed', 'run_metrics':dict(model_s=3,model_calls=1)})
+    assert [r['episode_id'] for r in names.comparisons('yam-1')] == ['ep_old','ep_new']
+    assert [r['episode_id'] for r in names.comparisons('other')] == ['ep_old']
+    assert names.comparisons('yam-1')[1]['prompt'] == 'Move block'

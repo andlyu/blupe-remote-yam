@@ -17,7 +17,7 @@ function renderRunComparison(container, runs) {
     .sort((a,b) => (a.started_at || 0) - (b.started_at || 0)).slice(-20);
   container.replaceChildren();
   const note = document.createElement('p'); note.className = 'help';
-  note.textContent = 'One column per run, oldest to newest (latest 20 loaded runs). Solid bars: run totals. Faded bars: legacy completed-step totals; distance is endpoint displacement and execution includes feedback. Compare matching measurement types and tasks. Missing metrics are blank.';
+  note.textContent = 'One column per run, oldest to newest (latest 20 locally recorded runs). Solid bars: run totals. Faded bars: legacy completed-step totals; distance is endpoint displacement and execution includes feedback. Compare matching measurement types and tasks. Missing metrics are blank.';
   container.appendChild(note);
   if (!entries.length) return;
   const w = Math.max(650, entries.length * 65 + 80), slot = (w-80)/entries.length;
@@ -44,7 +44,7 @@ function renderRunComparison(container, runs) {
   entries.forEach((run,i) => {
     const row=document.createElement('li'), m=metrics[i];
     const val=(v,unit)=>Number.isFinite(v)?v.toFixed(1)+unit:'unavailable';
-    row.textContent = `${run.episode_index == null ? run.episode_id : 'Run #'+run.episode_index} · ${new Date((run.started_at||0)*1000).toLocaleString()} · ${run.result || 'Unknown'} · ${run.prompt || ''} — distance ${val(m.distance,' cm')}, thinking ${val(m.thinking,' s')}, execution ${val(m.execution,' s')}${m.legacy ? ' [legacy step totals]' : m.partial ? ' [partial]' : ''}`;
+    row.textContent = `${run.episode_index == null ? run.episode_id : 'Run #'+run.episode_index} · ${run.started_at ? new Date(run.started_at*1000).toLocaleString() : 'Time not recorded'} · ${run.result || 'Unknown'} · ${run.prompt || ''} — distance ${val(m.distance,' cm')}, thinking ${val(m.thinking,' s')}, execution ${val(m.execution,' s')}${m.legacy ? ' [legacy step totals]' : m.partial ? ' [partial]' : ''}`;
     list.appendChild(row);
   });
   container.appendChild(list);
@@ -110,7 +110,6 @@ function renderStepMetricsChart(container, timings) {
   const $ = id => document.getElementById(id);
   if (!$('pastRunsList')) return;
   let next = 0, loading = false, historyRobot = null, historyGeneration = 0;
-  let comparisonRuns = [];
   const dialog = $('pastRunDialog'), player = $('pastRunVideo');
   const zeroSecondVideo = duration => typeof duration === 'number' && Number.isFinite(duration) && duration >= 0 && duration < 1;
   let selectedRun = null;
@@ -167,9 +166,7 @@ function renderStepMetricsChart(container, timings) {
       if (!response.ok) throw new Error('Past runs are temporarily unavailable. Select Refresh to retry.');
       const data = await response.json();
       if (generation !== historyGeneration) return;
-      if (reset) { stopPreview(); $('pastRunsList').replaceChildren(); comparisonRuns = []; }
-      comparisonRuns.push(...data.runs);
-      renderRunComparison($('runComparison'), comparisonRuns);
+      if (reset) { stopPreview(); $('pastRunsList').replaceChildren(); }
       for (const run of data.runs) {
         const li = document.createElement('li'), button = document.createElement('button');
         button.type = 'button'; button.className = 'pastRunCard';
@@ -269,11 +266,31 @@ function renderStepMetricsChart(container, timings) {
 
     if (dialog.open) dialog.close();
     $('pastRunsList').replaceChildren();
-    comparisonRuns = [];
-    renderRunComparison($('runComparison'), []);
     load(true);
   });
 })();
+(() => {
+  const container = document.getElementById('runComparison');
+  if (!container) return;
+  let robot = null, generation = 0;
+  async function refresh() {
+    if (!robot) return;
+    const requestGeneration = ++generation;
+    const status = document.getElementById('runComparisonStatus');
+    try {
+      const response = await fetch('/api/run-comparisons?robot_id=' + encodeURIComponent(robot), {cache:'no-store', headers:{'X-Blupe-Robot':robot}});
+      if (!response.ok) throw new Error('Could not load local run metrics. Try Refresh plots.');
+      const data = await response.json();
+      if (requestGeneration !== generation) return;
+      renderRunComparison(container, data.runs);
+      status.textContent = data.runs.length ? `${data.runs.length} recorded run(s). Updated automatically after runs finish. Older runs without robot metadata are explicitly labelled.` : 'No completed run metrics recorded locally yet.';
+    } catch (error) { if (requestGeneration === generation) status.textContent = error.message; }
+  }
+  document.getElementById('refreshRunComparison').addEventListener('click', refresh);
+  window.addEventListener('blupe-robot-selected', event => { robot = event.detail; generation++; container.replaceChildren(); refresh(); });
+  setInterval(() => { if (!document.hidden) refresh(); }, 15000);
+})();
+
 
 (() => {
   'use strict';

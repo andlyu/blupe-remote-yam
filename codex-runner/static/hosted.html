@@ -143,6 +143,7 @@
     </section>
     <ol id="events"><li>Your model decisions and robot feedback will appear here.</li></ol>
   </section>
+  <section id="runComparisonPanel" class="panel playgroundResources" style="grid-column:1/-1" aria-labelledby="runComparisonTitle"><div class="statusHeader"><h2 id="runComparisonTitle">Compare runs</h2><button id="refreshRunComparison" type="button">Refresh plots</button></div><p id="runComparisonStatus" class="help">Loading locally recorded metrics…</p><div id="runComparison"></div></section>
   <section class="panel playgroundResources" aria-labelledby="allEpisodesTitle">
     <h2 id="allEpisodesTitle">All episodes</h2>
     <details class="episodeViewer">
@@ -156,7 +157,6 @@
         <div class="statusHeader"><h2 id="pastRunsTitle">Past runs</h2><button id="refreshPastRuns" type="button">Refresh</button></div>
         <p class="help">Videos from all robots and environments, newest first. Select a video to watch it larger.</p>
         <p id="pastRunsStatus" class="help" role="status">Loading past runs…</p>
-        <details open><summary>Compare runs</summary><div id="runComparison"></div></details>
         <ol id="pastRunsList"></ol>
         <button id="morePastRuns" type="button" hidden>Load more</button>
       </section>

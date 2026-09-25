@@ -144,6 +144,32 @@ class RunNames:
     def __init__(self, path):
         self.path = Path(path)
 
+    def remember_metadata(self, episode_id, robot_id, task, started_at):
+        if not re.fullmatch(r'ep_[A-Za-z0-9_-]+', episode_id or ''):
+            return
+        self.path.parent.mkdir(parents=True, exist_ok=True)
+        self.path.touch(mode=0o600, exist_ok=True)
+        with sqlite3.connect(self.path) as db:
+            db.execute('CREATE TABLE IF NOT EXISTS run_metadata (episode_id TEXT PRIMARY KEY, robot_id TEXT, task TEXT, started_at REAL)')
+            db.execute('INSERT OR IGNORE INTO run_metadata VALUES (?, ?, ?, ?)', (episode_id, robot_id, task, started_at))
+
+    def comparisons(self, robot_id):
+        results = self.results()
+        metadata = {}
+        if self.path.exists():
+            with sqlite3.connect(self.path) as db:
+                if db.execute("SELECT name FROM sqlite_master WHERE name='run_metadata'").fetchone():
+                    metadata = {eid: (robot, task, started) for eid, robot, task, started in db.execute('SELECT * FROM run_metadata')}
+        runs = []
+        for eid, result in results.items():
+            if not (result.get('run_metrics') or result.get('step_timings')):
+                continue
+            robot, task, started = metadata.get(eid, (None, 'Older local run — robot/task not recorded', None))
+            if robot is not None and robot != robot_id:
+                continue
+            runs.append({'episode_id': eid, 'robot_id': robot, 'prompt': task, 'started_at': started, **result})
+        return runs[-100:]
+
     def remember(self, episode_id, name):
         if not re.fullmatch(r'ep_[A-Za-z0-9_-]+', episode_id or '') or not name:
             return
