@@ -99,6 +99,8 @@ class CodexPolicyTests(unittest.TestCase):
         self.assertTrue(all(not path.exists() for _, _, paths in captured for path in paths))
         self.assertIn('forced_login_method="chatgpt"', captured[0][0])
         self.assertIn('features.shell_tool=false', captured[0][0])
+        self.assertIn('model_reasoning_summary="auto"', captured[0][0])
+        self.assertIn('model_reasoning_summary="none"', captured[1][0])
         for command, _, _ in captured:
             self.assertIn('model_reasoning_effort="medium"', command)
         self.assertEqual(provider.public_config()['reasoning_effort'], 'medium')
@@ -136,6 +138,65 @@ class CodexPolicyTests(unittest.TestCase):
         self.assertEqual(execute.call_count, 3)
         self.assertIsNone(provider._pending)
         self.assertIn('target_out_of_bounds', execute.call_args.args[1])
+
+    def test_first_call_streams_before_exit_and_preserves_final_events(self):
+        provider = self.provider()
+        seen = []
+        finished = threading.Event()
+        reached = threading.Event()
+        provider.interaction_sink = lambda kind, message, **details: (seen.append((kind, message, details)), reached.set())
+        summary = {'type':'item.updated', 'item':{'id':'r1','type':'reasoning','text':'Checking the block position.'}}
+        # Split JSON, including a multibyte character, across process writes.
+        summary['item']['text'] += ' Café'
+        raw = (json.dumps(summary, ensure_ascii=False)+'\n').encode()
+        cut = raw.index('é'.encode())+1
+        final = events(decision())
+        script = ('import os,time; '
+                  f'os.write(1,{raw[:cut]!r}); time.sleep(.08); os.write(1,{raw[cut:]!r}); '
+                  f'time.sleep(.6); os.write(1,{json.dumps(final[0]).encode()!r}+b"\\n"); '
+                  f'os.write(1,{json.dumps(final[1]).encode()!r}+b"\\n"); '
+                  f'os.write(1,{json.dumps(final[2]).encode()!r})')
+        result, errors = [], []
+        def execute():
+            try:
+                result.extend(provider._execute([sys.executable, '-c', script], '', Path(provider._workspace.name)))
+            except Exception as exc:
+                errors.append(exc)
+            finally:
+                finished.set()
+        worker = threading.Thread(target=execute)
+        worker.start()
+        try:
+            self.assertTrue(reached.wait(2), errors)
+            self.assertFalse(finished.is_set(), 'Progress must arrive before process completion')
+        finally:
+            worker.join(4)
+        self.assertFalse(errors)
+        self.assertEqual(result, [summary] + final)
+        self.assertEqual(seen[0][1], 'Checking the block position. Café')
+        self.assertEqual(seen[0][2]['progress_type'], 'summary')
+
+    def test_progress_is_first_call_only_and_diagnostics_stay_private(self):
+        provider = self.provider()
+        seen = []
+        provider.interaction_sink = lambda *args, **kwargs: seen.append((args, kwargs))
+        from remote_yam.codex_policy import FirstCallProgress
+        stream = FirstCallProgress(provider._interaction)
+        for event in [
+            {'type':'item.updated', 'item':{'id':'raw','type':'raw_reasoning','text':'private'}},
+            {'type':'item.completed','item':{'type':'agent_message','text':json.dumps(decision())}},
+            {'type':'error','message':'private diagnostic'},
+            {'type':'item.updated','item':{'id':'r','type':'reasoning','encrypted_content':'private'}}]:
+            stream.consume(json.dumps(event).encode())
+        self.assertEqual(seen, [])
+        summary = {'type':'item.updated','item':{'id':'r','type':'reasoning','text':'Public summary'}}
+        stream.consume(json.dumps(summary).encode())
+        stream.consume(json.dumps(summary).encode())
+        self.assertEqual(len(seen), 1)
+        seen.clear()
+        provider._thread_id = THREAD
+        provider._execute([sys.executable, '-c', f'print({json.dumps(summary)!r})'], '', Path(provider._workspace.name))
+        self.assertEqual(seen, [])
 
     def test_process_timeout_and_cancel_kill_child(self):
         for cancel in (False, True):

@@ -744,15 +744,17 @@ function renderStepMetricsChart(container, timings) {
     if (last?.kind !== 'model_request') return '';
     const elapsed = Number.isFinite(last.timestamp) ? Math.max(0, Math.floor(now / 1000 - last.timestamp)) : null;
     if (events.some(event => event.kind === 'model_response')) return '';
-    return `${modelName}: waiting for the first decision${elapsed === null ? '' : ` · ${elapsed}s elapsed`}. Task, current robot state, and camera images supplied. This includes model startup and image processing; intermediate reasoning is not available.`;
+    return `${modelName}: waiting for the first decision${elapsed === null ? '' : ` · ${elapsed}s elapsed`}. Task, current robot state, and camera images supplied. This includes model startup and image processing; Public summaries appear below when the model emits them; quiet periods are normal.`;
   }
   function renderAstraStream(live) {
     const events = live?.events || [];
     const latest = [...events].reverse().find(event => astraStreamNote(event));
     const running = ['preparing', 'running'].includes(live?.status);
     const progress = modelRequestProgress(live, liveModelName);
+    const summary = [...events].reverse().find(event => event.kind === 'model_progress' && (event.progress_type || event.details?.progress_type) === 'summary');
+    const publicUpdate = summary ? 'First-call summary: ' + summary.message + '\n\n' : '';
     const note = latest && astraStreamNote(latest);
-    const output = progress ? progress + (note ? '\n\nPrevious decision: ' + note : '') : note || (live
+    const output = progress ? publicUpdate + progress + (note ? '\n\nPrevious decision: ' + note : '') : note || (live
       ? (running ? `Waiting for ${liveModelName}’s first note…` : `No ${liveModelName} note was recorded for this run.`)
       : `${liveModelName}’s next note will appear here.`);
     const body = $('astraStreamOutput');

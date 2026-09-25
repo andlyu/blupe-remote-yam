@@ -43,7 +43,7 @@ def response_text(raw):
 def project_events(events, run_id):
     output = []
     for event in events:
-        if event.get('kind') not in {'model_request', 'model_response'}:
+        if event.get('kind') not in {'model_request', 'model_response', 'model_progress'}:
             continue
         details = event.get('details') or {}
         message = (details.get('request_text') or details.get('observation') or details.get('prompt')) if event['kind'] == 'model_request' else details.get('response')
@@ -51,6 +51,12 @@ def project_events(events, run_id):
         row['message'] = message or event.get('message', '')
         if event['kind'] == 'model_request' and details.get('request_display'):
             row['request'] = details['request_display']
+        if event['kind'] == 'model_progress':
+            category = details.get('progress_type')
+            if category not in {'summary', 'status'}:
+                continue
+            row['message'] = str(event.get('message', ''))[:4000]
+            row['progress_type'] = category
         row['images'] = []
         for image in details.get('images', []) if event['kind'] == 'model_request' else []:
             digest = image.get('digest', '')

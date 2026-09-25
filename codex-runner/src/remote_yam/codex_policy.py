@@ -22,6 +22,66 @@ import uuid
 from .robocurve_policy import RoboCurveResponsesAdapter
 from .robocurve_trajectory import NAMES
 
+class FirstCallProgress:
+    """Allowlisted Codex JSONL summaries only; never wire reasoning or decisions.
+
+    Format: docs/refs/codex/noninteractive.md (item.* JSONL events).
+    Read with pread: seeking a shared stdout file would move the child's cursor.
+    """
+    def __init__(self, callback):
+        self.callback = callback
+        self.offset = 0
+        self.pending = b''
+        self.seen = {}
+
+    def read(self, file, *, final=False):
+        while True:
+            chunk = os.pread(file.fileno(), 65536, self.offset)
+            if not chunk:
+                break
+            self.offset += len(chunk)
+            if self.offset > 8_000_000:
+                raise RuntimeError('Codex output exceeded the response limit')
+            self.pending += chunk
+            lines = self.pending.split(b'\n')
+            self.pending = lines.pop()
+            for line in lines:
+                self.consume(line)
+        if final and self.pending:
+            self.consume(self.pending)
+            self.pending = b''
+
+    def consume(self, line):
+        if not self.callback:
+            return
+        try:
+            event = json.loads(line)
+        except (ValueError, UnicodeError):
+            return  # Existing final parser/error handling rejects bad output.
+        if not isinstance(event, dict):
+            return
+        kind = event.get('type')
+        item = event.get('item')
+        if kind == 'turn.started':
+            key, text, category = 'started', 'Model session started; awaiting the first decision.', 'status'
+        elif kind in {'item.started', 'item.updated', 'item.completed'} and isinstance(item, dict) and item.get('type') == 'reasoning':
+            # `reasoning.text` in exec JSONL is the public summary. Do not forward
+            # raw content, encrypted_content, tool arguments, diagnostics or JSON decisions.
+            key, text, category = item.get('id'), item.get('text'), 'summary'
+            if not isinstance(key, str) or not isinstance(text, str) or not text.strip():
+                return
+            text = text.strip()[:4000]
+        else:
+            return
+        if self.seen.get(key) == text or (key not in self.seen and len(self.seen) >= 32):
+            return
+        self.seen[key] = text
+        try:
+            self.callback('model_progress', text, progress_type=category, item_id=key)
+        except Exception:
+            pass  # Display failures must not alter decision validation or Stop.
+
+
 DEFAULT_MODEL = 'gpt-6-astra'
 MIN_VERSION = (0, 154, 0)
 PINNED_VERSION = '0.154.0'
@@ -246,6 +306,8 @@ class CodexAdapter(RoboCurveResponsesAdapter):
                     '-c', 'web_search="disabled"', '-c', 'features.shell_tool=false',
                     '-c', 'features.multi_agent=false', '-c', 'features.apps=false',
                     '-c', 'features.hooks=false']
+        first_call = self._thread_id is None and getattr(self, '_calls', 0) <= 1
+        command += ['-c', 'model_reasoning_summary=' + ('"auto"' if first_call else '"none"')]
         for path in images:
             command += ['--image', str(path)]
         command += ['-']
@@ -296,13 +358,17 @@ class CodexAdapter(RoboCurveResponsesAdapter):
             process = subprocess.Popen(command, stdin=stdin, stdout=stdout, stderr=stderr,
                                        cwd=root, env=codex_environment(), start_new_session=True)
             deadline = time.monotonic() + self._timeout_s
+            first_call = self._thread_id is None and getattr(self, '_calls', 0) <= 1
+            progress = FirstCallProgress(getattr(self, '_interaction', None) if first_call else None)
             try:
                 while process.poll() is None:
                     if self.cancelled():
                         raise RuntimeError('Codex inference cancelled; no motion sent')
                     if time.monotonic() >= deadline:
                         raise RuntimeError('Codex inference timed out; no motion sent')
+                    progress.read(stdout)
                     time.sleep(.05)
+                progress.read(stdout, final=True)
                 if process.returncode:
                     stdout.seek(0)
                     stderr.seek(0)

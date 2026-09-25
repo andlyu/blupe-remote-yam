@@ -63,3 +63,14 @@ def test_single_so101_front_preview_and_invalid_digest(tmp_path):
     images.append({'name':'overhead', 'digest':'../not-an-image'})
     public = project_events([{'kind':'model_request', 'details':{'images':images}}], recorder.path.name)
     assert [image['name'] for image in public[0]['images']] == ['front']
+
+
+def test_progress_projects_only_public_text_and_category():
+    result = project_events([
+        {'kind':'model_progress', 'message':'Checking the block',
+         'details':{'progress_type':'summary','encrypted_content':'private','raw':'private'}},
+        {'kind':'model_progress', 'message':'private', 'details':{'progress_type':'raw_reasoning'}}], 'run')
+    assert len(result) == 1
+    assert result[0]['progress_type'] == 'summary'
+    assert result[0]['message'] == 'Checking the block'
+    assert 'private' not in str(result)
