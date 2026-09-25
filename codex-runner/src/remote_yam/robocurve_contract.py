@@ -4,7 +4,7 @@ Source: inspect-robots-agent 0.26.0 (MIT); see docs/refs/robocurve/INDEX.md.
 No demonstration, recorded observation, or prior assistant response is included.
 """
 
-SYSTEM_PROMPT = """You are controlling a real robot embodiment named 'yam_arms' through tool calls. Each observation message gives you the current proprioceptive state and camera images. Work towards the goal with haste. Time is of the essence. We are paid based on how many tasks we complete. Keep deliberation brief: use the current observation to choose the next useful, safe motion. Once the observation supports a clear action, return it promptly without repeatedly reconsidering equivalent alternatives or planning the entire task in detail. Do not skip checking the camera images, current arm state, or motion constraints; if critical information is unclear, do not guess. Every move tool call must include a `note`: in one or two sentences, say what you observe in the current observation and why you chose this motion. The user is watching these notes to see what you see and what you decide, so write them for a human reader. Every joint-waypoint packet passes the gateway safety checks before execution. Unsafe packets are rejected and stop the session; never rely on clamping. You may receive operator feedback lines mid-run; treat them as trusted guidance from the human supervising the robot. Respond with exactly one tool call per turn. When the goal is achieved call done; if it cannot be achieved call give_up. Note what you are learning about this rig and task as you go: done and give_up will ask what you wish you had known from the start. You have a budget of 100 LLM calls for the whole trial.
+SYSTEM_PROMPT = """Control 'yam_arms' using current camera images and measured state. Act promptly: choose the next useful, safe motion with brief deliberation. Check images, state, and motion constraints; never guess missing critical information. Return exactly one tool call per turn. Include a 1–2 sentence `note` stating what you observe and why you chose the motion. Follow operator feedback. Unsafe packets stop the session; never rely on clamping. Call done only when the goal is achieved, or give_up when it cannot be achieved. At completion, report useful rig/task lessons in hindsight, or 'none'. Budget: 100 model calls.
 
 Embodiment notes:
 Two identical 6-DoF arms, prefixed left_ and right_, each with a parallel-jaw
@@ -52,12 +52,7 @@ TOOLS = [{'type': 'function',
                                                            'right_z, right_yaw, right_pitch, right_roll, '
                                                            'right_gripper'},
                                 'note': {'type': 'string',
-                                         'description': 'What you observe right now in the observation '
-                                                        '(images, if any, and state), and why you chose this '
-                                                        'motion. The user reads these notes live and in the '
-                                                        'saved transcript to follow what you see and what '
-                                                        'you decide. Write for them, in one or two plain '
-                                                        'sentences.'}},
+                                         'description': 'In 1–2 plain sentences, state what you observe and why you chose this motion.'}},
                  'required': ['targets', 'note']},
   'strict': False},
  {'type': 'function',
@@ -67,15 +62,7 @@ TOOLS = [{'type': 'function',
   'parameters': {'type': 'object',
                  'properties': {'summary': {'type': 'string'},
                                 'hindsight': {'type': 'string',
-                                              'description': 'What do you know now that you wish you had '
-                                                             'known at the start of this episode? Concrete, '
-                                                             'transferable facts about this rig, task, or '
-                                                             'embodiment (camera mounting and extrinsics, '
-                                                             'table and base geometry, gripper axis and '
-                                                             'offsets, controller behavior, metric scale), '
-                                                             'written as advice to a future agent attempting '
-                                                             "the same task. Say 'none' if nothing "
-                                                             'qualifies.'}},
+                                              'description': "Useful rig/task facts you wish you had known initially (geometry, cameras, grippers, control); otherwise 'none'."}},
                  'required': ['summary', 'hindsight']},
   'strict': False},
  {'type': 'function',
@@ -84,14 +71,6 @@ TOOLS = [{'type': 'function',
   'parameters': {'type': 'object',
                  'properties': {'reason': {'type': 'string'},
                                 'hindsight': {'type': 'string',
-                                              'description': 'What do you know now that you wish you had '
-                                                             'known at the start of this episode? Concrete, '
-                                                             'transferable facts about this rig, task, or '
-                                                             'embodiment (camera mounting and extrinsics, '
-                                                             'table and base geometry, gripper axis and '
-                                                             'offsets, controller behavior, metric scale), '
-                                                             'written as advice to a future agent attempting '
-                                                             "the same task. Say 'none' if nothing "
-                                                             'qualifies.'}},
+                                              'description': "Useful rig/task facts you wish you had known initially (geometry, cameras, grippers, control); otherwise 'none'."}},
                  'required': ['reason', 'hindsight']},
   'strict': False}]
