@@ -36,3 +36,13 @@ test('comparison keeps run totals distinct from legacy per-step measurements', (
   assert.equal(legacy.distance,10); assert.equal(legacy.legacy,true); assert.equal(legacy.partial,true);
   assert.equal(ctx.runComparisonMetrics({}).distance,null);
 });
+test('speed uses total distance divided by execution, excluding thinking', () => {
+  const run={run_metrics:{model_s:100,model_calls:1,execution_s:10,execution_packets:2,accepted_packets:2,left_path_m:.3,right_path_m:.2,distance_waypoints:4,confirmed_waypoints:4}};
+  assert.equal(ctx.runComparisonMetrics(run).speed,5);
+  run.run_metrics.execution_s=0;assert.equal(ctx.runComparisonMetrics(run).speed,null);
+  run.run_metrics.execution_s=10;run.run_metrics.accepted_packets=3;
+  assert.equal(ctx.runComparisonMetrics(run).speed,null);
+  assert.equal(ctx.runComparisonMetrics({}).speed,null);
+  const legacy={step_timings:[{arm_motion_s:1,left_displacement_m:.1},{arm_motion_s:9,left_displacement_m:.1}]};
+  assert.equal(ctx.runComparisonMetrics(legacy).speed,2); // Ratio of sums, not mean of step speeds.
+});

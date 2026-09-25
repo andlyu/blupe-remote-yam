@@ -1,4 +1,4 @@
-function runComparisonMetrics(run) {
+function runComparisonBaseMetrics(run) {
   if (run.run_metrics) {
     const m = run.run_metrics;
     return {thinking: m.model_calls ? m.model_s : null, execution: m.execution_packets ? m.execution_s : null,
@@ -11,19 +11,28 @@ function runComparisonMetrics(run) {
   return {thinking: sum('model_s'), execution: sum('arm_motion_s'), distance: left === null && right === null ? null : ((left || 0) + (right || 0))*100, legacy: true, partial: true};
 }
 
+function runComparisonMetrics(run) {
+  const metrics = runComparisonBaseMetrics(run);
+  const pairedLegacy = (run.step_timings || []).every(row => Number.isFinite(row.arm_motion_s) &&
+    (Number.isFinite(row.left_displacement_m) || Number.isFinite(row.right_displacement_m)));
+  metrics.speed = Number.isFinite(metrics.distance) && Number.isFinite(metrics.execution) && metrics.execution > 0 &&
+    (metrics.legacy ? pairedLegacy : !metrics.partial) ? metrics.distance / metrics.execution : null;
+  return metrics;
+}
+
 function renderRunComparison(container, runs) {
   if (!container) return;
   const entries = [...new Map(runs.map(run => [run.episode_id, run])).values()]
     .sort((a,b) => (a.started_at || 0) - (b.started_at || 0)).slice(-20);
   container.replaceChildren();
   const note = document.createElement('p'); note.className = 'help';
-  note.textContent = 'One column per run, oldest to newest (latest 20 locally recorded runs). Solid bars: run totals. Faded bars: legacy completed-step totals; distance is endpoint displacement and execution includes feedback. Compare matching measurement types and tasks. Missing metrics are blank.';
+  note.textContent = 'One column per run, oldest to newest (latest 20 locally recorded runs). Solid bars: run totals. Faded bars: legacy completed-step totals; distance is endpoint displacement and execution includes feedback. Compare matching measurement types and tasks. Movement speed = combined gripper distance / execution time, including settling and excluding thinking. Incomplete or zero-duration measurements have no speed value. Missing metrics are blank.';
   container.appendChild(note);
   if (!entries.length) return;
   const w = Math.max(650, entries.length * 65 + 80), slot = (w-80)/entries.length;
-  let svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="490" role="img" aria-label="Run-to-run comparison of trajectory distance, thinking time and execution time"><style>text{font:12px system-ui;fill:currentColor}</style>`;
+  let svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="645" role="img" aria-label="Run-to-run comparison of trajectory distance, thinking time, execution time and movement speed"><style>text{font:12px system-ui;fill:currentColor}</style>`;
   const metrics = entries.map(runComparisonMetrics);
-  for (const [index, key, label, color] of [[0,'distance','Distance (cm)','#e0a126'],[1,'thinking','Thinking (seconds)','#818cf8'],[2,'execution','Execution (seconds)','#34d399']]) {
+  for (const [index, key, label, color] of [[0,'distance','Distance (cm)','#e0a126'],[1,'thinking','Thinking (seconds)','#818cf8'],[2,'execution','Execution (seconds)','#34d399'],[3,'speed','Movement speed (cm/s)','#38bdf8']]) {
     const top = index*155+25, base = top+105, max = Math.max(1,...metrics.map(m => Number.isFinite(m[key]) ? m[key] : 0));
     svg += `<text x="55" y="${top-8}">${label}</text>`;
     for (let tick=0; tick<=2; tick++) {
@@ -44,7 +53,7 @@ function renderRunComparison(container, runs) {
   entries.forEach((run,i) => {
     const row=document.createElement('li'), m=metrics[i];
     const val=(v,unit)=>Number.isFinite(v)?v.toFixed(1)+unit:'unavailable';
-    row.textContent = `${run.episode_index == null ? run.episode_id : 'Run #'+run.episode_index} · ${run.started_at ? new Date(run.started_at*1000).toLocaleString() : 'Time not recorded'} · ${run.result || 'Unknown'} · ${run.prompt || ''} — distance ${val(m.distance,' cm')}, thinking ${val(m.thinking,' s')}, execution ${val(m.execution,' s')}${m.legacy ? ' [legacy step totals]' : m.partial ? ' [partial]' : ''}`;
+    row.textContent = `${run.episode_index == null ? run.episode_id : 'Run #'+run.episode_index} · ${run.started_at ? new Date(run.started_at*1000).toLocaleString() : 'Time not recorded'} · ${run.result || 'Unknown'} · ${run.prompt || ''} — distance ${val(m.distance,' cm')}, thinking ${val(m.thinking,' s')}, execution ${val(m.execution,' s')}, movement speed ${val(m.speed,' cm/s')}${m.legacy ? ' [legacy step totals]' : m.partial ? ' [partial]' : ''}`;
     list.appendChild(row);
   });
   container.appendChild(list);
