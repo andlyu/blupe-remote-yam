@@ -1,3 +1,14 @@
+function renderRunMetrics(container, metrics, status) {
+  if (!container) return;
+  if (!metrics) { container.textContent = 'Run totals were not recorded.'; return; }
+  const seconds = value => Number.isFinite(value) ? value.toFixed(2) + ' s' : 'Unavailable';
+  const distanceKnown = metrics.distance_waypoints > 0;
+  const distance = distanceKnown ? ((metrics.left_path_m + metrics.right_path_m) * 100).toFixed(1) + ' cm' : 'Unavailable';
+  const partial = metrics.execution_packets !== metrics.accepted_packets || metrics.distance_waypoints !== metrics.confirmed_waypoints;
+  container.textContent = `${['running', 'preparing'].includes(status) ? 'Run so far' : 'Run summary'}${partial ? ' (partial)' : ''}\nTrajectory distance: ${distance} (confirmed waypoint estimate, both arms combined)\nThinking: ${metrics.model_calls ? seconds(metrics.model_s) : 'No model requests recorded'}\nExecution: ${metrics.execution_packets ? seconds(metrics.execution_s) : 'No execution finish recorded'}\nThinking includes request overhead and retries. Execution uses robot timestamps and includes settling. Missing confirmations are excluded.`;
+  container.style.whiteSpace = 'pre-line';
+}
+
 // Numeric-only chart shared by the current run and saved run history.
 function renderStepMetricsChart(container, timings) {
   if (!container) return;
@@ -78,6 +89,7 @@ function renderStepMetricsChart(container, timings) {
     $('pastRunDetails').textContent = (live ? 'Live speed · 1× · all pauses retained' : run.compressed ? '10× speed · idle pauses removed' : '10× playback · original recording, pauses retained') + ' · ' + cameras + ' · ' + (run.result || 'Unknown') + ': ' + ((run.result === 'Failure' && run.errors) || run.result_reason || 'Result was not recorded');
     $('pastRunError').textContent = '';
     renderStepMetricsChart($('pastRunMetricsChart'), run.step_timings);
+    renderRunMetrics($('pastRunMetricsSummary'), run.run_metrics, 'stopped');
     const source = playbackSource(run, live);
     player.pause();
     player.src = source.url;
@@ -713,6 +725,7 @@ function renderStepMetricsChart(container, timings) {
     syncStopwatch(live, state.queue_snapshot?.generated_at);
     const timings = live?.step_timings || [];
     renderStepMetricsChart($('stepMetricsChart'), timings);
+    renderRunMetrics($('runMetricsSummary'), live?.run_metrics, live?.status);
     if ($('stepTimingRows')) {
       $('stepTimingTable').hidden = !timings.length;
       $('stepTimingEmpty').hidden = !!timings.length;

@@ -158,6 +158,11 @@ class InteractionTests(unittest.TestCase):
                 self.assertAlmostEqual(timing['total_s'], timing['planning_s'] + timing['movement_feedback_s'])
             recorded = [e['details'] for e in state['interactions']['events'] if e['kind'] == 'step_timing']
             self.assertEqual(recorded, timings)
+            totals = state['run_metrics']
+            self.assertGreater(totals['confirmed_waypoints'], 0)
+            self.assertEqual(totals['distance_waypoints'], totals['confirmed_waypoints'])
+            self.assertAlmostEqual(totals['left_path_m'], .05 * totals['confirmed_waypoints'])
+            self.assertEqual(totals['execution_packets'], len(timings))
             self.assertEqual(run_artifacts(root, state['interactions']['run_id'])['episode_id'], state['episode_id'])
 
     def test_legacy_wire_recording_shows_rejection_and_outcome(self):

@@ -72,6 +72,7 @@ class RunnerController:
         self._packets_submitted = 0
         self._trajectory: dict[str, Any] | None = None
         self._last_completed_trajectory_result: dict[str, Any] | None = None
+        self._run_metrics = dict(model_s=0.0, execution_s=0.0, left_path_m=0.0, right_path_m=0.0, model_calls=0, execution_packets=0, accepted_packets=0, distance_waypoints=0, confirmed_waypoints=0)
         self._step_timings: list[dict[str, Any]] = []
         self._last_step_completed_monotonic: float | None = None
         self._latency: dict[str, dict[str, float | int]] = {}
@@ -139,6 +140,7 @@ class RunnerController:
             self._last_completed_trajectory_result = None
             self._feedback_checks = []
             self._execution_blocked_reason = None
+            self._run_metrics = dict(model_s=0.0, execution_s=0.0, left_path_m=0.0, right_path_m=0.0, model_calls=0, execution_packets=0, accepted_packets=0, distance_waypoints=0, confirmed_waypoints=0)
             self._step_timings = []
             self._last_step_completed_monotonic = None
             self._latency = {}
@@ -160,7 +162,14 @@ class RunnerController:
                     secrets=(getattr(provider, '_api_key', ''),))
             if hasattr(provider, 'interaction_sink'):
                 journal, publisher = self._interactions, self._conversation_publisher
+                metrics = self._run_metrics
                 def record_interaction(kind, message, **details):
+                    if kind == 'model_timing':
+                        elapsed = details.get('elapsed_s')
+                        if isinstance(elapsed, (int, float)) and math.isfinite(elapsed) and elapsed >= 0:
+                            with self._lock:
+                                metrics['model_s'] += elapsed
+                                metrics['model_calls'] += 1
                     journal.add(kind, message, **details)
                     if publisher:
                         publisher.add(kind, message, **details)
@@ -320,6 +329,7 @@ class RunnerController:
                 ),
                 "latency": self._latency_status(),
                 "step_timings": [dict(row) for row in self._step_timings],
+                "run_metrics": dict(self._run_metrics),
                 "run_summary": {
                     "events": [deepcopy_dict(item) for item in self._run_events],
                     "action_step_ids": list(self._submitted_step_ids),
@@ -920,9 +930,21 @@ class RunnerController:
                 raise RuntimeError("Trajectory waypoint does not match the v1 schema")
             if waypoint.get("step_id") != expected_step:
                 raise RuntimeError("Trajectory waypoint steps must be contiguous")
+        path_segments = []
+        measure = getattr(provider, 'measured_step_displacement', None)
+        previous = observation
+        if callable(measure):
+            try:
+                for waypoint in waypoints:
+                    current = {**previous, **waypoint, 'settled': True}
+                    path_segments.append(measure(previous, current))
+                    previous = current
+            except Exception:
+                path_segments = []
         trajectory_id = f"traj_{episode_id}_{first_step_id}"
         state = {
             "trajectory_id": trajectory_id,
+            "path_segments": path_segments,
             "state": "dispatching",
             "cadence_hz": 10.0,
             "first_step_id": expected_steps[0],
@@ -1019,6 +1041,20 @@ class RunnerController:
             self._interactions.add('packet_dispatched', 'AWS accepted the packet for dispatch; waiting for gateway acceptance',
                                    trajectory_id=trajectory_id, waypoint_count=len(waypoints))
 
+    def _record_execution_time(self, trajectory, payload):
+        start = trajectory.get('accepted_reported_at')
+        end = payload.get('reported_at')
+        if trajectory.get('execution_time_recorded') or not isinstance(start, (int, float)) or not isinstance(end, (int, float)):
+            return
+        elapsed = end - start
+        if not math.isfinite(elapsed) or elapsed < 0:
+            return
+        trajectory['execution_time_recorded'] = True
+        self._run_metrics['execution_s'] += elapsed
+        self._run_metrics['execution_packets'] += 1
+        self._interactions.add('execution_timing', f'Robot execution: {elapsed:.2f}s', elapsed_s=elapsed,
+                               trajectory_id=trajectory['trajectory_id'])
+
     def _trajectory_progress(self, payload: Mapping[str, Any]) -> None:
         with self._lock:
             trajectory = self._trajectory
@@ -1038,6 +1074,13 @@ class RunnerController:
                 raise RuntimeError("Trajectory progress is missing executed_at")
             if self._analytics_run:
                 self._analytics_run["execution_confirmed"] = True
+            self._run_metrics['confirmed_waypoints'] += 1
+            segments = trajectory.get('path_segments') or []
+            if trajectory['progress_count'] < len(segments):
+                segment = segments[trajectory['progress_count']]
+                for side in ('left', 'right'):
+                    self._run_metrics[side + '_path_m'] += segment.get(side + '_displacement_m', 0.0)
+                self._run_metrics['distance_waypoints'] += 1
             trajectory["progress_count"] += 1
             trajectory["last_progress_step_id"] = step_id
             self._interactions.add('packet_progress',
@@ -1064,12 +1107,16 @@ class RunnerController:
             if status == "accepted":
                 if trajectory["state"] not in {"dispatched", "accepted"}:
                     raise RuntimeError("Trajectory acceptance arrived out of order")
+                if 'accepted_reported_at' not in trajectory:
+                    trajectory['accepted_reported_at'] = payload['reported_at']
+                    self._run_metrics['accepted_packets'] += 1
                 trajectory.setdefault("accepted_monotonic", time.monotonic())
                 trajectory["state"] = "accepted"
                 self._interactions.add('packet_accepted', 'Gateway safety checks passed; executing packet',
                                        trajectory_id=trajectory['trajectory_id'])
                 return
             if status in {"rejected", "aborted"}:
+                self._record_execution_time(trajectory, payload)
                 code = str(payload.get("code") or f"trajectory_{status}")
                 message = str(payload.get("message") or status)
                 self._interactions.add('packet_error', f'Gateway {status}: {code} — {message}',
@@ -1101,6 +1148,7 @@ class RunnerController:
             result_step = payload.get("step_id")
             if result_step is not None and result_step != trajectory["last_step_id"]:
                 raise RuntimeError("Trajectory completion reported the wrong final step")
+            self._record_execution_time(trajectory, payload)
             trajectory["state"] = "completed"
             self._last_completed_trajectory_result = deepcopy_dict(result)
             started = trajectory.get("dispatch_started_monotonic")

@@ -20,3 +20,11 @@ test('empty and older runs do not invent metrics', () => {
   ctx.renderStepMetricsChart(target, [{step:1}]);
   assert.doesNotMatch(target.innerHTML, /<rect|<circle/);
 });
+test('run totals show three metrics and disclose incomplete execution', () => {
+  const target = {style:{}};
+  ctx.renderRunMetrics(target, {model_s:12,execution_s:7,left_path_m:.3,right_path_m:.2,model_calls:2,execution_packets:1,accepted_packets:2,distance_waypoints:3,confirmed_waypoints:3}, 'stopped');
+  assert.match(target.textContent, /summary \(partial\)/);
+  assert.match(target.textContent, /50.0 cm/);
+  assert.match(target.textContent, /Thinking: 12.00 s/);
+  assert.match(target.textContent, /Execution: 7.00 s/);
+});

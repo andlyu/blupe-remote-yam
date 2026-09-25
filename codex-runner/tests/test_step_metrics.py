@@ -24,3 +24,21 @@ def test_history_persists_only_numeric_metrics(tmp_path):
     assert saved == [dict(step=1,model_s=3,arm_motion_s=2,left_displacement_m=.05)]
     RunNames(path).remember_result('ep_test', {'error':'failed'})
     assert RunNames(path).results()['ep_test']['step_timings'] == saved
+
+
+def test_run_totals_execution_uses_robot_clock_and_deduplicates():
+    from remote_yam.controller import RunnerController
+    from remote_yam.session import MockSessionAPI
+    c = RunnerController(MockSessionAPI())
+    trajectory = dict(trajectory_id='t', accepted_reported_at=100)
+    c._record_execution_time(trajectory, {'reported_at':107})
+    c._record_execution_time(trajectory, {'reported_at':107})
+    assert c.status()['run_metrics']['execution_s'] == 7
+    assert c.status()['run_metrics']['execution_packets'] == 1
+
+
+def test_run_totals_survive_history_restart(tmp_path):
+    path = tmp_path/'history.db'
+    totals = dict(model_s=12, execution_s=7, left_path_m=.3, right_path_m=.2, model_calls=2, execution_packets=1, accepted_packets=1, distance_waypoints=3, confirmed_waypoints=3)
+    RunNames(path).remember_result('ep_test', {'error':'failed', 'run_metrics':totals})
+    assert RunNames(path).results()['ep_test']['run_metrics'] == totals

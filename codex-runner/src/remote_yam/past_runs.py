@@ -192,6 +192,12 @@ class RunNames:
         with sqlite3.connect(self.path) as db:
             db.execute('CREATE TABLE IF NOT EXISTS run_results (episode_id TEXT PRIMARY KEY, result TEXT NOT NULL, reason TEXT NOT NULL)')
             db.execute('CREATE TABLE IF NOT EXISTS run_details (episode_id TEXT PRIMARY KEY, errors TEXT, ending_reason TEXT)')
+            totals = {key: value for key, value in (state.get('run_metrics') or {}).items()
+                      if key in {'model_s', 'execution_s', 'left_path_m', 'right_path_m', 'model_calls', 'execution_packets', 'accepted_packets', 'distance_waypoints', 'confirmed_waypoints'}
+                      and isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(value) and value >= 0}
+            if totals:
+                db.execute('CREATE TABLE IF NOT EXISTS run_totals (episode_id TEXT PRIMARY KEY, metrics TEXT NOT NULL)')
+                db.execute('INSERT INTO run_totals VALUES (?, ?) ON CONFLICT(episode_id) DO UPDATE SET metrics=excluded.metrics', (episode_id, json.dumps(totals)))
             metrics = []
             for row in (state.get('step_timings') or [])[-200:]:
                 metrics.append({key: value for key, value in row.items()
@@ -236,6 +242,10 @@ class RunNames:
                 for eid, metrics in db.execute('SELECT episode_id, metrics FROM run_metrics'):
                     if eid in result:
                         result[eid]['step_timings'] = json.loads(metrics)
+            if db.execute("SELECT name FROM sqlite_master WHERE name='run_totals'").fetchone():
+                for eid, metrics in db.execute('SELECT episode_id, metrics FROM run_totals'):
+                    if eid in result:
+                        result[eid]['run_metrics'] = json.loads(metrics)
             return result
 
 

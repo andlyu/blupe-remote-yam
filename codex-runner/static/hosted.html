@@ -85,7 +85,8 @@
     <div class="statusHeader"><h2 id="conversationModeTitle">Astra reasoning</h2></div>
     <p id="sideRunner" class="help">Runner: —</p>
     <details class="runPrompt" open><summary>Prompt</summary><p id="sidePrompt">Waiting for someone to run a policy.</p></details>
-    <details class="runPrompt" open><summary>Step timing and distance</summary>
+    <section aria-label="Run totals"><h2>Run totals</h2><p id="runMetricsSummary" class="help">Waiting for a run.</p></section>
+    <details class="runPrompt"><summary>Step timing and distance</summary>
       <p class="help">One step = planning and one motion. Model thinking is request-to-response time, including provider/network overhead and retries. Arm motion is gateway acceptance to settled completion as observed by the runner. Planning includes camera capture; motion includes transport and settled feedback. Gap is the wait before planning the next step. Completed motions only. Left/right distance is straight-line gripper displacement from measured joint positions, not full path length.</p>
       <div id="stepMetricsChart"></div>
       <div style="overflow-x:auto"><table id="stepTimingTable" hidden><thead><tr><th>Step</th><th>Model thinking</th><th>Arm motion</th><th>Planning total</th><th>Motion + feedback</th><th>Total</th><th>Gap before</th><th>Left distance</th><th>Right distance</th></tr></thead><tbody id="stepTimingRows"></tbody></table></div>
@@ -169,6 +170,7 @@
 </div>
 <dialog id="pastRunDialog" aria-labelledby="pastRunTitle">
   <div class="statusHeader"><h2 id="pastRunTitle">Past run</h2><button id="closePastRun" type="button" aria-label="Close video">Close</button></div>
+  <h3>Run totals</h3><p id="pastRunMetricsSummary" class="help"></p>
   <div id="pastRunMetricsChart"></div>
   <p id="pastRunPrompt"></p><p id="pastRunDetails" class="help"></p>
   <video id="pastRunVideo" controls playsinline preload="none"></video>

@@ -569,6 +569,7 @@ class HostedRunner:
                     'runner_name': owner.runner_name, 'task': owner.runner_task,
                     'status': current['status'], 'events': events, 'error': public_run_error(current),
                     'step_timings': current.get('step_timings', []),
+                    'run_metrics': current.get('run_metrics'),
                     'episode_id': current.get('episode_id'),
                     'model_name': model_display_name(current.get('provider')),
                     **{k: current.get(k) for k in ('run_duration_s', 'run_started_at', 'run_ended_at', 'run_elapsed_s')}}
