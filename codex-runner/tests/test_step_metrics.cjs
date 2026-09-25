@@ -28,3 +28,11 @@ test('run totals show three metrics and disclose incomplete execution', () => {
   assert.match(target.textContent, /Thinking: 12.00 s/);
   assert.match(target.textContent, /Execution: 7.00 s/);
 });
+test('comparison keeps run totals distinct from legacy per-step measurements', () => {
+  const modern = ctx.runComparisonMetrics({run_metrics:{model_s:15,execution_s:8,left_path_m:.4,right_path_m:.1,model_calls:2,execution_packets:1,accepted_packets:1,distance_waypoints:5,confirmed_waypoints:5}});
+  assert.equal(modern.distance,50); assert.equal(modern.thinking,15); assert.equal(modern.execution,8);
+  assert.equal(modern.legacy,false); assert.equal(modern.partial,false);
+  const legacy = ctx.runComparisonMetrics({step_timings:[{model_s:7,arm_motion_s:3,left_displacement_m:.1}]});
+  assert.equal(legacy.distance,10); assert.equal(legacy.legacy,true); assert.equal(legacy.partial,true);
+  assert.equal(ctx.runComparisonMetrics({}).distance,null);
+});

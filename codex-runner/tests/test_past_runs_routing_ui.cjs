@@ -9,7 +9,7 @@ test('hover previews are muted, exclusive, and stop on exit, modal open, or robo
   const element = () => ({
     listeners:{}, children:[], dataset:{}, style:{}, open:false, plays:0, pauses:0,
     addEventListener(name,fn){this.listeners[name]=fn}, after(){}, setAttribute(){}, removeAttribute(){},
-    append(...items){this.children.push(...items)}, replaceChildren(){this.children=[]},
+    append(...items){this.children.push(...items)}, appendChild(item){this.children.push(item)}, replaceChildren(){this.children=[]},
     play(){this.plays++;return Promise.resolve()}, pause(){this.pauses++},
     showModal(){this.open=true}, close(){this.open=false;this.listeners.close?.()}, load(){}
   });
@@ -42,7 +42,7 @@ test('hover previews are muted, exclusive, and stop on exit, modal open, or robo
 });
 test('history waits for robot selection and ignores a previous robot response', async () => {
   const nodes = new Map(), listeners = {}, requests = [];
-  const element = () => ({addEventListener(){},after(){},replaceChildren(){},removeAttribute(){},dataset:{},open:false});
+  const element = () => ({style:{},appendChild(){},addEventListener(){},after(){},replaceChildren(){},removeAttribute(){},dataset:{},open:false});
   const document = {addEventListener(){},getElementById(id){if(!nodes.has(id))nodes.set(id,element());return nodes.get(id)},createElement:element};
   vm.runInNewContext(source, {document,window:{addEventListener(name,fn){listeners[name]=fn}},encodeURIComponent,
     fetch(url,options){return new Promise(resolve=>requests.push({url,options,resolve}))}});

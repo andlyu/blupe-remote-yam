@@ -1,3 +1,55 @@
+function runComparisonMetrics(run) {
+  if (run.run_metrics) {
+    const m = run.run_metrics;
+    return {thinking: m.model_calls ? m.model_s : null, execution: m.execution_packets ? m.execution_s : null,
+      distance: m.distance_waypoints ? (m.left_path_m + m.right_path_m) * 100 : null,
+      legacy: false, partial: m.execution_packets !== m.accepted_packets || m.distance_waypoints !== m.confirmed_waypoints};
+  }
+  const rows = run.step_timings || [];
+  const sum = key => rows.some(r => Number.isFinite(r[key])) ? rows.reduce((n,r) => n + (Number.isFinite(r[key]) ? r[key] : 0), 0) : null;
+  const left = sum('left_displacement_m'), right = sum('right_displacement_m');
+  return {thinking: sum('model_s'), execution: sum('arm_motion_s'), distance: left === null && right === null ? null : ((left || 0) + (right || 0))*100, legacy: true, partial: true};
+}
+
+function renderRunComparison(container, runs) {
+  if (!container) return;
+  const entries = [...new Map(runs.map(run => [run.episode_id, run])).values()]
+    .sort((a,b) => (a.started_at || 0) - (b.started_at || 0)).slice(-20);
+  container.replaceChildren();
+  const note = document.createElement('p'); note.className = 'help';
+  note.textContent = 'One column per run, oldest to newest (latest 20 loaded runs). Solid bars: run totals. Faded bars: legacy completed-step totals; distance is endpoint displacement and execution includes feedback. Compare matching measurement types and tasks. Missing metrics are blank.';
+  container.appendChild(note);
+  if (!entries.length) return;
+  const w = Math.max(650, entries.length * 65 + 80), slot = (w-80)/entries.length;
+  let svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="490" role="img" aria-label="Run-to-run comparison of trajectory distance, thinking time and execution time"><style>text{font:12px system-ui;fill:currentColor}</style>`;
+  const metrics = entries.map(runComparisonMetrics);
+  for (const [index, key, label, color] of [[0,'distance','Distance (cm)','#e0a126'],[1,'thinking','Thinking (seconds)','#818cf8'],[2,'execution','Execution (seconds)','#34d399']]) {
+    const top = index*155+25, base = top+105, max = Math.max(1,...metrics.map(m => Number.isFinite(m[key]) ? m[key] : 0));
+    svg += `<text x="55" y="${top-8}">${label}</text>`;
+    for (let tick=0; tick<=2; tick++) {
+      const y=base-tick*45;
+      svg += `<line x1="55" y1="${y}" x2="${w-15}" y2="${y}" stroke="currentColor" opacity=".15"/><text x="3" y="${y+4}">${(max*tick/2).toFixed(1)}</text>`;
+    }
+    metrics.forEach((m,i) => {
+      const x=55+slot*(i+.5);
+      if (Number.isFinite(m[key])) {
+        const h=m[key]/max*90;
+        svg += `<rect x="${x-15}" y="${base-h}" width="30" height="${h}" fill="${color}" opacity="${m.legacy ? .4 : 1}"><title>Run ${i+1}: ${m[key].toFixed(2)}${m.legacy ? ' (legacy)' : ''}${m.partial ? ' (partial)' : ''}</title></rect>`;
+      }
+      svg += `<text x="${x}" y="${base+17}" text-anchor="middle">${i+1}${m.legacy ? '*' : ''}</text>`;
+    });
+  }
+  const plot=document.createElement('div'); plot.style.overflowX='auto'; plot.innerHTML=svg+'</svg>'; container.appendChild(plot);
+  const list=document.createElement('ol');
+  entries.forEach((run,i) => {
+    const row=document.createElement('li'), m=metrics[i];
+    const val=(v,unit)=>Number.isFinite(v)?v.toFixed(1)+unit:'unavailable';
+    row.textContent = `${run.episode_index == null ? run.episode_id : 'Run #'+run.episode_index} · ${new Date((run.started_at||0)*1000).toLocaleString()} · ${run.result || 'Unknown'} · ${run.prompt || ''} — distance ${val(m.distance,' cm')}, thinking ${val(m.thinking,' s')}, execution ${val(m.execution,' s')}${m.legacy ? ' [legacy step totals]' : m.partial ? ' [partial]' : ''}`;
+    list.appendChild(row);
+  });
+  container.appendChild(list);
+}
+
 function renderRunMetrics(container, metrics, status) {
   if (!container) return;
   if (!metrics) { container.textContent = 'Run totals were not recorded.'; return; }
@@ -58,6 +110,7 @@ function renderStepMetricsChart(container, timings) {
   const $ = id => document.getElementById(id);
   if (!$('pastRunsList')) return;
   let next = 0, loading = false, historyRobot = null, historyGeneration = 0;
+  let comparisonRuns = [];
   const dialog = $('pastRunDialog'), player = $('pastRunVideo');
   const zeroSecondVideo = duration => typeof duration === 'number' && Number.isFinite(duration) && duration >= 0 && duration < 1;
   let selectedRun = null;
@@ -114,7 +167,9 @@ function renderStepMetricsChart(container, timings) {
       if (!response.ok) throw new Error('Past runs are temporarily unavailable. Select Refresh to retry.');
       const data = await response.json();
       if (generation !== historyGeneration) return;
-      if (reset) { stopPreview(); $('pastRunsList').replaceChildren(); }
+      if (reset) { stopPreview(); $('pastRunsList').replaceChildren(); comparisonRuns = []; }
+      comparisonRuns.push(...data.runs);
+      renderRunComparison($('runComparison'), comparisonRuns);
       for (const run of data.runs) {
         const li = document.createElement('li'), button = document.createElement('button');
         button.type = 'button'; button.className = 'pastRunCard';
@@ -214,6 +269,8 @@ function renderStepMetricsChart(container, timings) {
 
     if (dialog.open) dialog.close();
     $('pastRunsList').replaceChildren();
+    comparisonRuns = [];
+    renderRunComparison($('runComparison'), []);
     load(true);
   });
 })();
