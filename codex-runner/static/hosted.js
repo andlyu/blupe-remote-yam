@@ -734,14 +734,25 @@ function renderStepMetricsChart(container, timings) {
     // A run names its own model; with none showing, name the one this runner will use.
     liveModelName = live?.model_name || (live ? 'Astra' : selectedModelName());
     const reasoningButton = document.querySelector('[data-conversation-mode="reasoning"]');
-    if (reasoningButton) reasoningButton.textContent = liveModelName + ' reasoning';
-    if ($('liveConversationPanel').dataset.mode !== 'conversation') $('conversationModeTitle').textContent = liveModelName + ' reasoning';
+    if (reasoningButton) reasoningButton.textContent = liveModelName + ' decision notes';
+    if ($('liveConversationPanel').dataset.mode !== 'conversation') $('conversationModeTitle').textContent = liveModelName + ' decision notes';
+  }
+  function modelRequestProgress(live, modelName, now = Date.now()) {
+    if (!['preparing', 'running'].includes(live?.status)) return '';
+    const events = live.events || [];
+    const last = [...events].reverse().find(event => ['model_request', 'model_response', 'model_error'].includes(event.kind));
+    if (last?.kind !== 'model_request') return '';
+    const elapsed = Number.isFinite(last.timestamp) ? Math.max(0, Math.floor(now / 1000 - last.timestamp)) : null;
+    if (events.some(event => event.kind === 'model_response')) return '';
+    return `${modelName}: waiting for the first decision${elapsed === null ? '' : ` · ${elapsed}s elapsed`}. Task, current robot state, and camera images supplied. This includes model startup and image processing; intermediate reasoning is not available.`;
   }
   function renderAstraStream(live) {
     const events = live?.events || [];
     const latest = [...events].reverse().find(event => astraStreamNote(event));
     const running = ['preparing', 'running'].includes(live?.status);
-    const output = (latest && astraStreamNote(latest)) || (live
+    const progress = modelRequestProgress(live, liveModelName);
+    const note = latest && astraStreamNote(latest);
+    const output = progress ? progress + (note ? '\n\nPrevious decision: ' + note : '') : note || (live
       ? (running ? `Waiting for ${liveModelName}’s first note…` : `No ${liveModelName} note was recorded for this run.`)
       : `${liveModelName}’s next note will appear here.`);
     const body = $('astraStreamOutput');
@@ -921,7 +932,7 @@ function renderStepMetricsChart(container, timings) {
       panel.dataset.mode = mode;
       panel.hidden = mode === 'hide';
       panel.closest('.watchLayout').classList.toggle('conversationClosed', mode === 'hide');
-      $('conversationModeTitle').textContent = mode === 'reasoning' ? liveModelName + ' reasoning' : 'Convo mode';
+      $('conversationModeTitle').textContent = mode === 'reasoning' ? liveModelName + ' decision notes' : 'Convo mode';
       $('sideConversationTitle').textContent = mode === 'reasoning' ? 'Response notes' : 'Conversation with ' + liveModelName;
       document.querySelectorAll('[data-conversation-mode]').forEach(item => {
         item.setAttribute('aria-pressed', String(item === button));

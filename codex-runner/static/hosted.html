@@ -81,13 +81,13 @@
   </div>
   <p class="help" id="videoDelayNotice">Four live views, synchronized. <span id="streamHealth" class="streamHealth" role="status">Checking stream</span> <span id="streamHealthDetail" aria-live="off"></span></p>
   <div class="conversationModes" role="group" aria-label="Conversation display">
-    <button type="button" data-conversation-mode="reasoning" aria-pressed="true" aria-controls="liveConversationPanel">Astra reasoning</button>
+    <button type="button" data-conversation-mode="reasoning" aria-pressed="true" aria-controls="liveConversationPanel">Astra decision notes</button>
     <button type="button" data-conversation-mode="conversation" aria-pressed="false" aria-controls="liveConversationPanel">Convo mode</button>
     <button type="button" data-conversation-mode="hide" aria-pressed="false" aria-controls="liveConversationPanel">Hide</button>
   </div>
   <div class="watchLayout">
   <section id="liveConversationPanel" data-mode="reasoning" class="panel liveConversation" aria-label="Current run conversation">
-    <div class="statusHeader"><h2 id="conversationModeTitle">Astra reasoning</h2></div>
+    <div class="statusHeader"><h2 id="conversationModeTitle">Astra decision notes</h2></div>
     <p id="sideRunner" class="help">Runner: —</p>
     <details class="runPrompt" open><summary>Prompt</summary><p id="sidePrompt">Waiting for someone to run a policy.</p></details>
     <section aria-label="Run totals"><h2>Run totals</h2><p id="runMetricsSummary" class="help">Waiting for a run.</p></section>
@@ -119,7 +119,8 @@
   </section>
   <div class="cameraStatusLine"><p id="station" role="status" aria-live="polite">Checking / unavailable</p><span id="status" hidden class="tag">Connecting</span><p id="publicRunError" class="publicRunError" role="status" aria-live="polite" hidden></p></div>
   <section class="panel astraStream" aria-labelledby="astraStreamTitle">
-    <div class="statusHeader"><h2 id="astraStreamTitle">Stream of consciousness</h2></div>
+    <div class="statusHeader"><h2 id="astraStreamTitle">Live decisions</h2></div>
+    <p class="help">Request progress and brief decision summaries, not private internal reasoning.</p>
     <span id="astraStreamState" hidden>Waiting for a run</span>
     <div role="status" aria-live="polite" aria-atomic="true">
       <p id="astraStreamOutput">Astra’s next note will appear here.</p>
