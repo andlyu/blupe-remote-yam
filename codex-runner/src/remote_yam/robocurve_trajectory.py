@@ -14,8 +14,10 @@ AXES = ('x', 'y', 'z', 'yaw', 'pitch', 'roll', 'gripper')
 NAMES = tuple(f'{arm}_{axis}' for arm in ARMS for axis in AXES)
 LOW = np.tile([.15, -.30, .03, -math.pi, 0, 0, 0], 2)
 HIGH = np.tile([.48, .30, .4, math.pi, 0, 0, 1], 2)
-STEP = .01 * (HIGH - LOW)  # .1 of range/second, sampled at 10 Hz
-STEP[[1, 8]] = .005      # preserve sideways pacing when expanding target bounds
+TRAJECTORY_SPEED = 2.0
+MAX_JOINT_STEP_RAD = .01 * TRAJECTORY_SPEED
+STEP = .01 * TRAJECTORY_SPEED * (HIGH - LOW)  # sampled at 10 Hz
+STEP[[1, 8]] = .005 * TRAJECTORY_SPEED  # sideways bound expansion does not set speed
 STEP[[6, 13]] = .1        # one second full gripper stroke
 BASES = (np.array([0., .35, 0.]), np.array([0., -.35, 0.]))
 
@@ -121,7 +123,7 @@ class RoboCurveTrajectory:
             except IKConvergenceError as exc:
                 raise InvalidMove('Cartesian target is unreachable; request a smaller move', 'unreachable_target') from exc
             previous_command = previous if points else measured_start
-            if np.max(np.abs(solved-previous_command)) > .01 + 1e-12:
+            if np.max(np.abs(solved-previous_command)) > MAX_JOINT_STEP_RAD + 1e-12:
                 if depth >= 10:
                     raise InvalidMove('Cartesian path cannot meet joint pacing; request a smaller move', 'joint_pacing_limit')
                 mid = (a+b)/2
