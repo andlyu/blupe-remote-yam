@@ -132,6 +132,8 @@ class ClaudePolicyTests(unittest.TestCase):
         provider = self.provider()
         self.assertEqual(provider.model, DEFAULT_MODEL)
         _, seen = self.run_once(provider, report())
+        self.assertEqual(seen['command'][seen['command'].index('--effort') + 1], 'low')
+        self.assertEqual(provider.public_config()['reasoning_effort'], 'low')
         self.assertIn(DEFAULT_MODEL, seen['command'])
         self.assertEqual(seen['command'][seen['command'].index('--model') + 1], DEFAULT_MODEL)
 
@@ -187,7 +189,10 @@ class ClaudePolicyTests(unittest.TestCase):
         _, first = self.run_once(provider, report())
         self.assertIn('--session-id', first['command'])
         self.assertNotIn('--resume', first['command'])
+        provider.reasoning_effort = 'high'
         _, second = self.run_once(provider, report(), payload(prior=2))
+        self.assertEqual(second['command'][second['command'].index('--effort') + 1], 'high')
+        self.assertEqual(provider.public_config()['reasoning_effort'], 'high')
         self.assertEqual(second['command'][second['command'].index('--resume') + 1], SESSION)
         # Only the turns Claude has not seen are resent.
         self.assertNotIn('earlier turn 0', second['prompt'])

@@ -693,6 +693,9 @@ class HostedRunner:
             if visitor.launches >= 20:
                 raise RequestError(429, "This browser session reached its 20-run limit. End the session to begin another.")
             name, key, prompt, model = (payload.get(k, "") for k in ("provider", "api_key", "prompt", "model"))
+            effort = payload.get('reasoning_effort', 'low')
+            if name in {'codex', 'claude'} and effort not in ('low', 'medium', 'high'):
+                raise RequestError(400, 'Choose low, medium, or high model effort')
             if not paid and key == "" and isinstance(name, str):
                 key = visitor.saved_keys.get(name, "")
             share_conversation = payload.get("share_conversation", True)
@@ -835,6 +838,8 @@ class HostedRunner:
                 provider = (OpenAIAdapter(key, model or "gpt-6-astra", **kwargs) if name == "openai"
                             else AstraAdapter(key, model or "astra-default", self.astra_endpoint, **kwargs))
                 provider._urlopen = request.build_opener(NoRedirect).open
+            if name in {'codex', 'claude'}:
+                provider.reasoning_effort = effort
             visitor.last_launch = time.monotonic()
             visitor.launches += 1
             try:

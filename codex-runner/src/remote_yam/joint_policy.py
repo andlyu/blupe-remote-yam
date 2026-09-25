@@ -52,6 +52,7 @@ class JointPolicy(OpenAIAdapter):
 
 class CodexJointPolicy(JointPolicy):
     provider_name = 'codex'
+    reasoning_effort = 'low'
 
     def __init__(self, model='gpt-6-astra', *, joint_counts, camera_source):
         from .codex_policy import codex_status, codex_binary
@@ -86,7 +87,7 @@ class CodexJointPolicy(JointPolicy):
 
     def public_config(self):
         return {'provider':'codex','model':self.model,'api_key_configured':False,
-                'authentication':'chatgpt','transport':'codex_exec','codex_connected':True}
+                'authentication':'chatgpt','transport':'codex_exec','codex_connected':True,'reasoning_effort':self.reasoning_effort}
 
     from .codex_policy import CodexAdapter
     _post_json=CodexAdapter._post_json

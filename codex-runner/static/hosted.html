@@ -30,6 +30,11 @@
         <details id="runSettings"><summary>Settings</summary>
         <label for="provider">Model</label>
         <select id="provider"><option value="openai" selected>ChatGPT</option><option value="anthropic">Claude</option><option value="local_raise_lower">No AI — just wiggle arms</option><option value="astra" hidden disabled>Astra · bring your key</option></select>
+        <div id="effortField" hidden>
+          <label for="reasoningEffort">Thinking effort</label>
+          <select id="reasoningEffort" aria-describedby="effortHelp"><option value="low">Low — fastest</option><option value="medium">Medium — balanced</option><option value="high">High — more reasoning</option></select>
+          <p id="effortHelp" class="help">Applies to your next run. Higher effort may improve decisions but takes longer.</p>
+        </div>
         <!-- application-payment-options -->
         <div id="providerFields">
           <label for="model" hidden>Model</label><input id="model" hidden value="gpt-6-astra" maxlength="128" spellcheck="false">

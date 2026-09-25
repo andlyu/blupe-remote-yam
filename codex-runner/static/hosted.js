@@ -527,6 +527,7 @@ function renderStepMetricsChart(container, timings) {
     updateRunLabel();
   }
   function providerChanged() {
+    $('effortField').hidden = !['codex', 'claude'].includes($('provider').value);
     $('subscriptionHelp').close();
     setupProvider = null;
     if ($('provider').value === 'groot') {
@@ -596,6 +597,7 @@ function renderStepMetricsChart(container, timings) {
     const payload = {runner_name: $('runnerName').value.trim(), provider: $('provider').value, model: $('model').value.trim(),
       email: $('email').value.trim(), share_conversation: $('shareConversation').checked,
       prompt: $('prompt').value, run_duration_s:Number($('runDuration').value)*60, api_key: $('apiKey').value.trim()};
+    if (['codex', 'claude'].includes(payload.provider)) payload.reasoning_effort = $('reasoningEffort').value;
     $('subscriptionHelp').close();
     submitting = true; buttons(); message(['codex', 'claude'].includes(payload.provider) ? 'Checking your subscription connection…' : 'Joining the robot queue…');
     try { const state = await api('/api/run', payload); updateSavedKey(state.saved_key_providers); window.yamAnalytics?.observe(state); $('apiKey').value = ''; $('runSettings').open = true; $('localRunDialog').close(); active = true; guideRunAttention({status:'queued'}); message(payload.provider === 'groot' ? 'You’re in the queue. GR00T GPU warmup has started.' : 'You’re in the queue. Your position is highlighted above.'); }

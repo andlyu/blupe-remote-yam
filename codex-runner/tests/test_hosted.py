@@ -62,6 +62,24 @@ class HostedTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(prepared[0][1]())
 
 
+    async def test_subscription_effort_reaches_provider_and_invalid_values_are_rejected(self):
+        self.app.local_codex = self.app.local_claude = True
+        for name in ('codex', 'claude'):
+            for effort in ('low', 'medium', 'high'):
+                _, visitor = self.app.new_visitor()
+                with patch('remote_yam.subscription_setup.verify_subscription',
+                           return_value={'ready': True, 'setup_prompt': ''}):
+                    self.app.launch(visitor, {'provider': name, 'prompt': 'Move block',
+                                             'reasoning_effort': effort})
+                self.assertEqual(self.providers[-1].reasoning_effort, effort)
+                visitor.controller.stop()
+            for invalid in ('none', 'minimal', '', None, []):
+                _, visitor = self.app.new_visitor()
+                with self.assertRaises(hosted.RequestError) as caught:
+                    self.app.launch(visitor, {'provider': name, 'prompt': 'Move block',
+                                             'reasoning_effort': invalid})
+                self.assertEqual(caught.exception.status, 400)
+
     async def test_public_robot_selector_catalog(self):
         self.app.robots = [
             {"id": "yam-1", "name": "YAM", "url": "https://robot.example/", "private": "excluded"},

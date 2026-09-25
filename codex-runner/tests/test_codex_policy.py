@@ -71,6 +71,7 @@ class CodexPolicyTests(unittest.TestCase):
 
     def test_resume_uses_exact_thread_fresh_images_and_completed_feedback(self):
         provider = self.provider()
+        provider.reasoning_effort = 'medium'
         move = decision('move_to', note='Close the left gripper slightly.')
         move['targets']['left_gripper'] = .8
         captured = []
@@ -99,8 +100,8 @@ class CodexPolicyTests(unittest.TestCase):
         self.assertIn('forced_login_method="chatgpt"', captured[0][0])
         self.assertIn('features.shell_tool=false', captured[0][0])
         for command, _, _ in captured:
-            self.assertIn('model_reasoning_effort="low"', command)
-        self.assertEqual(provider.public_config()['reasoning_effort'], 'low')
+            self.assertIn('model_reasoning_effort="medium"', command)
+        self.assertEqual(provider.public_config()['reasoning_effort'], 'medium')
         self.assertFalse(provider.public_config()['api_key_configured'])
 
     def test_invalid_decisions_never_reach_motion(self):

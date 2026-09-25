@@ -140,6 +140,7 @@ def claude_failure(raw):
 
 class ClaudeAdapter(RoboCurveResponsesAdapter):
     provider_name = 'claude'
+    reasoning_effort = 'low'
 
     def __init__(self, model=DEFAULT_MODEL, *, camera_source=None, recording_root=None,
                  timeout_s=180):
@@ -161,7 +162,8 @@ class ClaudeAdapter(RoboCurveResponsesAdapter):
     def public_config(self):
         return {**super().public_config(), 'api_key_configured': False,
                 'authentication': 'claude_subscription', 'transport': 'claude_print',
-                'claude_connected': True, 'usage': self._usage}
+                'claude_connected': True, 'usage': self._usage,
+                'reasoning_effort': self.reasoning_effort}
 
     def _post_json(self, payload):
         root = Path(self._workspace.name)
@@ -215,6 +217,7 @@ class ClaudeAdapter(RoboCurveResponsesAdapter):
                    '--output-format', 'json',
                    '--json-schema', json.dumps(getattr(self, '_decision_schema', DECISION_SCHEMA)),
                    '--model', self.model,
+                   '--effort', self.reasoning_effort,
                    '--system-prompt', system,
                    '--tools', 'Read',
                    '--restricted',
