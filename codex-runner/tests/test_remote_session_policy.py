@@ -35,3 +35,24 @@ class PolicyTests(unittest.TestCase):
         p._request=lambda path, body=None:calls.append(path)
         p.run_session('task',{},None,{},lambda:True)
         self.assertNotIn('/runs',calls)
+
+
+    def test_failure_forwards_only_allowlisted_diagnostic_and_still_stops(self):
+        from types import SimpleNamespace
+        from remote_yam.run_errors import public_run_error
+        message = 'Planned path error: 0.168 m > 0.150 m maximum (carry).'
+        for error, expected in ((message,message), (message+' private-key','Hosted policy stopped: execution_failed'),
+                                ({'token':'private-key'},'Hosted policy stopped: execution_failed')):
+            p=self.provider(); calls=[]
+            def request(path, payload=None):
+                calls.append(path)
+                return dict(status='failed', stage='error', error=error, error_code='private-key')
+            p._request=request
+            with self.assertRaises(RuntimeError) as raised:
+                p.run_session('task',{},SimpleNamespace(_capability=lambda sid:'lease-secret'),
+                    dict(session_id='s'),lambda:False)
+            self.assertEqual(str(raised.exception), expected)
+            self.assertTrue(calls[-1].endswith('/stop'))
+            self.assertNotIn('private-key', str(raised.exception))
+            if error == message:
+                self.assertEqual(public_run_error({'error':'RuntimeError: '+str(raised.exception)}), message)
