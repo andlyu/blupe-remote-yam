@@ -59,8 +59,18 @@ def run_result(meta):
 
 
 def public_runner_diagnostic(state):
-    """Preserve exact feedback-guard errors; never include arbitrary provider text."""
+    """Preserve allowlisted diagnostics; never include arbitrary provider text."""
     error = state.get('error')
+    if not isinstance(error, str):
+        return None
+    # Providers may report a planning residual without exposing their internals.
+    number = r'[0-9]{1,4}\.[0-9]{3,6}'
+    phase = r'approach|descend|close|lift|carry|lower|open|retreat|return_to_start'
+    planned = re.fullmatch(
+        rf'(?:RuntimeError: )?(Planned path error: {number} m > {number} m maximum '
+        rf'\((?:{phase})\)\.)', error)
+    if planned:
+        return planned.group(1)
     reasons = {
         'station_safety_status_missing': 'Robot safety status was missing',
         'station_emergency_stop_engaged': 'Robot emergency stop was engaged',
@@ -76,8 +86,6 @@ def public_runner_diagnostic(state):
     for code, message in reasons.items():
         if error in {f'Hardware feedback blocked: {code}', f'RuntimeError: Hardware feedback blocked: {code}'}:
             return message
-    if not isinstance(error, str):
-        return None
     reasons = (
         'station_unsafe', 'completion_timestamp_invalid_or_stale',
         'completion_not_explicitly_settled', 'completion_not_explicitly_homed',

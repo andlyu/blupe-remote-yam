@@ -85,3 +85,25 @@ def test_existing_replay_generic_label_uses_saved_exact_error():
 def test_feedback_error_text_is_preserved_without_rewording():
     error = 'RuntimeError: Hardware feedback blocked: station_not_explicitly_settled'
     assert public_run_error({'error':error}) == error
+
+
+def test_planned_path_error_is_visible_in_live_and_saved_results(tmp_path):
+    from remote_yam.past_runs import RunNames, merge_run_result
+    message = 'Planned path error: 0.168 m > 0.150 m maximum (carry).'
+    state = dict(status='stopped', error='RuntimeError: ' + message)
+    assert public_run_error(state) == message
+    names = RunNames(tmp_path/'names.sqlite3')
+    names.remember_result('ep_path', state)
+    saved = names.results()['ep_path']
+    assert saved['result'] == 'Failure'
+    assert saved['errors'] == saved['result_reason'] == message
+    assert merge_run_result({}, dict(saved, result_reason='Runner or model error'))['result_reason'] == message
+
+
+def test_planned_path_diagnostic_does_not_expose_arbitrary_exception_text():
+    from remote_yam.past_runs import public_runner_diagnostic
+    message = 'Planned path error: 0.168 m > 0.150 m maximum (carry).'
+    for error in (message+' private-key', message.replace('carry', 'private-key'),
+                  message.replace('0.168', 'nan'), message.replace('0.150', 'inf'),
+                  {'token': 'private-key'}, None):
+        assert public_runner_diagnostic({'error': error}) is None

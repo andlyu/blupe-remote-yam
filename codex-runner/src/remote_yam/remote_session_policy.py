@@ -5,6 +5,8 @@ import uuid
 from urllib import request
 from urllib.parse import urlsplit
 
+from remote_yam.past_runs import public_runner_diagnostic
+
 
 class NoRedirect(request.HTTPRedirectHandler):
     def redirect_request(self, *args, **kwargs):
@@ -65,7 +67,8 @@ class RemoteSessionPolicy:
                 if state.get('status') == 'completed':
                     return
                 if state.get('status') in ('failed', 'stopped'):
-                    raise RuntimeError('Hosted policy stopped: ' + str(state.get('error_code') or 'execution_failed'))
+                    diagnostic = public_runner_diagnostic({'error': state.get('error')})
+                    raise RuntimeError(diagnostic or 'Hosted policy stopped: execution_failed')
                 time.sleep(.2)
             if not cancelled():
                 raise RuntimeError('Hosted policy runtime exceeded')
