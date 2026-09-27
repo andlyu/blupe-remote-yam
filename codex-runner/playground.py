@@ -40,6 +40,8 @@ def model_display_name(provider):
     """Name the public conversation panel shows for the model driving the run."""
     provider = provider if isinstance(provider, dict) else {}
     name, model = provider.get("provider"), str(provider.get("model") or "")
+    if provider.get("display_name"):
+        return str(provider["display_name"])[:100]
     if name in {"claude", "anthropic"}:
         family, major, minor = (model.split("-") + ["", "", "", ""])[1:4]
         if family in {"opus", "sonnet", "haiku", "fable"} and major.isdigit():
@@ -126,7 +128,7 @@ class HostedRunner:
                  hardware_control: bool = False, development: bool = False,
                  max_sessions: int = 32, idle_seconds: float = 1800,
                  lifetime_seconds: float = 7200, api_factory=None,
-                 provider_factory=None, chat_database=None, share_conversation=True,
+                 provider_factory=None, extra_providers=None, chat_database=None, share_conversation=True,
                  groot_key_file="", local_codex=False, local_claude=False, default_provider="openai", robots=None, robot_id="yam-1", camera_names=CAMERA_NAMES, joint_counts=(6,6), hardware=None, policy_camera_names=None):
         parsed = urlsplit(public_origin)
         if (not parsed.hostname or parsed.path not in {"", "/"} or parsed.query
@@ -188,6 +190,7 @@ class HostedRunner:
         self.api_factory = api_factory or (lambda: HostedSessionAPI(session_api, supports_trajectories=True, robot_id=robot_id, joint_counts=self.joint_counts) if session_api else MockSessionAPI())
         self.share_conversation = share_conversation
         self.provider_factory = provider_factory
+        self.extra_providers = dict(extra_providers or {})
         self.camera_source = CameraFrameSource(camera_origin, camera_names=self.camera_names)
         self.visitors: dict[str, Visitor] = {}
         self.monitor_api = self.api_factory()
@@ -712,13 +715,13 @@ class HostedRunner:
             if not isinstance(runner_name, str) or not 1 <= len(runner_name.strip()) <= 32 or any(ord(c) < 32 for c in runner_name):
                 raise RequestError(400, 'Enter a name of 1–32 characters')
             if name not in ({"local_raise_lower", "openai", "astra", "anthropic"} | ({"codex"} if self.local_codex else set())
-                            | ({"claude"} if self.local_claude else set())) | ({"groot"} if self.groot_key_file else set()):
+                            | ({"claude"} if self.local_claude else set())) | ({"groot"} if self.groot_key_file else set()) | set(self.extra_providers):
                 raise RequestError(400, "Choose a supported provider")
             if not isinstance(prompt, str) or not 1 <= len(prompt.strip()) <= 4000:
                 raise RequestError(400, "Enter a task of up to 4,000 characters")
             if not isinstance(model, str) or len(model) > 128 or any(ord(c) < 32 for c in model):
                 raise RequestError(400, "Invalid model name")
-            if name not in {"local_raise_lower", "codex", "claude", "groot"} and (not isinstance(key, str) or not 8 <= len(key) <= 4096 or any(ord(c) < 33 or ord(c) > 126 for c in key)):
+            if name not in ({"local_raise_lower", "codex", "claude", "groot"} | set(self.extra_providers)) and (not isinstance(key, str) or not 8 <= len(key) <= 4096 or any(ord(c) < 33 or ord(c) > 126 for c in key)):
                 raise RequestError(400, "Enter your provider API key")
             if payload.get("endpoint"):
                 raise RequestError(400, "Provider endpoints are configured by the service")
@@ -736,7 +739,9 @@ class HostedRunner:
                 visitor.subscription_prompts[name] = setup['setup_prompt']
                 if not setup['ready']:
                     raise RequestError(409, f"{setup['label']} needs setup on this computer. " + setup['message'], setup=setup)
-            if name == 'groot':
+            if name in self.extra_providers:
+                provider = self.extra_providers[name](model, visitor.directory)
+            elif name == 'groot':
                 from remote_yam.groot_policy import GrootAdapter
                 if model not in ('', 'groot-reviewed-step10000'):
                     raise RequestError(400, 'Unknown GR00T checkpoint')
@@ -843,7 +848,8 @@ class HostedRunner:
             visitor.last_launch = time.monotonic()
             visitor.launches += 1
             try:
-                visitor.controller._share_conversation = self.share_conversation and share_conversation
+                visitor.controller._share_conversation = (self.share_conversation and share_conversation
+                    and getattr(provider, "share_conversation", True))
                 visitor.controller._session_api.setup(payload, paid=paid)
                 visitor.controller.join_and_run(provider, prompt.strip(), run_duration_s=duration)
                 with visitor.controller._lock:
@@ -866,7 +872,7 @@ class HostedRunner:
                 print('[contacts] save_failed error_type=' + type(exc).__name__, flush=True)
                 visitor.controller._session_api.note(
                     'contact_save_failed', {'error_type': type(exc).__name__}, visitor.runner_session_id)
-            if not paid and name not in {"local_raise_lower", "codex", "claude", "groot"}:
+            if not paid and name not in ({"local_raise_lower", "codex", "claude", "groot"} | set(self.extra_providers)):
                 visitor.saved_keys[name] = key
             return {"ok": True, "saved_key_providers": sorted(visitor.saved_keys)}
 

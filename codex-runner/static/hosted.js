@@ -722,6 +722,8 @@ function renderStepMetricsChart(container, timings) {
   }
   let liveModelName = 'Astra', lastLive = null;
   function selectedModelName() {
+    const applicationName = window.yamApplication?.modelDisplayName?.();
+    if (applicationName) return applicationName;
     const provider = $('provider').value;
     if (provider === 'claude' || provider === 'anthropic') {
       const m = /^claude-(opus|sonnet|haiku|fable)-(\d+)(?:-(\d+))?$/.exec(claudeModel);

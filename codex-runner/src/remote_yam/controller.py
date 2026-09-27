@@ -752,6 +752,17 @@ class RunnerController:
                                right_joints_deg=provider_observation['right_joints_deg'],
                                left_gripper=provider_observation.get('left_gripper'),
                                right_gripper=provider_observation.get('right_gripper'))
+        session_policy = getattr(provider, 'run_session', None)
+        if callable(session_policy):
+            # Trusted server-configured adapter; it receives only this session's
+            # capability and never bypasses the Session API or robot executor.
+            context = dict(session_id=session_id, episode_id=episode_id, lease_id=lease_id,
+                           robot_id=self._robot_id)
+            cancelled = lambda: (self._stop_event.is_set() or self._provider is not provider)
+            session_policy(prompt, provider_observation, self._session_api, context, cancelled)
+            if not cancelled():
+                self.stop('policy_complete')
+            return
         trajectory_builder = getattr(provider, "build_trajectory", None)
         if getattr(self._session_api, "supports_trajectories", False) is True:
             if not callable(trajectory_builder):
