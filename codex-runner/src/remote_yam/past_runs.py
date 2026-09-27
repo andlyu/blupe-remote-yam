@@ -63,6 +63,9 @@ def public_runner_diagnostic(state):
     error = state.get('error')
     if not isinstance(error, str):
         return None
+    camera_error = 'No fresh RGB-D capture available'
+    if error in {camera_error, 'RuntimeError: ' + camera_error}:
+        return camera_error
     # Providers may report a planning residual without exposing their internals.
     number = r'[0-9]{1,4}\.[0-9]{3,6}'
     phase = r'approach|descend|close|lift|carry|lower|open|retreat|return_to_start'

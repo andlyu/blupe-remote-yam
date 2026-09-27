@@ -107,3 +107,14 @@ def test_planned_path_diagnostic_does_not_expose_arbitrary_exception_text():
                   message.replace('0.168', 'nan'), message.replace('0.150', 'inf'),
                   {'token': 'private-key'}, None):
         assert public_runner_diagnostic({'error': error}) is None
+
+
+def test_fresh_depth_failure_is_visible_and_does_not_echo_provider_details(tmp_path):
+    from remote_yam.past_runs import RunNames, public_runner_diagnostic
+    expected = 'No fresh RGB-D capture available'
+    for error in (expected, 'RuntimeError: '+expected):
+        assert public_run_error({'error': error}) == expected
+    assert public_runner_diagnostic({'error': 'No fresh RGB-D capture available secret'}) is None
+    names=RunNames(tmp_path/'names.sqlite3')
+    names.remember_result('ep_depth', dict(status='stopped', error='RuntimeError: '+expected))
+    assert names.results()['ep_depth']['result_reason']==expected
