@@ -41,6 +41,17 @@ class HostedTests(unittest.IsolatedAsyncioTestCase):
         from remote_yam.past_runs import RunNames
         self.app.run_names = RunNames(self.app.root/'names.sqlite3')
 
+    async def test_configured_policy_joins_queue_without_browser_key_and_disables_internal_sharing(self):
+        _, visitor = self.app.new_visitor()
+        provider = HeldProvider('server-secret')
+        provider.share_conversation = False
+        self.app.extra_providers['private_test'] = lambda model, directory: provider
+        self.app.launch(visitor, dict(provider='private_test', model='right', prompt='Move the duck'))
+        self.assertEqual(visitor.controller.status()['status'], 'queued')
+        self.assertFalse(visitor.controller._share_conversation)
+        self.assertNotIn('private_test', visitor.saved_keys)
+        visitor.controller.stop()
+
     async def test_groot_joins_same_queue_without_visitor_key_and_starts_preparation(self):
         keyfile = self.app.root/'groot-test-key'
         keyfile.write_text('service-secret')
