@@ -914,6 +914,7 @@
   });
   $('video').addEventListener('error', () => { $('replayHelp').textContent = 'Video is not available yet. Try again after the robot finishes uploading.'; });
   $('video').addEventListener('loadeddata', () => { $('replayHelp').textContent = 'Published robot recording'; });
+  let videoStream = null;
   function synchronizedPanels(video, sourceLabel) {
     const tiles = [...document.querySelectorAll('canvas[data-sync-tile]')];
     if (!tiles.length) return;
@@ -959,9 +960,11 @@
   function camera(image) {
     const label = image.parentElement.querySelector('figcaption span');
     const cameraName = image.dataset.camera, video = document.createElement('video');
+    const streamPath = image.dataset.streamPath || cameraName;
     video.muted = true; video.autoplay = true; video.playsInline = true; video.controls = true;
     video.setAttribute('aria-label', image.alt); image.replaceWith(video);
     video.dataset.camera = cameraName;
+    video.dataset.streamPath = streamPath;
     if (cameraName === 'synchronized') { video.controls = false; synchronizedPanels(video, label); }
     let hls = null, reader = null, retry, rtcTimeout, generation = 0, lastTime = -1, lastAdvance = 0;
     let disposed = false;
@@ -1000,7 +1003,7 @@
         rtcTimeout = setTimeout(useFallback, 8000);
         try {
           // Pinned MediaMTX v1.21.0 reader; same-origin WHEP proxy exposes read only.
-          reader = new MediaMTXWebRTCReader({url: new URL(`/${cameraName}/whep`, location.href).href,
+          reader = new MediaMTXWebRTCReader({url: new URL(`/${streamPath}/whep`, location.href).href,
             onError: useFallback,
             onTrack: event => {
               if (attempt !== generation) return;
@@ -1012,7 +1015,7 @@
         return;
       }
       transport = video.dataset.transport = 'hls';
-      const url = cameraName === 'synchronized' ? '/synchronized/index.m3u8' : `/live-video/hls/${cameraName}/index.m3u8`;
+      const url = cameraName === 'synchronized' ? `/${streamPath}/index.m3u8` : `/live-video/hls/${cameraName}/index.m3u8`;
       if (window.Hls?.isSupported()) {
         hls = new Hls({enableWorker:false, lowLatencyMode:false, maxBufferLength:30,
           backBufferLength:10, liveSyncDurationCount:4, liveMaxLatencyDurationCount:6,
@@ -1109,7 +1112,7 @@
     $('liveViewer').innerHTML = originalCameraMarkup;
     // Preserve the stop listener when robot selection rebuilds the camera tiles.
     $('liveRunControls').replaceWith(runControls);
-    $('videoDelayNotice').hidden = selectedRobot !== 'yam-1';
+    $('videoDelayNotice').hidden = !videoStream;
     $('liveViewer').dataset.layout = names.length === 1 ? 'single' : 'multi';
     if (camerasDisconnected) {
       $('liveViewer').querySelectorAll('figure, video, canvas').forEach(node => node.remove());
@@ -1121,10 +1124,20 @@
       $('liveViewer').prepend(notice);
       return;
     }
-    if (selectedRobot === 'yam-1') {
-      const roles = ['top', 'observer', 'left', 'right'];
-      $('liveViewer').querySelectorAll('[data-sync-tile]').forEach(tile => addModelBadge(tile.parentElement, roles[Number(tile.dataset.syncTile)]));
-      document.querySelectorAll('[data-camera]').forEach(camera);
+    if (videoStream) {
+      const roles = videoStream.cameras;
+      $('liveViewer').querySelectorAll('[data-sync-tile]').forEach(tile => {
+        const role = roles[Number(tile.dataset.syncTile)], figure = tile.closest('figure');
+        if (!role) { figure.remove(); return; }
+        tile.setAttribute('aria-label', role + ' robot camera');
+        figure.querySelector('figcaption').firstChild.textContent = role[0].toUpperCase() + role.slice(1) + ' ';
+        figure.querySelector('[data-expand-camera]').setAttribute('aria-label', 'Expand ' + role + ' camera');
+        addModelBadge(tile.parentElement, role);
+      });
+      document.querySelectorAll('[data-camera]').forEach(image => {
+        image.dataset.streamPath = videoStream.path;
+        camera(image);
+      });
       return;
     }
     $('liveViewer').querySelectorAll('figure').forEach(node => node.remove());
@@ -1273,6 +1286,9 @@
       buttons(); if (!new URLSearchParams(location.search).has('purchase') && !$('message').textContent.startsWith('Payment')) message('');
       camerasDisconnected = robotCatalog?.robots.find(robot => robot.id === selectedRobot)?.connected === false;
       modelCameraNames = new Set(session.model_cameras || []);
+      videoStream = session.video_stream === undefined
+        ? (selectedRobot === 'yam-1' ? {path:'synchronized', cameras:['top','observer','left','right']} : null)
+        : session.video_stream;
       selectedCameras(session.cameras || ['left','top','right']);
       render(await api('/api/status'));
       try { await refreshChat(); } catch (error) { $('chatStatus').textContent = 'Chat unavailable'; }

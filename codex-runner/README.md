@@ -348,3 +348,20 @@ returns stop the run; requests are never automatically retried. Stop and lease
 loss retain their existing behavior. Other robots and hosted worker adapters do
 not animate. The live-view waiting message hides after the first policy packet.
 Unset the variable to disable the feature without changing the robot controller.
+
+
+### Per-robot continuous video
+
+`YAM_VIDEO_STREAMS` maps robot IDs to a public, same-origin stream path and the
+camera roles in its composite tile order. For example:
+
+```json
+{"robot-ba8413962083809c":{"path":"robo-house","cameras":["top","left","right"]}}
+```
+
+Paths must be one safe segment and each composite has one to four unique roles.
+YAM1 defaults to synchronized with top/observer/left/right. Unconfigured robots
+keep JPEG previews. Configure matching read-only WHEP and HLS routes on the host;
+localhost proxies those configured paths without forwarding browser credentials.
+The viewer reconnects and falls back to HLS from the same composite. Model image
+capture remains separate. Publishing credentials never enter this configuration.

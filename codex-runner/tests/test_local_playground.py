@@ -114,6 +114,21 @@ class LocalPlaygroundTests(unittest.IsolatedAsyncioTestCase):
         code,_=await self.call('/api/stop',{})
         self.assertEqual(code,200)
 
+    async def test_other_robot_stream_is_proxied_without_browser_credentials(self):
+        from unittest.mock import MagicMock
+        self.app._fleet_apps = {'yam-1': self.app, 'robo': SimpleNamespace(video_stream={'path':'robo-house','cameras':['top','left','right']})}
+        response = MagicMock(status=200, headers={'Content-Type':'application/vnd.apple.mpegurl'})
+        response.__enter__.return_value = response
+        response.read.return_value = b'#EXTM3U\n'
+        with patch('local_playground.request.urlopen', return_value=response) as upstream:
+            code, body = await self.call('/robo-house/index.m3u8')
+        self.assertEqual((code, body), (200, b'#EXTM3U\n'))
+        request = upstream.call_args.args[0]
+        self.assertEqual(request.full_url, 'https://playground.blupe.io/robo-house/index.m3u8')
+        self.assertEqual(request.get_header('Origin'), 'https://playground.blupe.io')
+        self.assertIsNone(request.get_header('Cookie'))
+        self.assertIsNone(request.get_header('X-yam-runner-token'))
+
     async def test_shared_page_and_video_library_are_served(self):
         code,body=await self.call('/')
         self.assertEqual(code,200)

@@ -13,7 +13,9 @@ class LocalPlayground(HostedRunner):
 
     async def http(self, scope, receive, send):
         path, method = scope['path'], scope['method']
-        media = path.startswith(('/synchronized/', '/live-video/'))
+        streams = [getattr(app, 'video_stream', None) for app in getattr(self, '_fleet_apps', {'self': self}).values()]
+        prefixes = tuple('/' + stream['path'] + '/' for stream in streams if stream)
+        media = path.startswith(('/synchronized/', '/live-video/')) or bool(prefixes and path.startswith(prefixes))
         public_history = path == '/api/past-runs'
         if not media and not public_history:
             return await super().http(scope, receive, send)
