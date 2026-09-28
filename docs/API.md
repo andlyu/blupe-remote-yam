@@ -25,6 +25,142 @@ return an error rather than an old frame.
 describe the exact payloads. This is a JSON-schema contract endpoint, not an
 OpenAPI/Swagger page.
 
+## Camera intrinsics and extrinsics
+
+Camera calibration is available through public, read-only requests. No API key,
+queue entry, or active session is required. Start with `GET /v1/robots`: robots
+with calibration advertise `calibration_url` and `camera_poses_url`, relative to
+the Session API origin. A robot without configured calibration returns `404`.
+
+```bash
+export BLUPE_API="https://yam-session-api.n5hthc3gj4cqy.us-east-1.cs.amazonlightsail.com"
+curl --fail-with-body "$BLUPE_API/v1/robots/yam-1/calibration"
+curl --fail-with-body "$BLUPE_API/v1/robots/yam-1/camera-poses"
+```
+
+### Which parameters to use
+
+The `/calibration` response has a `calibration_id` and a `cameras` object:
+
+| Field | Meaning |
+| --- | --- |
+| `cameras.{top,left,right}.K` | 3×3 intrinsic matrix in pixels: `[[fx,0,cx],[0,fy,cy],[0,0,1]]` |
+| `cameras.{top,left,right}.distortion` | Lens coefficients; read `distortion_model` and the response's `distortion_order` |
+| `cameras.{top,left,right}.image_size` | `[width, height]` for these intrinsics; use the matching image resolution |
+| `cameras.top.T_base_camera.left` | Fixed top-camera pose relative to the **left arm base** |
+| `cameras.top.T_base_camera.right` | Fixed top-camera pose relative to the **right arm base** |
+| `cameras.left.T_grasp_camera` | Fixed left-camera mount relative to the left gripper's grasp frame |
+| `cameras.right.T_grasp_camera` | Fixed right-camera mount relative to the right gripper's grasp frame |
+| `cameras.{top,left,right}.image_url` | Relative URL for the corresponding RGB JPEG |
+| `quality` | Fit status, validation residuals, failures, and operator selection |
+
+The left and right bases are different coordinate frames. Use `.left` when
+planning for the left arm and `.right` for the right arm; do not average matrices
+expressed in different bases. Each `T_base_camera` is a 4×4 matrix mapping a
+camera-coordinate point to the named arm's base:
+
+```text
+[x_base, y_base, z_base, 1] = T_base_camera @ [x_camera, y_camera, z_camera, 1]
+```
+
+Matrices are nested row-major arrays and act on column vectors. Translations
+are in **meters**. Camera optical axes are **x right, y down, z forward**;
+arm-base axes are **x forward, y left, z up**. Read the returned
+`transform_convention`, `camera_axes`, and `base_axes` with each calibration.
+
+The current YAM RGB calibration uses `opencv_brown_conrady`, with coefficients
+`[k1, k2, p1, p2, k3]`, and reports `rectified: false`. Account for distortion
+when projecting or unprojecting pixels. Cropping or resizing an image requires
+adjusting its intrinsics. Calibration maps a pixel to a ray; determining a 3D
+point also requires depth, triangulation, or a known surface.
+
+### Moving wrist cameras
+
+`GET /v1/robots/yam-1/camera-poses` returns the current wrist extrinsics:
+
+- `cameras.left.T_base_camera.left`: left wrist camera → left arm base.
+- `cameras.right.T_base_camera.right`: right wrist camera → right arm base.
+
+The API computes these from measured joints and the fixed mount:
+`T_base_camera = T_base_grasp(measured_joints) @ T_grasp_camera`.
+Refresh them after the arm moves. The response includes `joints_deg`,
+`observed_at`, `age_s`, and the matching `calibration_id`; refetch calibration
+if its ID changes. The static report also includes `kinematics` for clients
+that need to reconstruct poses from recorded joint observations.
+
+Pose requests require settled hardware feedback no more than two seconds old.
+If feedback is absent, moving, stale, or simulated, the endpoint returns
+`503` with error code `camera_pose_unavailable`. The static `/calibration`
+endpoint still works when the arms are off. A failed pose request is not a
+reason to reuse an earlier wrist pose as current.
+
+Image capture and joint feedback are **not hardware synchronized**:
+`camera-poses.synchronized_with_images` is `false`. Its `observed_at` is the
+joint-feedback timestamp, while camera responses provide `X-Captured-At`.
+Check both timestamps and use settled captures for geometric measurements.
+
+### Python: retrieve calibration without moving the robot
+
+This example uses only Python's standard library:
+
+```python
+import json
+from urllib.error import HTTPError
+from urllib.request import urlopen
+
+API = "https://yam-session-api.n5hthc3gj4cqy.us-east-1.cs.amazonlightsail.com"
+ROBOT = "yam-1"
+
+
+def get_json(path):
+    with urlopen(API + path, timeout=10) as response:
+        return json.load(response)
+
+
+calibration = get_json(f"/v1/robots/{ROBOT}/calibration")
+top = calibration["cameras"]["top"]
+K = top["K"]
+distortion = top["distortion"]
+T_left_base_top = top["T_base_camera"]["left"]
+T_right_base_top = top["T_base_camera"]["right"]
+print("Calibration:", calibration["calibration_id"])
+print("Top image size:", top["image_size"], "K:", K)
+print("Fit quality:", calibration["quality"])
+
+try:
+    poses = get_json(f"/v1/robots/{ROBOT}/camera-poses")
+except HTTPError as error:
+    if error.code != 503:
+        raise
+    print("Current wrist poses unavailable:", error.read().decode())
+else:
+    if poses["calibration_id"] != calibration["calibration_id"]:
+        raise RuntimeError("Calibration changed; fetch calibration and poses again")
+    T_left_base_wrist = poses["cameras"]["left"]["T_base_camera"]["left"]
+    T_right_base_wrist = poses["cameras"]["right"]["T_base_camera"]["right"]
+    print("Joint feedback timestamp:", poses["observed_at"])
+    print("Left wrist to left base:", T_left_base_wrist)
+    print("Right wrist to right base:", T_right_base_wrist)
+```
+
+### Optional depth and calibration quality
+
+Depth availability is **per camera**: check `cameras.{role}.depth.available`
+on each calibration response. When true, `depth.bundle_url` provides paired
+RGB and depth as `rgbd-npz-v1`: an NPZ with `rgb` (uint8 H×W×3), `depth_m`
+(float32 H×W), and `metadata` (a scalar JSON string). Load it with
+`numpy.load(..., allow_pickle=False)` and check its `calibration_id` and
+`captured_at`. Depth is aligned to color and measures optical Z in meters;
+zero means missing. `depth.image_url` provides a 16-bit PNG in millimeters.
+Requests return `503` when no fresh depth frame is available. Use the bundle
+when RGB/depth pairing matters; separate image requests may return different
+captures. An RGB-only camera can still provide intrinsics and extrinsics.
+
+Inspect `quality.status`, `quality.failures`, and the validation residuals
+before relying on a calibration. `operator_selected: true` records an explicit
+selection for experiments; it does not mean a rejected fit passed validation.
+Calibration and pose responses use `Cache-Control: no-store`.
+
 ## Connect a model
 
 The easiest starting point is the [shared runner](../codex-runner/README.md).
@@ -72,6 +208,11 @@ All paths below are relative to the base URL. Session routes require the capabil
 | GET | `/v1/robots` | Registered robot IDs |
 | GET | `/v1/robots/{robot_id}/queue` | Public queue and station readiness |
 | GET | `/v1/robots/{robot_id}/observation` | Current station feedback and camera URLs |
+| GET | `/v1/robots/{robot_id}/calibration` | Public camera intrinsics, fixed extrinsics, mount transforms, and quality |
+| GET | `/v1/robots/{robot_id}/camera-poses` | Public current camera-to-base poses from settled hardware feedback |
+| GET | `/v1/robots/{robot_id}/cameras/{role}.jpg` | Public latest RGB image (`top`, `left`, or `right`) |
+| GET | `/v1/robots/{robot_id}/cameras/{role}.rgbd.npz` | Public paired RGB-D, when this camera has fresh depth |
+| GET | `/v1/robots/{robot_id}/cameras/{role}.depth.png` | Public 16-bit depth image in millimeters, when available |
 | POST | `/v1/sessions` | Create a session and request a queue position |
 | GET | `/v1/sessions/{id}` | Session state, position and active lease |
 | WebSocket | `/v1/sessions/{id}/events` | Session lifecycle and execution events |

@@ -57,6 +57,11 @@ Paths below are relative to the Session API base URL. `sid` means `session_id`.
 | GET | `/v1/contracts` | Public | JSON Schema bundle for v1 messages |
 | GET | `/v1/queue` | Public | FIFO entries and station availability |
 | GET | `/v1/robots/yam-1/observation` | Public | Latest station state and camera references |
+| GET | `/v1/robots/{robot_id}/calibration` | Public | Camera intrinsics, fixed extrinsics, mounting transforms, and fit quality |
+| GET | `/v1/robots/{robot_id}/camera-poses` | Public | Current wrist-camera extrinsics relative to each arm base |
+| GET | `/v1/robots/{robot_id}/cameras/{role}.jpg` | Public | Latest RGB JPEG |
+| GET | `/v1/robots/{robot_id}/cameras/{role}.rgbd.npz` | Public | Paired RGB-D when fresh depth is available |
+| GET | `/v1/robots/{robot_id}/cameras/{role}.depth.png` | Public | 16-bit depth PNG in millimeters when available |
 | WS | `/v1/robots/yam-1/events` | Public | Station monitoring stream |
 | POST | `/v1/sessions` | Public | Join the queue; returns session capability (HTTP 201) |
 | GET | `/v1/sessions/{sid}` | Session capability | Status, position, lease, episode, active trajectory |
@@ -268,10 +273,17 @@ motion occurred. Consult measured feedback and the session trace.
 
 ## Cameras and the local UI API
 
-Camera URLs in observations must be reachable from the runner’s computer.
-Currently the station advertises private-network camera URLs. The public
-Session API does not proxy those frames, so an off-site Astra client still
-needs public camera transport. Changing `--session-api` does not solve that.
+The public Session API serves camera images at
+`/v1/robots/{robot_id}/cameras/{role}.jpg`. Read the camera URLs from observations
+or calibration, resolving relative URLs against the Session API origin. Stale or
+unavailable frames return an error rather than an old image.
+
+For intrinsics, distortion, camera-to-base extrinsics, and optional depth, see
+[Camera intrinsics and extrinsics](docs/API.md#camera-intrinsics-and-extrinsics).
+That guide includes public request examples, exact response fields, a Python
+example, coordinate conventions, and pose freshness requirements. Calibration
+access requires no session or API key. Wrist poses change with arm motion;
+choose the transform for the acting arm's base and inspect calibration quality.
 
 The local UI’s `/api/*` routes belong to the process started by `./run.sh`;
 they are not paths on the hosted Session API. Local control/download requests
