@@ -527,7 +527,8 @@
     $('viewerCueTitle').textContent = preparing ? 'Your run is preparing' : 'Your run is live';
     $('viewerCueDetail').textContent = preparing
       ? 'The robot is getting ready. You can stop your run here.'
-      : 'Watch your robot here. The video may follow with a short delay.';
+      : 'First call often takes 10+ s. Arms get bored and wander off';
+    $('viewerCueDetail').hidden = live && (!state.first_call_wander_enabled || (state.packets_submitted || 0) > 0);
     $('position').textContent = queued ? (state.queue_position ? `#${state.queue_position}` : 'Joining…') : preparing ? 'Up next' : live ? 'Your turn' : '—';
     $('queueGuidance').textContent = queued
       ? (state.queue_position === 1 ? "You're next. We'll bring you to the viewer when your run starts." : "You're in the queue. We'll bring you to the viewer when it's your turn.")

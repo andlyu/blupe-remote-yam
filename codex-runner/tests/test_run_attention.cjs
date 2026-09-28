@@ -36,3 +36,13 @@ assert.equal($('liveViewer').classes.has('yourRunLive'),false);
 render({status:'idle',public_run:{status:'running'}});
 assert.equal($('viewerCue').hidden,true);
 console.log('Queue handoff checks passed');
+
+render({status:'running',session_id:'next',first_call_wander_enabled:true,packets_submitted:0});
+assert.equal($('viewerCueDetail').hidden,false);
+assert.equal($('viewerCueDetail').textContent,'First call often takes 10+ s. Arms get bored and wander off');
+render({status:'running',session_id:'next',first_call_wander_enabled:true,packets_submitted:1});
+assert.equal($('viewerCueDetail').hidden,true);
+render({status:'running',session_id:'unsupported',first_call_wander_enabled:false,packets_submitted:0});
+assert.equal($('viewerCueDetail').hidden,true);
+render({status:'preparing',session_id:'another'});
+assert.equal($('viewerCueDetail').hidden,false);

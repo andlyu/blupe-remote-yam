@@ -334,3 +334,17 @@ The shared runner keeps API keys in browser-session server memory and applies
 the same image freshness, trajectory validation and feedback checks to both
 API providers. BluPe hosting adds Stripe as a funding choice under ChatGPT;
 it does not offer Stripe-funded Claude inference.
+
+
+### Optional YAM first-call wandering
+
+Set `YAM_FIRST_CALL_WANDER_ROBOTS=yam-1,robot-ba8413962083809c` on a runner
+only after those robots have the public controller's first-call-wander extension
+enabled and their Session API supports the `yam_first_call` executor.
+For RoboCurve-based model adapters, wandering begins after the initial camera
+capture and lasts only during the first model request. The controller must verify
+return and settling before the runner uses that response. Failed or ambiguous
+returns stop the run; requests are never automatically retried. Stop and lease
+loss retain their existing behavior. Other robots and hosted worker adapters do
+not animate. The live-view waiting message hides after the first policy packet.
+Unset the variable to disable the feature without changing the robot controller.

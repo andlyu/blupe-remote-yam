@@ -70,6 +70,7 @@ class RunnerController:
         self._run_events: list[dict[str, Any]] = []
         self._submitted_step_ids: list[int] = []
         self._packets_submitted = 0
+        self._first_call_wander = False
         self._trajectory: dict[str, Any] | None = None
         self._last_completed_trajectory_result: dict[str, Any] | None = None
         self._latency: dict[str, dict[str, float | int]] = {}
@@ -117,6 +118,7 @@ class RunnerController:
             self._lease_id = None
             self._command_step_id = 0
             self._packets_submitted = 0
+            self._first_call_wander = False
             self._status = str(created.get("status", "queued"))
             # Publish timing with the new status: status polling must never see
             # a new start time paired with the previous run's terminal state.
@@ -156,7 +158,20 @@ class RunnerController:
                     secrets=(getattr(provider, '_api_key', ''),))
             if hasattr(provider, 'interaction_sink'):
                 journal, publisher = self._interactions, self._conversation_publisher
+                import os
+                from .robocurve_policy import RoboCurveResponsesAdapter
+                self._first_call_wander = (
+                    self._robot_id in os.environ.get('YAM_FIRST_CALL_WANDER_ROBOTS', '').split(',')
+                    and isinstance(provider, RoboCurveResponsesAdapter))
+                first_wait = None
+                if self._first_call_wander:
+                    from .first_call_wait import FirstCallWait
+                    first_wait = FirstCallWait(self._session_api,
+                        lambda: dict(session_id=session_id, episode_id=self._episode_id, lease_id=self._lease_id),
+                        lambda: self._stop_event.is_set() or self._provider is not provider)
                 def record_interaction(kind, message, **details):
+                    if first_wait is not None:
+                        first_wait.interaction(kind, details)
                     journal.add(kind, message, **details)
                     if publisher:
                         publisher.add(kind, message, **details)
@@ -293,6 +308,7 @@ class RunnerController:
                 "next_step_id": self._command_step_id,
                 "commands_submitted": self._command_step_id,
                 "packets_submitted": self._packets_submitted,
+                "first_call_wander_enabled": self._first_call_wander,
                 "command_transport": "trajectory" if getattr(self._session_api, "supports_trajectories", False) is True else "single_action",
                 "provider": provider_config,
                 "prompt_configured": bool(self._prompt),
