@@ -1,5 +1,19 @@
 [
   {
+    "id": "robot-ba8413962083809c",
+    "name": "Robo-house YAM",
+    "hardware": "yam",
+    "joint_counts": [
+      6,
+      6
+    ],
+    "cameras": [
+      "top",
+      "left",
+      "right"
+    ]
+  },
+  {
     "id": "yam-1",
     "name": "YAM",
     "hardware": "yam",

@@ -1381,7 +1381,8 @@ function renderStepMetricsChart(container, timings) {
       }
       robotCatalog.robots.sort((a,b) => Number(b.connected === true) - Number(a.connected === true));
       if (!window.yamApplication?.defaultRobot && !new URLSearchParams(location.search).get('robot_id')) {
-        selectedRobot = robotCatalog.robots.find(robot => robot.connected === true)?.id || selectedRobot;
+        selectedRobot = robotCatalog.robots.find(robot => robot.id === 'robot-ba8413962083809c')?.id
+          || robotCatalog.robots.find(robot => robot.connected === true)?.id || selectedRobot;
       }
       selector.replaceChildren(...robotCatalog.robots.map(robot =>
         Object.assign(document.createElement('option'), {value: robot.id, textContent: robot.id === 'robot-abecb4cd868ab24b' ? 'SO101' : robot.name})));
