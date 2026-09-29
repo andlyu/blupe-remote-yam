@@ -614,7 +614,7 @@
     fault: ['Fault', 'error', 'A problem needs attention.'],
     unknown: ['Checking / unavailable', 'unknown', 'Current status is unknown.'],
   };
-  function robotStatus(state, robotId, now = Date.now() / 1000) {
+  function robotStatus(state, robotId, now = Date.now() / 1000, hardware = null) {
     const queue = state.queue_snapshot;
     const station = queue?.stations?.find(item => item.jetson_id === robotId);
     const fresh = timestamp => typeof timestamp === 'number' && now - timestamp >= -5 && now - timestamp <= 10;
@@ -626,7 +626,7 @@
     const observation = state.last_observation;
     const home = fresh(observation?.observed_at) ? observation.homed : null;
     // YAM also reports queue_ready while verified parked with automatic queue on.
-    const parkedYam = robotId === 'yam-1' && mode === 'DISABLED' && station.queue_ready === true;
+    const parkedYam = (hardware === 'yam' || robotId === 'yam-1') && mode === 'DISABLED' && station.queue_ready === true;
     // READY/STOPPED + queue_ready is the controllers' automatic admission signal.
     // Legacy SO101 "active" and transport "available" alone do not establish it.
     const automatic = state.robot_auto_queue_enabled ??
@@ -701,7 +701,8 @@
     const station = queue?.stations?.find(item => item.jetson_id === selectedRobot);
     if (station) updateCameraAvailability(station.connected === true);
     const faultNotice = {pending:'Notifying the operator…', submitted:'The operator has been notified.', failed:'Could not notify the operator.', unavailable:'Operator attention needed.'}[station?.fault_notification] || 'Operator attention needed.';
-    const statusKey = robotStatus(state, selectedRobot);
+    const statusKey = robotStatus(state, selectedRobot, Date.now() / 1000,
+      robotCatalog?.robots?.find(robot => robot.id === selectedRobot)?.hardware);
     renderRobotStatus(statusKey);
     if (statusKey === 'fault') $('station').title += ' ' + faultNotice;
     const entries = queue?.entries || [];

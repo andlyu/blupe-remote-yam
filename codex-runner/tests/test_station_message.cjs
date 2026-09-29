@@ -117,6 +117,29 @@ test('parked YAM reports automatic readiness while disabled and uninitialized', 
   }
 });
 
+test('registered YAMs use hardware type for parked automatic readiness', () => {
+  const robot = 'robot-ba8413962083809c';
+  const s = state(robot, {mode: 'DISABLED', queue_ready: true, available: false}, {
+    last_observation: null, robot_auto_queue_enabled: null});
+  const status = (value, hardware = 'yam') => context.robotStatus(value, robot, now, hardware);
+  assert.equal(status(s), 'stoppedReady');
+  assert.equal(status(s, 'so101'), 'unknown');
+  assert.equal(status(s, null), 'unknown');
+  assert.equal(status({...s, robot_auto_queue_enabled: false}), 'unknown'); // Conflicting signals cannot claim readiness.
+  assert.equal(status({...s, status: 'queued'}), 'readiness');
+  assert.equal(status({...s, status: 'running'}), 'running');
+  for (const [station, expected] of [
+    [{queue_ready: false}, 'stopped'],
+    [{observed_at: now - 11}, 'unknown'],
+    [{connected: false}, 'offline'],
+    [{mode: 'FAULT'}, 'fault'],
+  ]) {
+    assert.equal(status(state(robot, {mode: 'DISABLED', queue_ready: true, ...station},
+      {last_observation: null})), expected);
+  }
+  assert.match(source, /robotStatus\(state, selectedRobot, Date\.now\(\) \/ 1000,\s*robotCatalog\?\.robots\?\.find\(robot => robot\.id === selectedRobot\)\?\.hardware\)/);
+});
+
 test('the editable spec and rendered labels have the same twelve names', () => {
   const doc = fs.readFileSync(path.join(__dirname, '../../docs/UI-LABELS.md'), 'utf8');
   const labels = [...doc.matchAll(/\*\*(.+?):\*\*/g)].map(match => match[1]);
