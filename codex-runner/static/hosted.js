@@ -1122,21 +1122,57 @@ function renderStepMetricsChart(container, timings) {
       tile.addEventListener('keydown', event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); video.play().catch(() => {}); } });
     });
     let callback, lastMediaTime = -1, stopped = false, frame = 0;
+    const stopSnapshots = [];
+    // A bounded still-image request gives each panel a real picture while the
+    // WebRTC/HLS handshake runs. It is a preview, never synchronized live video.
+    const snapshotRobot = selectedRobot;
+    function loadSnapshots() {
+      tiles.forEach((tile, i) => {
+        const role = tile.dataset.cameraRole;
+        if (!role) return;
+        const snapshot = new Image();
+        let pending = true;
+        const stop = () => {
+          pending = false; clearTimeout(timer);
+          snapshot.onload = snapshot.onerror = null;
+          snapshot.removeAttribute('src');
+        };
+        const timer = setTimeout(stop, 5000);
+        stopSnapshots.push(stop);
+        snapshot.onerror = stop;
+        snapshot.onload = async () => {
+          try {
+            await snapshot.decode();
+            if (!pending || stopped || frame || document.hidden || selectedRobot !== snapshotRobot) return;
+            contexts[i].drawImage(snapshot, 0, 0, 640, 360);
+            tile.dataset.frameSource = 'snapshot';
+          } catch { /* Let the live stream finish connecting if the still fails. */ }
+          finally { stop(); }
+        };
+        snapshot.src = '/api/monitor/cameras/' + encodeURIComponent(role)
+          + '?robot_id=' + encodeURIComponent(snapshotRobot) + '&t=' + Date.now();
+      });
+    }
     function paint() {
       if (stopped) return;
       const stale = video.yamHealth?.stale() === true;
-      if (!document.hidden && !stale && video.readyState >= 2 && !video.paused && video.currentTime > 0 && video.currentTime !== lastMediaTime) {
+      if (!document.hidden && !stale && video.readyState >= 2 && (frame === 0 || (!video.paused && video.currentTime !== lastMediaTime))) {
         // Snapshot ONCE, then crop all panels from that immutable canvas frame.
         // MDN drawImage nine-argument contract: docs/refs/canvas.
         context.drawImage(video, 0, 0, 1280, 720);
         frame++;
+        if (frame === 1) stopSnapshots.forEach(stop => stop());
         tiles.forEach((tile, i) => {
           contexts[i].drawImage(atlas, (i%2)*640, Math.floor(i/2)*360, 640, 360, 0, 0, 640, 360);
           tile.dataset.presentedFrame = String(frame);
+          tile.dataset.frameSource = 'video';
         });
         lastMediaTime = video.currentTime;
       }
-      labels.forEach(label => { label.textContent = stale ? 'Stream stalled' : sourceLabel.textContent; });
+      labels.forEach((label, i) => {
+        const status = stale ? 'Stream stalled' : sourceLabel.textContent;
+        label.textContent = tiles[i]?.dataset.frameSource === 'snapshot' ? 'Still image · ' + status : status;
+      });
       callback = requestAnimationFrame(paint);
     }
     document.querySelectorAll('[data-expand-camera]').forEach(button => {
@@ -1146,9 +1182,13 @@ function renderStepMetricsChart(container, timings) {
         else panel.requestFullscreen?.().catch(() => {});
       });
     });
-    video.yamStopPainting = () => { stopped = true; cancelAnimationFrame(callback); };
+    video.yamStopPainting = () => {
+      stopped = true; cancelAnimationFrame(callback);
+      stopSnapshots.forEach(stop => stop());
+    };
     window.addEventListener('pagehide', video.yamStopPainting);
     paint();
+    if (!frame) loadSnapshots();
   }
   function camera(image) {
     const label = image.parentElement.querySelector('figcaption span');
@@ -1317,7 +1357,10 @@ function renderStepMetricsChart(container, timings) {
     }
     if (selectedRobot === 'yam-1') {
       const roles = ['top', 'observer', 'left', 'right'];
-      $('liveViewer').querySelectorAll('[data-sync-tile]').forEach(tile => addModelBadge(tile.parentElement, roles[Number(tile.dataset.syncTile)]));
+      $('liveViewer').querySelectorAll('[data-sync-tile]').forEach(tile => {
+        tile.dataset.cameraRole = roles[Number(tile.dataset.syncTile)];
+        addModelBadge(tile.parentElement, tile.dataset.cameraRole);
+      });
       document.querySelectorAll('[data-camera]').forEach(camera);
       return;
     }
