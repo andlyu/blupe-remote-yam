@@ -389,7 +389,7 @@ function renderStepMetricsChart(container, timings) {
       (['openai', 'astra', 'anthropic'].includes($('provider').value) && !$('providerFields').hidden &&
        !savedKeyProviders.includes($('provider').value) && !$('apiKey').value.trim());
   }
-  $('openCodexInstructions').onclick = () => {
+  $('openCodexInstructions').onclick = $('openSubscriptionInstructions').onclick = () => {
     $('localRunDialog').close();
     $('copyCodexPrompt').dataset.copied = 'false';
     $('codexCopyStatus').textContent = '';
@@ -471,6 +471,7 @@ function renderStepMetricsChart(container, timings) {
     $('runForm').classList.toggle('localRunMode', local);
     $('runForm').classList.add('runDialogMode');
     $('openLocalRun').hidden = false;
+    $('openSubscriptionInstructions').hidden = local;
     $('runnerIdentity').hidden = local;
     $('localRunDialog').close();
     $('localRunDialogBody').append($('runSettings'));

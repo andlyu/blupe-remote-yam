@@ -291,6 +291,8 @@ main > .coffeeSupport{grid-column:1 / -1;margin-top:4px;width:100%}
 
 .conversationSharing{display:flex;align-items:center;gap:8px}.conversationSharing input{width:auto}
 
+.runLaunchActions{display:flex;flex-direction:column;justify-content:center;gap:8px}
+#openSubscriptionInstructions{margin:0;min-height:40px;padding:8px 14px;white-space:nowrap}
 #openLocalRun{width:auto;margin:0;min-height:52px;white-space:nowrap}
 #localRunDialog{box-sizing:border-box;width:min(520px,calc(100vw - 32px));max-height:calc(100dvh - 48px);overflow:auto;padding:24px;border:1px solid var(--line);border-radius:12px;background:#fffdf6;color:var(--ink)}
 #localRunDialog::backdrop{background:rgb(0 0 0 / .4)}
@@ -298,7 +300,7 @@ main > .coffeeSupport{grid-column:1 / -1;margin-top:4px;width:100%}
 .runDialogMode #runSettings{border:0;padding:0;margin:0}.runDialogMode #runSettings>summary{display:none}
 .runDialogMode #setupRunActions{padding:0;border:0;margin-top:20px}.runDialogMode #setupRunActions #runButtons{width:100%}
 .localRunMode #runAstra,.localRunMode #runClaude,.localRunMode #runGroot{display:none}
-@media(max-width:600px){#openLocalRun{width:100%}}
+@media(max-width:600px){.runLaunchActions,#openLocalRun{width:100%}}
 
 #localRunMessage:empty{display:none}#localRunMessage{font-size:13px;margin-bottom:0}
 
