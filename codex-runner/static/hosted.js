@@ -389,12 +389,14 @@ function renderStepMetricsChart(container, timings) {
       (['openai', 'astra', 'anthropic'].includes($('provider').value) && !$('providerFields').hidden &&
        !savedKeyProviders.includes($('provider').value) && !$('apiKey').value.trim());
   }
-  $('openCodexInstructions').onclick = $('openSubscriptionInstructions').onclick = () => {
+  $('openCodexInstructions').onclick = () => {
     $('localRunDialog').close();
     $('copyCodexPrompt').dataset.copied = 'false';
     $('codexCopyStatus').textContent = '';
     $('codexInstructions').showModal();
   };
+  // Tolerate a page loaded just before the new button was deployed.
+  if ($('openSubscriptionInstructions')) $('openSubscriptionInstructions').onclick = $('openCodexInstructions').onclick;
   function runWithProvider(value, label) {
     if (active || submitting || ended) return;
     $('provider').value = value;
@@ -471,7 +473,7 @@ function renderStepMetricsChart(container, timings) {
     $('runForm').classList.toggle('localRunMode', local);
     $('runForm').classList.add('runDialogMode');
     $('openLocalRun').hidden = false;
-    $('openSubscriptionInstructions').hidden = local;
+    if ($('openSubscriptionInstructions')) $('openSubscriptionInstructions').hidden = local;
     $('runnerIdentity').hidden = local;
     $('localRunDialog').close();
     $('localRunDialogBody').append($('runSettings'));
