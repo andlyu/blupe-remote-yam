@@ -40,9 +40,9 @@ TOOLS = [{'type': 'function',
                  "mounting. Rotation dimensions are absolute targets measured relative to the trial's start "
                  'orientation (0 means the start orientation) and interpolate linearly without wrapping, so '
                  'prefer intermediate values for large rotations. Per-dimension bounds: left_x: [0.15, '
-                 '0.48], left_y: [-0.3, 0.3], left_z: [0.03, 0.4], left_yaw: [-3.142, 3.142], left_pitch: '
-                 '[0, 0], left_roll: [0, 0], left_gripper: [0, 1], right_x: [0.15, 0.48], right_y: [-0.3, '
-                 '0.3], right_z: [0.03, 0.4], right_yaw: [-3.142, 3.142], right_pitch: [0, 0], right_roll: '
+                 '0.48], left_y: [-0.5, 0.5], left_z: [0.03, 0.4], left_yaw: [-3.142, 3.142], left_pitch: '
+                 '[0, 0], left_roll: [0, 0], left_gripper: [0, 1], right_x: [0.15, 0.48], right_y: [-0.5, '
+                 '0.5], right_z: [0.03, 0.4], right_yaw: [-3.142, 3.142], right_pitch: [0, 0], right_roll: '
                  '[0, 0], right_gripper: [0, 1].',
   'parameters': {'type': 'object',
                  'properties': {'targets': {'type': 'object',

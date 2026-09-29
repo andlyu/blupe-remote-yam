@@ -47,7 +47,7 @@ def finished(obs, points):
 
 
 class GeometryTests(unittest.TestCase):
-    def test_double_speed_shortens_same_path_without_changing_endpoint(self):
+    def test_fourfold_speed_shortens_same_path_without_changing_endpoint(self):
         from remote_yam import robocurve_trajectory as trajectory
         obs = observation()
         geometry = RoboCurveTrajectory()
@@ -55,28 +55,28 @@ class GeometryTests(unittest.TestCase):
         targets = {'left_z': float(state[2] + .06)}
         fast = geometry.build(targets, obs, 0)
         baseline_step = trajectory.STEP.copy()
-        baseline_step[[0, 1, 2, 3, 7, 8, 9, 10]] /= 2
+        baseline_step[[0, 1, 2, 3, 7, 8, 9, 10]] /= 4
         with patch.object(trajectory, 'STEP', baseline_step), patch.object(trajectory, 'MAX_JOINT_STEP_RAD', .01):
             slow = RoboCurveTrajectory().build(targets, obs, 0)
-        self.assertLess(len(fast), len(slow) * .7)
+        self.assertLess(len(fast), len(slow) * .45)
         for side in ('left', 'right'):
             np.testing.assert_allclose(fast[-1][side+'_joints_deg'], slow[-1][side+'_joints_deg'], atol=.1)
         self.assertEqual(trajectory.STEP[6], .1)
         self.assertEqual(trajectory.STEP[13], .1)
 
-    def test_sideways_bounds_match_tools_at_double_speed(self):
+    def test_sideways_bounds_match_tools_at_fourfold_speed(self):
         from remote_yam.robocurve_trajectory import STEP
         for arm, index in [('left', 1), ('right', 8)]:
-            self.assertIn(f'{arm}_y: [-0.3, 0.3]', TOOLS[0]['description'])
-            self.assertEqual(STEP[index], .010)
-            for target in [-.3, .3]:
+            self.assertIn(f'{arm}_y: [-0.5, 0.5]', TOOLS[0]['description'])
+            self.assertEqual(STEP[index], .020)
+            for target in [-.5, .5]:
                 geometry = RoboCurveTrajectory()
                 # Reaching IK proves the target passed bounds validation;
                 # reachability and collision checks remain independent.
                 with patch.object(geometry.ik, '_solve', side_effect=RuntimeError('reached IK')):
                     with self.assertRaisesRegex(RuntimeError, 'reached IK'):
                         geometry.build({f'{arm}_y': target}, observation(), 0)
-            for target in [-.3001, .3001]:
+            for target in [-.5001, .5001]:
                 with self.assertRaises(InvalidMove) as caught:
                     RoboCurveTrajectory().build({f'{arm}_y': target}, observation(), 0)
                 self.assertEqual(caught.exception.code, 'target_out_of_bounds')
@@ -113,7 +113,7 @@ class GeometryTests(unittest.TestCase):
                 states = []
                 for point in points:
                     q, state, _ = g.observe({**obs, **point})
-                    self.assertLessEqual(float(np.max(np.abs(q-previous))), .02+1e-12)
+                    self.assertLessEqual(float(np.max(np.abs(q-previous))), .035+1e-12)
                     states.append(state)
                     previous = q
                 self.assertGreater(abs(states[0][11]), .01)  # correction is spread over time
@@ -126,7 +126,7 @@ class GeometryTests(unittest.TestCase):
         self.assertLessEqual(len(points), 100)  # 2x pacing fits this formerly longer path.
         self.assertLessEqual(len(points), 300)
         path = [obs['left_joints_deg']+obs['right_joints_deg']] + [p['left_joints_deg']+p['right_joints_deg'] for p in points]
-        self.assertLessEqual(float(np.max(np.abs(np.diff(np.deg2rad(path), axis=0)))), .02+1e-12)
+        self.assertLessEqual(float(np.max(np.abs(np.diff(np.deg2rad(path), axis=0)))), .035+1e-12)
 
     def test_recorded_no_demo_fk_and_joint_order(self):
         geometry = RoboCurveTrajectory()
@@ -147,7 +147,7 @@ class GeometryTests(unittest.TestCase):
         zs = [state[2]]
         for point in points:
             current, actual, _ = g.observe({**obs, **point})
-            self.assertLessEqual(float(np.max(np.abs(current-q))), .02+1e-12)
+            self.assertLessEqual(float(np.max(np.abs(current-q))), .035+1e-12)
             np.testing.assert_allclose(actual[:2], state[:2], atol=3e-6)
             np.testing.assert_allclose(actual[3:6], 0, atol=3e-5)
             np.testing.assert_allclose(current[6:], np.deg2rad(obs['right_joints_deg']), atol=1e-10)

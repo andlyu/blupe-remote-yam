@@ -21,6 +21,10 @@ def snapshot(provider, prompt, duration):
     config = provider.public_config()
     return {'model': config.get('model'), 'provider': config.get('provider'),
             'reasoning': config.get('reasoning_effort'),
+            'response_speed': config.get('response_speed'),
+            'actual_response_speed': config.get('actual_response_speed'),
+            'prompt_version': config.get('prompt_version'),
+            'system_prompt_sha256': config.get('system_prompt_sha256'),
             'trajectory_speed': getattr(getattr(provider, '_geometry', None), 'speed_multiplier', None),
             'task_prompt': prompt, 'system_prompt': getattr(provider, '_system_prompt', None),
             'duration_s': duration, 'code_revision': BUILD_HISTORY[0]['revision'] if BUILD_HISTORY else None,
@@ -34,7 +38,7 @@ def changes(previous, current):
         return ['First recorded configuration; no earlier configuration available to compare.']
     notes = []
     for key, label in [('model', 'Model'), ('provider', 'Provider'), ('reasoning', 'Reasoning effort'),
-                       ('trajectory_speed', 'Trajectory speed'), ('duration_s', 'Run time limit')]:
+                       ('response_speed', 'Inference speed'), ('trajectory_speed', 'Trajectory speed'), ('duration_s', 'Run time limit')]:
         old, new = previous.get(key), current.get(key)
         if old != new:
             notes.append(f'{label}: {old if old is not None else "not recorded"} → {new if new is not None else "not recorded"}.')

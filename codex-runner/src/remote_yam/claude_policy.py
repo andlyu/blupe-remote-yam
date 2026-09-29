@@ -140,6 +140,7 @@ def claude_failure(raw):
 
 class ClaudeAdapter(RoboCurveResponsesAdapter):
     provider_name = 'claude'
+    response_speed = 'fast'
     reasoning_effort = 'low'
 
     def __init__(self, model=DEFAULT_MODEL, *, camera_source=None, recording_root=None,
@@ -217,6 +218,7 @@ class ClaudeAdapter(RoboCurveResponsesAdapter):
                    '--output-format', 'json',
                    '--json-schema', json.dumps(getattr(self, '_decision_schema', DECISION_SCHEMA)),
                    '--model', self.model,
+                   '--settings', json.dumps({'fastMode': self.response_speed == 'fast'}),
                    '--effort', self.reasoning_effort,
                    '--system-prompt', system,
                    '--tools', 'Read',
@@ -241,6 +243,8 @@ class ClaudeAdapter(RoboCurveResponsesAdapter):
             raise RuntimeError('Claude inference cancelled; no motion sent')
         if report.get('is_error') or report.get('subtype') not in (None, 'success'):
             raise RuntimeError(claude_failure(json.dumps(report).encode()))
+        speed = report.get('usage', {}).get('speed')
+        self.actual_response_speed = speed if speed in ('fast', 'standard') else None
         denials = report.get('permission_denials')
         if denials:
             raise RuntimeError('Claude could not read the camera images for this observation; no motion sent')

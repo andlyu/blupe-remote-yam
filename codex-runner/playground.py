@@ -696,6 +696,12 @@ class HostedRunner:
             if visitor.launches >= 20:
                 raise RequestError(429, "This browser session reached its 20-run limit. End the session to begin another.")
             name, key, prompt, model = (payload.get(k, "") for k in ("provider", "api_key", "prompt", "model"))
+            fast_provider = name in ('openai', 'codex', 'anthropic', 'claude')
+            response_speed = payload.get('response_speed', 'fast' if fast_provider else 'standard')
+            if response_speed not in ('standard', 'fast'):
+                raise RequestError(400, 'Choose standard or fast model speed')
+            if response_speed == 'fast' and not fast_provider:
+                raise RequestError(400, 'Fast mode is unavailable for this provider')
             effort = payload.get('reasoning_effort', 'low')
             if name in {'codex', 'claude'} and effort not in ('low', 'medium', 'high'):
                 raise RequestError(400, 'Choose low, medium, or high model effort')
@@ -845,6 +851,8 @@ class HostedRunner:
                 provider._urlopen = request.build_opener(NoRedirect).open
             if name in {'codex', 'claude'}:
                 provider.reasoning_effort = effort
+            if fast_provider:
+                provider.response_speed = response_speed
             visitor.last_launch = time.monotonic()
             visitor.launches += 1
             try:

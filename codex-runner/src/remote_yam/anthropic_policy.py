@@ -76,15 +76,26 @@ def responses_output(response):
 
 class AnthropicAdapter(RoboCurveResponsesAdapter):
     provider_name = 'anthropic'
+    response_speed = 'fast'
 
     def __init__(self, api_key, model=DEFAULT_MODEL, **kwargs):
         super().__init__(api_key, model, 'https://api.anthropic.com/v1/messages', **kwargs)
 
     def _post_json(self, payload):
-        return responses_output(super()._post_json(messages_payload(payload)))
+        wire = messages_payload(payload)
+        if self.response_speed == 'fast':
+            wire['speed'] = 'fast'
+        raw = super()._post_json(wire)
+        speed = raw.get('usage', {}).get('speed')
+        self.actual_response_speed = speed if speed in ('fast', 'standard') else None
+        result = responses_output(raw)
+        result['usage'] = raw.get('usage', {})
+        return result
 
     def _send_json(self, req):
         req.add_header('anthropic-version', '2023-06-01')
+        if self.response_speed == 'fast':
+            req.add_header('anthropic-beta', 'fast-mode-2026-02-01')
         # The documented Bearer authentication also preserves the shared
         # request-scoped key redaction when a session revokes an in-flight key.
         return super()._send_json(req)

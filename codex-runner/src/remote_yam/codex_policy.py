@@ -236,6 +236,7 @@ def codex_failure(raw):
 
 class CodexAdapter(RoboCurveResponsesAdapter):
     provider_name = 'codex'
+    response_speed = 'fast'
     reasoning_effort = 'low'
 
     def __init__(self, model=DEFAULT_MODEL, *, camera_source=None, recording_root=None,
@@ -302,6 +303,8 @@ class CodexAdapter(RoboCurveResponsesAdapter):
                     '--model', self.model, '--output-schema', str(schema),
                     '-c', 'forced_login_method="chatgpt"', '-c', 'model_provider="openai"',
                     '-c', f'model_reasoning_effort="{self.reasoning_effort}"',
+                    '-c', 'features.fast_mode=true',
+                    '-c', 'service_tier=' + ('"fast"' if self.response_speed == 'fast' else '"default"'),
                     '-c', 'sandbox_mode="read-only"', '-c', 'approval_policy="never"',
                     '-c', 'web_search="disabled"', '-c', 'features.shell_tool=false',
                     '-c', 'features.multi_agent=false', '-c', 'features.apps=false',

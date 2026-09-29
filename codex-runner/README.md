@@ -334,3 +334,8 @@ The shared runner keeps API keys in browser-session server memory and applies
 the same image freshness, trajectory validation and feedback checks to both
 API providers. BluPe hosting adds Stripe as a funding choice under ChatGPT;
 it does not offer Stripe-funded Claude inference.
+
+## Run defaults
+
+YAM uses With Haste, ±50 cm sideways limits, 4× motion pacing, and Fast inference.
+See [run defaults](docs/RUN-DEFAULTS.md) for provider settings and motion limits.

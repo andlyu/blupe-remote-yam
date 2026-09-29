@@ -49,6 +49,8 @@ class CallRecorder:
 
 
 class RoboCurveResponsesAdapter(ResponsesAdapter):
+    response_speed = 'standard'
+    actual_response_speed = None
     def __init__(self, api_key, model, endpoint, *, camera_source=None, recording_root=None):
         super().__init__(api_key, model, endpoint, camera_source=camera_source)
         self._initialize_policy(recording_root)
@@ -59,7 +61,8 @@ class RoboCurveResponsesAdapter(ResponsesAdapter):
     def _initialize_policy(self, recording_root):
         """Initialize the motion contract independently of model transport."""
         self._geometry = self._make_geometry()
-        self._system_prompt = SYSTEM_PROMPT
+        from .robocurve_prompts import DEFAULT_PROMPT_VERSION, prompt_text
+        self._system_prompt = prompt_text(DEFAULT_PROMPT_VERSION)
         self._tools = TOOLS
         self._names = NAMES
         self._camera_names = ('top', 'left', 'right')
@@ -79,8 +82,18 @@ class RoboCurveResponsesAdapter(ResponsesAdapter):
         if self.interaction_sink:
             self.interaction_sink(kind, message, call=self._calls, **details)
 
+    def set_prompt_version(self, version):
+        from .robocurve_prompts import prompt_text
+        if self._history:
+            raise ValueError('Select the prompt before starting a conversation')
+        self._system_prompt = prompt_text(version)
+
     def public_config(self):
+        from .robocurve_prompts import prompt_identity
         return {**super().public_config(), 'policy': 'robocurve_no_demo',
+                **prompt_identity(self._system_prompt),
+                'response_speed': self.response_speed,
+                'actual_response_speed': self.actual_response_speed,
                 'model_calls': self._calls, 'history_items': len(self._history),
                 'note': self._note, 'outcome': self._outcome,
                 'pending_tool': self._pending['call_id'] if self._pending else None,
@@ -198,6 +211,8 @@ class RoboCurveResponsesAdapter(ResponsesAdapter):
             payload = {'model': self.model, 'input': copy.deepcopy(self._history),
                        'tools': copy.deepcopy(self._tools), 'store': False,
                        'include': ['reasoning.encrypted_content']}
+            if self.provider_name == 'openai':
+                payload['service_tier'] = 'priority' if self.response_speed == 'fast' else 'default'
             self._calls += 1
             self._record('request', call=self._calls, request=payload)
             self._vision_state = 'requesting'
@@ -210,6 +225,10 @@ class RoboCurveResponsesAdapter(ResponsesAdapter):
             request_started = time.monotonic()
             try:
                 raw = self._post_json(payload)
+                if self.provider_name == 'openai':
+                    tier = raw.get('service_tier')
+                    self.actual_response_speed = ('fast' if tier in {'priority', 'fast'}
+                                                  else 'standard' if tier == 'default' else None)
             except Exception as exc:
                 self._vision_state = 'request_error'
                 self._interaction('model_error', str(exc))
@@ -283,6 +302,7 @@ class RoboCurveResponsesAdapter(ResponsesAdapter):
 
 class OpenAIAdapter(RoboCurveResponsesAdapter):
     provider_name = 'openai'
+    response_speed = 'fast'
 
     def __init__(self, api_key, model, endpoint='https://api.openai.com/v1/responses', **kwargs):
         super().__init__(api_key, model, endpoint, **kwargs)

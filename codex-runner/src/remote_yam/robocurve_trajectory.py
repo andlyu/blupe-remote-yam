@@ -12,13 +12,14 @@ from .mujoco_ik import BimanualRelativeIK, IKConvergenceError
 ARMS = ('left', 'right')
 AXES = ('x', 'y', 'z', 'yaw', 'pitch', 'roll', 'gripper')
 NAMES = tuple(f'{arm}_{axis}' for arm in ARMS for axis in AXES)
-LOW = np.tile([.15, -.30, .03, -math.pi, 0, 0, 0], 2)
-HIGH = np.tile([.48, .30, .4, math.pi, 0, 0, 1], 2)
-TRAJECTORY_SPEED = 2.0
-MAX_JOINT_STEP_RAD = .01 * TRAJECTORY_SPEED
-STEP = .01 * TRAJECTORY_SPEED * (HIGH - LOW)  # sampled at 10 Hz
-STEP[[1, 8]] = .005 * TRAJECTORY_SPEED  # sideways bound expansion does not set speed
-STEP[[6, 13]] = .1        # one second full gripper stroke
+LOW = np.tile([.15, -.50, .03, -math.pi, 0, 0, 0], 2)
+HIGH = np.tile([.48, .50, .4, math.pi, 0, 0, 1], 2)
+TRAJECTORY_SPEED = 4.0
+# Retain the gateway's 0.35 rad/s joint ceiling at 10 Hz.
+MAX_JOINT_STEP_RAD = min(.01 * TRAJECTORY_SPEED, .035)
+STEP = .01 * TRAJECTORY_SPEED * (HIGH - LOW)
+STEP[[1, 8]] = .005 * TRAJECTORY_SPEED  # workspace width does not set sideways speed
+STEP[[6, 13]] = .1  # retain one-second full gripper stroke
 BASES = (np.array([0., .35, 0.]), np.array([0., -.35, 0.]))
 
 
