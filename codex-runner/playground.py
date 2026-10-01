@@ -128,7 +128,7 @@ class HostedRunner:
                  hardware_control: bool = False, development: bool = False,
                  max_sessions: int = 32, idle_seconds: float = 1800,
                  lifetime_seconds: float = 7200, api_factory=None,
-                 provider_factory=None, extra_providers=None, chat_database=None, share_conversation=True,
+                 provider_factory=None, api_depth_provider_factory=None, use_api_depth=False, extra_providers=None, chat_database=None, share_conversation=True,
                  groot_key_file="", local_codex=False, local_claude=False, default_provider="openai", robots=None, robot_id="yam-1", camera_names=CAMERA_NAMES, joint_counts=(6,6), hardware=None, policy_camera_names=None):
         parsed = urlsplit(public_origin)
         if (not parsed.hostname or parsed.path not in {"", "/"} or parsed.query
@@ -190,6 +190,8 @@ class HostedRunner:
         self.api_factory = api_factory or (lambda: HostedSessionAPI(session_api, supports_trajectories=True, robot_id=robot_id, joint_counts=self.joint_counts) if session_api else MockSessionAPI())
         self.share_conversation = share_conversation
         self.provider_factory = provider_factory
+        self.api_depth_provider_factory = api_depth_provider_factory
+        self.use_api_depth = use_api_depth
         self.extra_providers = dict(extra_providers or {})
         self.camera_source = CameraFrameSource(camera_origin, camera_names=self.camera_names)
         self.visitors: dict[str, Visitor] = {}
@@ -469,6 +471,8 @@ class HostedRunner:
                                'claude': await asyncio.to_thread(subscription_status, 'claude'), 'claude_model': CLAUDE_MODEL}
             await self.json(send, 200, {**local_setup, **application_setup, "robot_id": self.robot_id, "cameras": list(self.camera_names), "model_cameras": list(self.model_camera_names()), "joint_policy": self.joint_counts != (6,6), "claude_supported": self.hardware == "makerarm" or self.joint_counts in {(6,6), (5,5), (5,0)}, "csrf": visitor.csrf, "astra_enabled": bool(self.astra_endpoint), "groot_enabled": bool(self.groot_key_file),
                                       "simulation": self.simulation, "share_conversation": self.share_conversation,
+                                      "api_depth": {"available": bool(self.api_depth_provider_factory and self.local_codex),
+                                                    "enabled": self.use_api_depth},
                                       "expires_in": int(self.lifetime_seconds - (time.monotonic() - visitor.born))},
                             [(b"set-cookie", cookie_value.encode())] + application_headers)
             return
@@ -710,6 +714,11 @@ class HostedRunner:
             share_conversation = payload.get("share_conversation", True)
             if type(share_conversation) is not bool:
                 raise RequestError(400, "Conversation sharing must be true or false")
+            use_api_depth = payload.get("use_api_depth", self.use_api_depth if name == 'codex' else False)
+            if type(use_api_depth) is not bool:
+                raise RequestError(400, "API depth must be true or false")
+            if use_api_depth and not (name == 'codex' and self.local_codex and self.api_depth_provider_factory):
+                raise RequestError(400, "API depth requires a configured local Astra runner")
             duration = payload.get("run_duration_s", 300)
             if type(duration) is not int or not 60 <= duration <= 600:
                 raise RequestError(400, "Choose a run duration from 1 to 10 minutes")
@@ -745,7 +754,9 @@ class HostedRunner:
                 visitor.subscription_prompts[name] = setup['setup_prompt']
                 if not setup['ready']:
                     raise RequestError(409, f"{setup['label']} needs setup on this computer. " + setup['message'], setup=setup)
-            if name in self.extra_providers:
+            if use_api_depth:
+                provider = self.api_depth_provider_factory(name, key, model, visitor.directory)
+            elif name in self.extra_providers:
                 provider = self.extra_providers[name](model, visitor.directory)
             elif name == 'groot':
                 from remote_yam.groot_policy import GrootAdapter

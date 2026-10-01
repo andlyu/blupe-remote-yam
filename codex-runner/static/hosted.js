@@ -375,6 +375,7 @@ function renderStepMetricsChart(container, timings) {
     $('runAstra').disabled = $('runClaude').disabled = !csrf || ended || active || submitting;
     ['runDuration', 'runnerName', 'email', 'provider', 'model', 'prompt', 'apiKey'].forEach(id => { $(id).disabled = active || submitting || ended; });
     $('shareConversation').disabled = !conversationSharingAllowed || active || submitting || ended;
+    $('useApiDepth').disabled = active || submitting || ended;
     $('stop').disabled = !csrf || ended || !active;
     $('liveRunControls').hidden = !csrf || ended || !active || !ownRunLive;
     $('leaveQueue').disabled = !csrf || ended || !active;
@@ -530,6 +531,7 @@ function renderStepMetricsChart(container, timings) {
     updateRunLabel();
   }
   function providerChanged() {
+    $('apiDepthSettings').hidden = !$('useApiDepth').dataset?.available || $('provider').value !== 'codex';
     $('speedField').hidden = !['openai', 'codex', 'anthropic', 'claude'].includes($('provider').value);
     $('effortField').hidden = !['codex', 'claude'].includes($('provider').value);
     $('subscriptionHelp').close();
@@ -601,6 +603,7 @@ function renderStepMetricsChart(container, timings) {
     const payload = {runner_name: $('runnerName').value.trim(), provider: $('provider').value, model: $('model').value.trim(),
       email: $('email').value.trim(), share_conversation: $('shareConversation').checked,
       prompt: $('prompt').value, run_duration_s:Number($('runDuration').value)*60, api_key: $('apiKey').value.trim()};
+    if (!$('apiDepthSettings').hidden) payload.use_api_depth = $('useApiDepth').checked;
     if (['codex', 'claude'].includes(payload.provider)) payload.reasoning_effort = $('reasoningEffort').value;
     if (['openai', 'codex', 'anthropic', 'claude'].includes(payload.provider)) payload.response_speed = $('responseSpeed').value;
     $('subscriptionHelp').close();
@@ -1469,6 +1472,9 @@ function renderStepMetricsChart(container, timings) {
       $('shareConversation').checked = session.share_conversation !== false;
       conversationSharingAllowed = session.share_conversation !== false;
       $('shareConversation').disabled = !conversationSharingAllowed;
+      $('useApiDepth').dataset.available = session.local_runner && session.api_depth?.available ? 'true' : '';
+      $('useApiDepth').checked = session.api_depth?.enabled === true;
+      $('apiDepthSettings').hidden = !$('useApiDepth').dataset.available;
       configureLocalRunDialog(!!session.local_runner);
       $('provider').innerHTML = originalProviderMarkup;
       window.yamAnalytics?.init(session.simulation, session.paid_runs);

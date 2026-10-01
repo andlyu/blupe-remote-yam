@@ -130,12 +130,21 @@ class IKConvergenceError(RuntimeError):
 class BimanualRelativeIK:
     """Build a +20 cm world-Z path from the observed pose, then exactly reverse it."""
 
-    def __init__(self, scene_path: Path | str | None = None) -> None:
+    def __init__(self, scene_path: Path | str | None = None, *, base_spacing_m: float | None = None) -> None:
         self.scene_path = Path(scene_path) if scene_path else default_scene_path()
         robot_path = self.scene_path.with_name("yam_bimanual.xml")
         if _sha256(self.scene_path) != SCENE_SHA256 or _sha256(robot_path) != ROBOT_SHA256:
             raise RuntimeError("Canonical YAM simulation model hash mismatch")
         self.model = mujoco.MjModel.from_xml_path(str(self.scene_path))
+        if base_spacing_m is not None:
+            if isinstance(base_spacing_m, bool) or not isinstance(base_spacing_m, (int, float)) or not math.isfinite(base_spacing_m) or not 0.3 <= base_spacing_m <= 1.0:
+                raise ValueError("YAM base spacing must be between 0.3 and 1.0 metres")
+            for side, sign in (("left", 1), ("right", -1)):
+                body_id = mujoco.mj_name2id(self.model, mujoco.mjtObj.mjOBJ_BODY, side + "_link1")
+                if body_id < 0 or self.model.body_parentid[body_id] != 0:
+                    raise RuntimeError("Expected root-mounted YAM first links")
+                self.model.body_pos[body_id, 1] = sign * base_spacing_m / 2
+        self.base_spacing_m = .70 if base_spacing_m is None else float(base_spacing_m)
         self.data = mujoco.MjData(self.model)
         joint_names = [f"{side}_joint{index}" for side in ("left", "right") for index in range(1, 7)]
         joint_ids = [mujoco.mj_name2id(self.model, mujoco.mjtObj.mjOBJ_JOINT, name) for name in joint_names]

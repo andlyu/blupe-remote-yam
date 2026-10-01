@@ -11,6 +11,26 @@ PLAYGROUND = 'https://playground.blupe.io'
 class LocalPlayground(HostedRunner):
     """Bridge the public viewer routes normally supplied by remote Caddy."""
 
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        if (not self.api_depth_provider_factory and self.local_codex
+                and self.robot_id == 'yam-1' and self.hardware == 'yam' and kwargs.get('session_api')):
+            self.api_depth_provider_factory = self.api_depth_provider(kwargs['session_api'])
+
+    def api_depth_provider(self, origin):
+        def factory(name, key, model, directory):
+            from remote_yam.codex_depth_policy import CodexDepthAdapter
+            provider = CodexDepthAdapter(origin, model or 'gpt-6-astra', all_depth_origin=origin,
+                                         recording_root=directory)
+            try:
+                provider._camera_source.capture_for_policy({'robot_id': 'yam-1'}, cancelled=provider.cancelled)
+                provider.set_depth_calibration(provider._camera_source.snapshots['top'].calibration)
+            except Exception as exc:
+                provider._workspace.cleanup()
+                raise RequestError(503, str(exc)) from None
+            return provider
+        return factory
+
     async def http(self, scope, receive, send):
         path, method = scope['path'], scope['method']
         media = path.startswith(('/synchronized/', '/live-video/'))

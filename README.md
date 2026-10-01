@@ -37,6 +37,10 @@ Command submission is enabled by default. Robot readiness, command validation,
 and gateway execution checks still apply. If the default port is occupied, use
 `./run-playground.sh --port 8792`.
 
+For API RGB-D observations and bounded Astra depth queries, see the
+[Astra RGB-D example](codex-runner/docs/astra-depth-example.md). The local YAM
+Astra setup includes **Use depth from the API**, unchecked by default.
+
 The shared runner and general playground UI are maintained here in `codex-runner/`.
 `blupe-evals` consumes a pinned commit from this repository; do not copy changes
 between editable runner trees. See [repository ownership](docs/REPOSITORY-OWNERSHIP.md).
