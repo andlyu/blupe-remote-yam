@@ -850,25 +850,6 @@ function renderStepMetricsChart(container, timings) {
       : 'No policy is running.';
     const live = state.public_run;
     syncStopwatch(live, state.queue_snapshot?.generated_at);
-    const timings = live?.step_timings || [];
-    renderStepMetricsChart($('stepMetricsChart'), timings);
-    renderRunMetrics($('runMetricsSummary'), live?.run_metrics, live?.status);
-    if ($('stepTimingRows')) {
-      $('stepTimingTable').hidden = !timings.length;
-      $('stepTimingEmpty').hidden = !!timings.length;
-      const rows = timings.slice(-20).map(timing => {
-        const row = document.createElement('tr');
-        for (const key of ['step', 'model_s', 'arm_motion_s', 'planning_s', 'movement_feedback_s', 'total_s', 'gap_s', 'left_displacement_m', 'right_displacement_m']) {
-          const cell = document.createElement('td');
-          cell.textContent = Number.isFinite(timing[key]) ? (key === 'step' ? String(timing[key]) : key.endsWith('_displacement_m') ? `${(timing[key] * 100).toFixed(1)} cm` : `${timing[key].toFixed(2)}s`) : '—';
-          cell.style.padding = '4px 8px';
-          row.appendChild(cell);
-        }
-        row.title = timing.outcome === 'position_mismatch' ? 'Finished with a position mismatch' : 'Completed';
-        return row;
-      });
-      $('stepTimingRows').replaceChildren(...rows);
-    }
     $('currentRunner').textContent = 'Runner: ' + (live?.runner_name || '—');
     $('currentPrompt').textContent = live?.task || 'Waiting for someone to run a policy.';
     $('conversationState').textContent = (live?.status || 'Waiting for a run').replaceAll('_', ' ') + (live?.error ? ' · ' + live.error : '');
