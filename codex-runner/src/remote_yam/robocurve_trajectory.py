@@ -40,8 +40,9 @@ def relative_rotation(yaw, pitch, roll):
 
 class RoboCurveTrajectory:
     speed_multiplier = TRAJECTORY_SPEED
-    def __init__(self):
-        self.ik = BimanualRelativeIK()
+    def __init__(self, *, base_spacing_m=None):
+        self.ik = BimanualRelativeIK(base_spacing_m=base_spacing_m)
+        self.bases = tuple(np.array([0., sign*self.ik.base_spacing_m/2, 0.]) for sign in (1, -1))
         self.start_rotations = None
 
     def observe(self, observation):
@@ -60,7 +61,7 @@ class RoboCurveTrajectory:
             if isinstance(grip, bool) or not isinstance(grip, (int, float)) or not math.isfinite(grip) or not 0 <= grip <= 1:
                 raise RuntimeError('RoboCurve policy requires measured normalized gripper feedback')
             d = r @ self.start_rotations[i].T
-            state.extend([*(p - BASES[i]), math.atan2(d[1, 0], d[0, 0]),
+            state.extend([*(p - self.bases[i]), math.atan2(d[1, 0], d[0, 0]),
                           math.asin(float(np.clip(d[2, 0], -1, 1))),
                           math.atan2(d[2, 1], d[2, 2]), grip])
             joints.extend([*measured[i*6:i*6+6], grip])
@@ -117,7 +118,7 @@ class RoboCurveTrajectory:
 
         def extend(a, b, previous, depth=0):
             state = state_at(b)
-            poses = tuple((state[i*7:i*7+3] + BASES[i],
+            poses = tuple((state[i*7:i*7+3] + self.bases[i],
                            relative_rotation(*state[i*7+3:i*7+6]) @ self.start_rotations[i])
                           for i in range(2))
             try:

@@ -5,7 +5,7 @@ import unittest
 from types import SimpleNamespace
 from unittest.mock import patch
 
-from playground import HostedRunner
+from playground import HostedRunner, RequestError
 from local_playground import LocalPlayground
 from remote_yam.providers import ScriptedAdapter
 from remote_yam.session import MockSessionAPI
@@ -78,6 +78,65 @@ class LocalPlaygroundTests(unittest.IsolatedAsyncioTestCase):
         for visitor in self.app.visitors.values():
             await asyncio.to_thread(visitor.close)
         shutil.rmtree(self.app.root, ignore_errors=True)
+
+    async def test_api_depth_is_unchecked_by_default_and_omitted_selection_uses_rgb(self):
+        depth_calls = []
+        self.app.api_depth_provider_factory = lambda *args: depth_calls.append(args)
+        _, session = await self.call('/api/session', {})
+        self.csrf = session['csrf']
+        self.assertEqual(session['api_depth'], {'available': True, 'enabled': False})
+        code, _ = await self.call('/api/run', {'provider': 'codex', 'model': 'gpt-6-astra',
+            'prompt': 'Observe the red block', 'runner_name': 'Local test'})
+        self.assertEqual(code, 200)
+        self.assertEqual(depth_calls, [])
+        self.assertEqual(len(self.providers), 1)
+
+    def test_standard_local_yam_registers_depth_without_capture_or_enabling_it(self):
+        app = LocalPlayground(public_origin='http://127.0.0.1:8792',
+            session_api='https://api.example', camera_origin='https://api.example',
+            development=True, local_codex=True, api_factory=MockSessionAPI)
+        self.addCleanup(shutil.rmtree, app.root, True)
+        self.assertTrue(callable(app.api_depth_provider_factory))
+        self.assertFalse(app.use_api_depth)
+
+    async def test_depth_option_selects_depth_provider_and_unchecking_selects_rgb(self):
+        depth_calls = []
+        def depth_provider(name, key, model, directory):
+            depth_calls.append(name)
+            return ScriptedAdapter([])
+        self.app.api_depth_provider_factory = depth_provider
+        self.app.use_api_depth = True
+        _, session = await self.call('/api/session', {})
+        self.csrf = session['csrf']
+        self.assertEqual(session['api_depth'], {'available': True, 'enabled': True})
+        payload = {'provider': 'codex', 'model': 'gpt-6-astra', 'prompt': 'Move the red block',
+                   'runner_name': 'Local test', 'use_api_depth': True}
+        code, _ = await self.call('/api/run', payload)
+        self.assertEqual(code, 200)
+        self.assertEqual(depth_calls, ['codex'])
+        self.assertEqual(self.providers, [])
+        await self.call('/api/stop', {})
+        next(iter(self.app.visitors.values())).last_launch = 0
+        code, _ = await self.call('/api/run', {**payload, 'use_api_depth': False})
+        self.assertEqual(code, 200)
+        self.assertEqual(len(self.providers), 1)
+        self.assertEqual(depth_calls, ['codex'])
+
+    async def test_failed_depth_preflight_never_queues_and_invalid_options_are_rejected(self):
+        def fail_depth(*args):
+            raise RequestError(503, 'Fresh paired RGB-D unavailable')
+        self.app.api_depth_provider_factory = fail_depth
+        _, session = await self.call('/api/session', {})
+        self.csrf = session['csrf']
+        payload = {'provider': 'codex', 'model': 'gpt-6-astra', 'prompt': 'Move block',
+                   'runner_name': 'Local test', 'use_api_depth': True}
+        for extra, expected in [({}, 503), ({'use_api_depth': 'true'}, 400),
+                                ({'provider': 'claude'}, 400)]:
+            code, _ = await self.call('/api/run', {**payload, **extra})
+            self.assertEqual(code, expected)
+            _, state = await self.call('/api/status')
+            self.assertEqual(state['status'], 'idle')
+            self.assertEqual(self.providers, [])
 
     async def call(self, path, payload=None):
         messages = []

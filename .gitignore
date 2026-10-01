@@ -11,3 +11,4 @@ screenlog.*
 .pytest_cache/
 .local/
 codex-runner/data/
+codex-runner/outputs/

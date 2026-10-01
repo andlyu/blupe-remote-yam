@@ -339,3 +339,9 @@ it does not offer Stripe-funded Claude inference.
 
 YAM uses With Haste, ±50 cm sideways limits, 4× motion pacing, and Fast inference.
 See [run defaults](docs/RUN-DEFAULTS.md) for provider settings and motion limits.
+
+## Astra RGB-D API example
+
+See the [runnable example and read-only probes](docs/astra-depth-example.md)
+and [public transport contract](docs/api-depth-contract.md). Local YAM Astra
+runs expose **Use depth from the API**, unchecked by default.
