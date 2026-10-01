@@ -61,14 +61,20 @@ class CameraFrame:
 
 
 class CameraFrameSource:
-    def __init__(self, camera_origin: str, timeout_s: float = 2.0, camera_names=CAMERA_NAMES):
+    def __init__(self, camera_origin: str, timeout_s: float = 2.0, camera_names=CAMERA_NAMES,
+                 *, max_attempts: int = 10, recovery_s: float = 60.0):
+        if max_attempts < 1 or recovery_s <= 0:
+            raise ValueError("Camera recovery limits must be positive")
+        self.max_attempts = max_attempts
+        self.recovery_s = recovery_s
         self.camera_names = tuple(camera_names)
         self.allowed_origin = trusted_origin(camera_origin)
         self.timeout_s = timeout_s
 
     def capture_for_policy(self, observation, *, cancelled=lambda: False, on_event=lambda *args: None):
         """Retry fresh sets, never combine an old successful view with a later one."""
-        for attempt in range(1, 4):
+        recovery_deadline = time.monotonic() + self.recovery_s
+        for attempt in range(1, self.max_attempts + 1):
             if cancelled():
                 raise RuntimeError("Camera capture cancelled")
             try:
@@ -76,26 +82,32 @@ class CameraFrameSource:
             except CameraUnavailable as exc:
                 if cancelled():
                     raise RuntimeError("Camera capture cancelled") from None
-                retrying = exc.retryable and attempt < 3
-                detail = {"camera": exc.camera, "attempt": attempt, "max_attempts": 3,
+                retrying = (exc.retryable and attempt < self.max_attempts
+                            and time.monotonic() < recovery_deadline)
+                detail = {"camera": exc.camera, "attempt": attempt, "max_attempts": self.max_attempts,
                           "http_status": exc.http_status, "cause": exc.detail,
                           "state": "retrying" if retrying else "failed"}
-                message = (f"Waiting for next {exc.camera} camera frame ({attempt}/3; {exc.detail})"
+                message = (f"Waiting for next {exc.camera} camera frame ({attempt}/{self.max_attempts}; {exc.detail})"
                            if retrying else f"Camera failure: {exc.camera} camera frame unavailable after {attempt} attempt(s) ({exc.detail})")
                 on_event("camera_retry" if retrying else "camera_failure", message, detail)
                 if not retrying:
                     raise RuntimeError(message) from None
-                deadline = time.monotonic() + .25
+                deadline = min(time.monotonic() + .25, recovery_deadline)
                 while time.monotonic() < deadline:
                     if cancelled():
                         raise RuntimeError("Camera capture cancelled")
                     time.sleep(min(.05, max(0, deadline - time.monotonic())))
+                if time.monotonic() >= recovery_deadline:
+                    detail = {**detail, "state": "failed"}
+                    message = f"Camera failure: {exc.camera} camera frame unavailable after {attempt} attempt(s) ({exc.detail})"
+                    on_event("camera_failure", message, detail)
+                    raise RuntimeError(message) from None
                 continue
             if cancelled():
                 raise RuntimeError("Camera capture cancelled")
             if attempt > 1:
                 on_event("camera_recovered", "Camera feeds recovered; continuing with fresh frames",
-                         {"state": "recovered", "attempt": attempt, "max_attempts": 3})
+                         {"state": "recovered", "attempt": attempt, "max_attempts": self.max_attempts})
             return frames
         raise AssertionError("unreachable")
 

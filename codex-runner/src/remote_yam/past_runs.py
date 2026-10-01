@@ -63,6 +63,17 @@ def public_runner_diagnostic(state):
     error = state.get('error')
     if not isinstance(error, str):
         return None
+    # CameraFrameSource emits a fixed diagnostic without response bodies/URLs.
+    # Retain it in the live banner and saved result instead of hiding the cause.
+    camera = r'left|right|top|observer|overhead|side|front|wrist'
+    cause = (r'HTTP [1-5][0-9]{2}|TimeoutError|URLError|HTTPError|ValueError|'
+             r'ConnectionError|ConnectionResetError|ConnectionRefusedError|'
+             r'RemoteDisconnected|OSError|SSLError|SSLCertVerificationError|IncompleteRead')
+    failure = re.fullmatch(
+        rf'(?:RuntimeError: )?(Camera failure: (?:{camera}) camera frame unavailable '
+        rf'after [1-9][0-9]{{0,2}} attempt\(s\) \((?:{cause})\))', error)
+    if failure:
+        return failure.group(1)
     camera_error = 'No fresh RGB-D capture available'
     if error in {camera_error, 'RuntimeError: ' + camera_error}:
         return camera_error

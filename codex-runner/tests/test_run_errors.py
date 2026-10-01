@@ -118,3 +118,26 @@ def test_fresh_depth_failure_is_visible_and_does_not_echo_provider_details(tmp_p
     names=RunNames(tmp_path/'names.sqlite3')
     names.remember_result('ep_depth', dict(status='stopped', error='RuntimeError: '+expected))
     assert names.results()['ep_depth']['result_reason']==expected
+
+
+def test_camera_failure_is_exact_in_live_and_saved_results(tmp_path):
+    from remote_yam.past_runs import RunNames, merge_run_result
+    message = 'Camera failure: right camera frame unavailable after 3 attempt(s) (HTTP 503)'
+    state = {'status': 'stopped', 'error': 'RuntimeError: ' + message}
+    assert public_run_error(state) == message
+    names = RunNames(tmp_path / 'camera.sqlite3')
+    names.remember_result('ep_camera', state)
+    saved = names.results()['ep_camera']
+    assert saved['result_reason'] == saved['errors'] == message
+    assert merge_run_result({}, dict(saved, result_reason='Runner or model error'))['result_reason'] == message
+
+
+def test_camera_failure_never_echoes_unrecognized_payloads():
+    from remote_yam.past_runs import public_runner_diagnostic
+    for cause in ('HTTP 503', 'TimeoutError', 'URLError', 'ValueError'):
+        message = f'Camera failure: left camera frame unavailable after 12 attempt(s) ({cause})'
+        assert public_run_error({'error': message}) == message
+        assert public_runner_diagnostic({'error': message + ' private-key'}) is None
+    for cause in ('https://private.example/token', 'private-key', 'HTTP 503 private-key'):
+        message = f'Camera failure: left camera frame unavailable after 3 attempt(s) ({cause})'
+        assert public_runner_diagnostic({'error': message}) is None

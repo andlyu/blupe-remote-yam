@@ -37,7 +37,7 @@ class CameraRetryTests(unittest.TestCase):
         self.thread = threading.Thread(target=self.server.serve_forever, daemon=True)
         self.thread.start()
         origin = f'http://127.0.0.1:{self.server.server_port}'
-        self.source = CameraFrameSource(origin)
+        self.source = CameraFrameSource(origin, max_attempts=3)
         self.observation = {'images': {name: {'url': origin+'/'+name} for name in ('left','top','right')}}
 
     def tearDown(self):
@@ -53,6 +53,50 @@ class CameraRetryTests(unittest.TestCase):
         self.assertTrue(all(b':3' in frame.jpeg for frame in frames))
         self.assertEqual([e[0] for e in events], ['camera_retry', 'camera_retry', 'camera_recovered'])
         self.assertEqual(events[0][2]['http_status'], 503)
+
+    def test_default_recovers_after_old_three_attempt_limit(self):
+        Frames.failures = 4
+        source = CameraFrameSource(f'http://127.0.0.1:{self.server.server_port}')
+        events = []
+        frames = source.capture_for_policy(self.observation, on_event=lambda *args: events.append(args))
+        self.assertEqual(Frames.counts, {'/left':5, '/top':5, '/right':5})
+        self.assertTrue(all(b':5' in frame.jpeg for frame in frames))
+        self.assertEqual(events[-1][0], 'camera_recovered')
+
+    def test_recovery_deadline_stops_before_another_capture(self):
+        from remote_yam.cameras import CameraUnavailable
+        source = CameraFrameSource('http://127.0.0.1', recovery_s=0.1)
+        clock = [0.]
+        events = []
+        def fail(observation):
+            clock[0] += 0.2
+            raise CameraUnavailable('left', 'TimeoutError')
+        with patch.object(source, 'capture', side_effect=fail) as capture, \
+             patch('remote_yam.cameras.time.monotonic', side_effect=lambda: clock[0]):
+            with self.assertRaisesRegex(RuntimeError, 'after 1 attempt'):
+                source.capture_for_policy({}, on_event=lambda *args: events.append(args))
+        capture.assert_called_once()
+        self.assertEqual(events[-1][0], 'camera_failure')
+
+    def test_default_allows_ten_slow_attempts_and_reports_live_progress(self):
+        from remote_yam.cameras import CameraUnavailable
+        source = CameraFrameSource('http://127.0.0.1')
+        clock = [0.]
+        events = []
+        def fail(observation):
+            clock[0] += 5.
+            raise CameraUnavailable('left', 'TimeoutError')
+        def sleep(seconds):
+            clock[0] += seconds
+        with patch.object(source, 'capture', side_effect=fail) as capture, \
+             patch('remote_yam.cameras.time.monotonic', side_effect=lambda: clock[0]), \
+             patch('remote_yam.cameras.time.sleep', side_effect=sleep):
+            with self.assertRaisesRegex(RuntimeError, 'after 10 attempt'):
+                source.capture_for_policy({}, on_event=lambda *args: events.append(args))
+        self.assertEqual(capture.call_count, 10)
+        self.assertEqual([event[2]['attempt'] for event in events], list(range(1, 11)))
+        self.assertTrue(all(event[2]['max_attempts'] == 10 for event in events))
+        self.assertEqual([event[0] for event in events], ['camera_retry'] * 9 + ['camera_failure'])
 
     def test_exhaustion_names_camera_and_never_calls_model(self):
         Frames.failures = 100
