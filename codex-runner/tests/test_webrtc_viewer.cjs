@@ -1,7 +1,7 @@
 const fs=require('fs'),vm=require('vm'),assert=require('node:assert/strict');
 const src=fs.readFileSync(require('node:path').join(__dirname,'../static/hosted.js'),'utf8');
 const camera=src.slice(src.indexOf('  function camera(image)'),src.indexOf('  async function poll()',src.indexOf('  function camera(image)')));
-function harness(role='observer', monitored=false){
+function harness(role='observer', monitored=false, streamPath){
  let health;
  let now=0, video, readerOptions, destroyed=0, closed=0;const intervals=[],timers=new Map(),visibility={};let id=0;
  const label={textContent:''};
@@ -14,7 +14,7 @@ function harness(role='observer', monitored=false){
  Hls:class{static isSupported(){return true}static Events={ERROR:'error',MANIFEST_PARSED:'manifest'};constructor(){this.events={}}on(n,f){this.events[n]=f}loadSource(u){this.url=u}attachMedia(v){v.hls=this}destroy(){destroyed++}}
  };context.window.Hls=context.Hls;context.window.MediaMTXWebRTCReader=context.MediaMTXWebRTCReader;
  if(monitored) context.window.YamStreamHealth=class {constructor(video, options){health=options;}};
- vm.createContext(context);vm.runInContext(camera+'\ncamera(image)',Object.assign(context,{image:{dataset:{camera:role},alt:role,parentElement:{querySelector:()=>label},replaceWith(){}}}));
+ vm.createContext(context);vm.runInContext(camera+'\ncamera(image)',Object.assign(context,{image:{dataset:{camera:role,streamPath},alt:role,parentElement:{querySelector:()=>label},replaceWith(){}}}));
  return {get health(){return health},context,video,label,intervals,timers,visibility,get reader(){return readerOptions},get closed(){return closed},setNow(t){now=t}};
 }
 (async()=>{
@@ -29,6 +29,9 @@ function harness(role='observer', monitored=false){
  const sync=harness('synchronized');assert.equal(sync.video.dataset.transport,'webrtc');assert.equal(sync.reader.url,'https://test.invalid/synchronized/whep');
  sync.reader.onError('ICE failed');assert.equal(sync.video.dataset.transport,'hls');assert.equal(sync.video.hls.url,'/synchronized/index.m3u8');
  await sync.intervals[0]();assert.equal(sync.video.dataset.transport,'hls'); // no independent-camera health request
+ const robo=harness('synchronized',false,'robo-house');
+ assert.equal(robo.reader.url,'https://test.invalid/robo-house/whep');
+ robo.reader.onError('ICE failed');assert.equal(robo.video.hls.url,'/robo-house/index.m3u8');
  const monitored=harness('synchronized',true);
  monitored.setNow(8100);monitored.health.recover();
  assert.equal(monitored.video.dataset.transport,'hls');
