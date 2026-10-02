@@ -136,6 +136,54 @@ class FeedbackTests(unittest.TestCase):
             self.assertIsNotNone(checks[-1]['details']['received_at'])
             self.assertNotIn('lease_id', str(checks))
 
+    @patch('remote_yam.controller.FEEDBACK_POLL_S', .01)
+    def test_depth_is_requeried_after_station_confirms_stopped_without_ending_run(self):
+        from remote_yam.api_depth import ApiDepth, StaleDepth, depth_robot_stopped
+        from test_api_depth import fixture, bundle
+        events = []
+        report, metadata, depth = fixture()
+        metadata['captured_at'] = time.time() - 3.
+        data = bundle(metadata, depth)
+        depth_api = ApiDepth('https://api.example')
+        with self.assertRaises(StaleDepth):
+            depth_api.decode(data, report)
+
+        class HardwareAPI(MockSessionAPI):
+            reads = 0
+
+            def get_robot_observation(self, jetson_id):
+                self.reads += 1
+                stopped = self.reads > 1
+                events.append('stopped' if stopped else 'moving')
+                return station(time.time(), settled=stopped)
+
+        class DepthProvider(ScriptedAdapter):
+            def infer(self, prompt, observation):
+                snapshot = depth_api.capture(report=report, stopped=depth_robot_stopped(observation))
+                assert snapshot.metadata['captured_at'] == metadata['captured_at']
+                return super().infer(prompt, observation)
+
+        def query_depth(suffix):
+            self.assertEqual(events[-1], 'stopped')
+            events.append('depth_query')
+            return data
+
+        api = HardwareAPI()
+        api.supports_trajectories = False
+        controller = RunnerController(api)
+        controller.update_monitor_observation(station(time.time() - 1, settled=False))
+        command = IKCommand(ArmIKCommand('joints', (0,) * 6), ArmIKCommand('joints', (0,) * 6))
+        controller.join(DepthProvider([command]), 'single unchanged target')
+        with patch.object(depth_api, 'read', side_effect=query_depth), \
+             patch.object(api, 'stop_session', wraps=api.stop_session) as stop:
+            for _ in range(10):
+                controller.process_next_event(.01)
+                if api.action_log:
+                    break
+            stop.assert_not_called()
+        self.assertEqual(events, ['moving', 'stopped', 'depth_query'])
+        self.assertEqual(len(api.action_log), 1)
+
     @patch("remote_yam.controller.FEEDBACK_POLL_S", .01)
     def test_stop_interrupts_stalled_status_fetch_and_late_result_is_ignored(self):
         entered, release = threading.Event(), threading.Event()

@@ -2,10 +2,11 @@
 import base64
 import copy
 import json
+import time
 import uuid
 import numpy as np
 
-from .api_depth import ApiDepth
+from .api_depth import ApiDepth, NoDepthImage, depth_image_event, depth_robot_stopped, require_depth_age
 from .codex_policy import CodexAdapter, DECISION_SCHEMA, decision_response
 from .robocurve_trajectory import RoboCurveTrajectory, InvalidMove
 from .camera_calibration import rigid
@@ -123,6 +124,26 @@ class CodexDepthAdapter(CodexAdapter):
                 'depth_queries_per_decision':4}
 
     def _observation_message(self, prompt, observation, first_step_id):
+        waiting = False
+        while True:
+            if self.cancelled():
+                raise RuntimeError('Depth capture cancelled')
+            try:
+                message = self._capture_observation_message(prompt, observation, first_step_id)
+                if self.cancelled():
+                    raise RuntimeError('Depth capture cancelled')
+                if waiting:
+                    depth_image_event(self._camera_event, 'all', recovered=True)
+                return message
+            except NoDepthImage as exc:
+                if not depth_robot_stopped(observation):
+                    raise
+                if not waiting:
+                    depth_image_event(self._camera_event, exc.camera or 'top')
+                waiting = True
+                time.sleep(.1)
+
+    def _capture_observation_message(self, prompt, observation, first_step_id):
         if getattr(self, 'all_depth_origin', None):
             return self._all_depth_observation(prompt, observation, first_step_id)
         self._expected_camera_count = 4
@@ -134,13 +155,15 @@ class CodexDepthAdapter(CodexAdapter):
             # Preflight pins the API report before any queue preparation. Direct
             # adapter users also obtain a report before their first wrist read.
             if self._camera_source.calibration is None:
-                self._camera_source.set_calibration(self.depth_api.capture(cancelled=self.cancelled).calibration)
+                self._camera_source.set_calibration(self.depth_api.capture(
+                    cancelled=self.cancelled, stopped=depth_robot_stopped(observation)).calibration)
             self._camera_names = ('left', 'right')
         try:
             message = super()._observation_message(prompt, observation, first_step_id)
         finally:
             self._camera_names = ('top', 'left', 'right')
-        snapshot = self.depth_api.capture(cancelled=self.cancelled)
+        stopped = depth_robot_stopped(observation)
+        snapshot = self.depth_api.capture(cancelled=self.cancelled, stopped=stopped)
         self._snapshot = snapshot
         content = message['content']
         # Replace the independent top JPEG with RGB from the exact depth frameset.
@@ -167,6 +190,7 @@ class CodexDepthAdapter(CodexAdapter):
             path = self._recorder.path / f'depth-{self._calls:03d}.npz'
             path.write_bytes(snapshot.bundle)
             path.chmod(0o600)
+        require_depth_age(snapshot.age(), stopped=stopped)
         return message
 
     def _all_depth_observation(self, prompt, observation, first_step_id):
@@ -215,7 +239,7 @@ class CodexDepthAdapter(CodexAdapter):
                 path = self._recorder.path / f'depth-{role}-{self._calls:03d}.npz'
                 path.write_bytes(snapshot.bundle)
                 path.chmod(0o600)
-        self._camera_source.require_fresh(snapshots)
+        self._camera_source.require_fresh(snapshots, stopped=depth_robot_stopped(observation))
         return message
 
     def _decision_response(self, value):

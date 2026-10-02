@@ -7,7 +7,7 @@ robot-control credential. Default origin:
 | Read route | Result |
 | --- | --- |
 | `/v1/robots/yam-1/calibration` | JSON package: schema version 1, robot/calibration identity, cameras and quality |
-| `/v1/robots/yam-1/cameras/{role}.rgbd.npz` | Latest paired RGB-D; roles are top/left/right; 503 when unavailable or stale |
+| `/v1/robots/yam-1/cameras/{role}.rgbd.npz` | Latest paired RGB-D; roles are top/left/right; empty 204 when unavailable or older than five seconds |
 | `/v1/robots/yam-1/cameras/{role}.jpg` | Independent JPEG, not synchronized to a depth bundle |
 
 Public `rgbd-npz-v1` has exactly these NumPy arrays:
@@ -23,8 +23,15 @@ Required metadata: `schema_version: 1`, `robot_id: "yam-1"`,
 `depth_units: "meters"`, `depth_aligned_to: "color"`,
 `depth_semantics: "optical_z"`, `depth_coordinate_frame: "color_optical"`.
 Dimensions match camera `image_size: [W,H]`. Public freshness requires synchronized
-clocks and an age from zero to two seconds at receipt. Different GETs may return
-different frames. The client disables pickle, bounds compressed/decompressed
+clocks. The relay accepts depth up to five seconds old. The runner permits that
+age only with confirmed stopped feedback; otherwise depth must be less than two
+seconds old. When no frame is available within five seconds, depth GETs return
+`204 No Content`, an empty body, `X-Camera-Error: no_image`, and
+`Cache-Control: no-store`. Remote-yam displays **No image** and retries while
+the current run remains active, without submitting a new motion command. It
+fetches the complete camera set again when retrying. Stop and the selected run
+duration still cancel the wait. Different GETs may return different frames.
+The client disables pickle, bounds compressed/decompressed
 payloads to 16 MB, validates NPY sizes before loading, and follows no redirects.
 
 Each camera has a 3×3 `K`, five `distortion` coefficients and

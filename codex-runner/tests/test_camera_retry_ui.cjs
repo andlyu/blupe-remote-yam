@@ -26,4 +26,12 @@ test('camera waiting, failure and recovery are visible during polling', () => {
   assert.match(element.textContent, /Waiting for next top/);
   update({state: 'recovered'});
   assert.equal(element.textContent, 'Camera feeds recovered. Continuing the run.');
+  update({state: 'retrying', cause: 'No image', message: 'No image: waiting for depth.'});
+  assert.equal(element.textContent, 'No image: waiting for depth.');
+  assert.equal(messages.at(-1).error, true);
+  update(null);
+  assert.equal(element.textContent, 'No image: waiting for depth.');
+  update({state: 'recovered'});
+  assert.equal(element.textContent, 'Camera feeds recovered. Continuing the run.');
+  assert.equal(messages.at(-1).error, false);
 });

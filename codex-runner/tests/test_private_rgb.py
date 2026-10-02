@@ -65,7 +65,9 @@ def test_truncated_frame_closes_connection_and_stops_capture():
         closed.assert_called_once()
 
 
-def test_depth_adapter_attaches_paired_top_and_local_wrists_in_order():
+@pytest.mark.parametrize('missing_frames', [0, 12])
+def test_depth_adapter_attaches_paired_top_and_local_wrists_in_order(missing_frames):
+    from remote_yam.api_depth import NoDepthImage
     from remote_yam.codex_depth_policy import CodexDepthAdapter
     from remote_yam.robocurve_policy import RoboCurveResponsesAdapter
     source, _, _ = fixture()
@@ -73,18 +75,28 @@ def test_depth_adapter_attaches_paired_top_and_local_wrists_in_order():
     provider._camera_source = source
     provider._vision_frames = []
     provider._recorder = None
+    provider.interaction_sink = None
     provider.cancelled = lambda: False
+    provider._camera_event = MagicMock(wraps=provider._camera_event)
     snapshot = MagicMock(calibration=source.calibration, metadata={'captured_at': 100, 'calibration_id': 'test'})
     snapshot.image.return_value = b'paired-png'
-    provider.depth_api = MagicMock(); provider.depth_api.capture.return_value = snapshot
+    snapshot.age.return_value = 1.
+    provider.depth_api = MagicMock()
+    provider.depth_api.capture.side_effect = [NoDepthImage('top') for _ in range(missing_frames)] + [snapshot]
     parent_message = {'content': [{'type': 'input_text', 'text': 'state'},
                       {'type': 'input_image', 'image_url': 'left'},
                       {'type': 'input_image', 'image_url': 'right'}]}
     def parent(*args):
         assert provider._camera_names == ('left', 'right')
         return copy.deepcopy(parent_message)
-    with patch.object(RoboCurveResponsesAdapter, '_observation_message', side_effect=parent):
-        message = provider._observation_message('place', {'robot_id': 'yam-1'}, 1)
+    with patch.object(RoboCurveResponsesAdapter, '_observation_message', side_effect=parent) as rgb, \
+         patch('remote_yam.codex_depth_policy.time.sleep'):
+        message = provider._observation_message('place', {'robot_id': 'yam-1', 'settled': True}, 1)
+    assert rgb.call_count == missing_frames + 1
+    assert provider.depth_api.capture.call_count == missing_frames + 1
+    if missing_frames:
+        assert [call.args[0] for call in provider._camera_event.call_args_list] == ['camera_retry', 'camera_recovered']
+        assert provider._camera_retry['state'] == 'recovered'
     images = [x['image_url'] for x in message['content'] if x['type'] == 'input_image']
     assert len(images) == 4
     assert images[0].startswith('data:image/png;base64,')

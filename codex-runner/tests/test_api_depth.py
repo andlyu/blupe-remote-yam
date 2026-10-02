@@ -6,7 +6,7 @@ from unittest.mock import patch
 
 import numpy as np
 
-from remote_yam.api_depth import ApiDepth, StaleDepth
+from remote_yam.api_depth import ApiDepth, NoDepthImage, StaleDepth
 from remote_yam.codex_depth_policy import CodexDepthAdapter
 from remote_yam.codex_policy import DECISION_SCHEMA
 
@@ -71,6 +71,29 @@ class DepthTests(unittest.TestCase):
         bad=copy.deepcopy(self.report);bad['calibration_id']='changed'
         with self.assertRaisesRegex(ValueError,'changed'):
             self.api.decode(bundle(dict(self.meta,calibration_id='changed'),self.depth),bad)
+
+    def test_depth_age_accepts_through_five_seconds_and_rejects_older_or_future(self):
+        data = bundle(self.meta, self.depth)
+        for age in (0., 3., 5.):
+            with self.subTest(age=age):
+                api = ApiDepth('https://api.example', clock=lambda: 100. + age)
+                self.assertEqual(api.decode(data, self.report, stopped=True).metadata['captured_at'], 100.)
+        for age in (-.01, 5.01):
+            with self.subTest(age=age):
+                api = ApiDepth('https://api.example', clock=lambda: 100. + age)
+                with self.assertRaises(StaleDepth):
+                    api.decode(data, self.report, stopped=True)
+
+    def test_unconfirmed_stop_keeps_two_second_limit(self):
+        data = bundle(self.meta, self.depth)
+        api = ApiDepth('https://api.example', clock=lambda: 101.99)
+        api.decode(data, self.report)
+        for stopped in (False, None, 1, 'true'):
+            for age in (2., 3., 5.):
+                with self.subTest(stopped=stopped, age=age):
+                    api = ApiDepth('https://api.example', clock=lambda: 100. + age)
+                    with self.assertRaises(StaleDepth):
+                        api.decode(data, self.report, stopped=stopped)
 
     def test_holes_edges_bounds_and_preview(self):
         self.depth[:]=0
@@ -147,6 +170,68 @@ class DepthTests(unittest.TestCase):
             snap=self.api.capture()
         self.assertEqual(read.call_count,3)
         self.assertEqual(snap.metadata['calibration_id'],'test')
+
+    def test_empty_depth_response_is_no_image_and_keeps_connection_reusable(self):
+        from unittest.mock import MagicMock
+        for status in (204, 503):
+            response = MagicMock(status=status)
+            response.read1.side_effect = [b'']
+            self.api._depth_receipt = 'old frame'
+            with patch.object(self.api.connection, 'getresponse', return_value=response), \
+                 patch.object(self.api.connection, 'request'), \
+                 patch.object(self.api.connection, 'close') as closed:
+                with self.assertRaisesRegex(NoDepthImage, '^No image$'):
+                    self.api.read(self.api.depth_suffix)
+            response.close.assert_called_once()
+            closed.assert_not_called()
+            self.assertIsNone(self.api._depth_receipt)
+
+    def test_no_image_wait_survives_old_attempt_and_time_limits_then_recovers(self):
+        now, count, events = [0.], [0], []
+        self.api.clock = lambda: 100. + now[0]
+        def read(suffix):
+            count[0] += 1
+            if count[0] <= 12:
+                raise NoDepthImage('top')
+            return bundle(dict(self.meta, captured_at=self.api.clock() - 1.), self.depth)
+        def sleep(seconds):
+            now[0] += 10.
+        with patch.object(self.api, 'read', side_effect=read), \
+             patch('remote_yam.api_depth.time.monotonic', side_effect=lambda: now[0]), \
+             patch('remote_yam.api_depth.time.sleep', side_effect=sleep):
+            snap = self.api.capture(report=self.report, stopped=True, wait_for_image=True,
+                                    on_event=lambda *args: events.append(args))
+        self.assertEqual(count[0], 13)
+        self.assertEqual(now[0], 120.)
+        self.assertEqual(snap.metadata['captured_at'], 219.)
+        self.assertEqual([event[0] for event in events], ['camera_retry', 'camera_recovered'])
+        self.assertEqual(events[0][2]['cause'], 'No image')
+
+    def test_no_image_wait_obeys_stop_and_run_deadline(self):
+        from remote_yam.controller import RunnerController
+        from unittest.mock import Mock
+        for reason in ('stop', 'deadline'):
+            with self.subTest(reason=reason):
+                controller = RunnerController(Mock())
+                provider = controller._provider = Mock()
+                controller._status = 'running'
+                controller._run_started_at = 100.
+                controller._run_duration_s = 300
+                now = [101.]
+                def sleep(seconds):
+                    if reason == 'stop':
+                        controller._stop_event.set()
+                    else:
+                        now[0] = 400.
+                with patch.object(self.api, 'read', side_effect=NoDepthImage('top')) as read, \
+                     patch('remote_yam.controller.time.time', side_effect=lambda: now[0]), \
+                     patch('remote_yam.api_depth.time.sleep', side_effect=sleep):
+                    with self.assertRaisesRegex(RuntimeError, 'cancelled'):
+                        self.api.capture(report=self.report, stopped=True, wait_for_image=True,
+                                         cancelled=lambda: controller._provider_cancelled(provider))
+                read.assert_called_once()
+                controller._session_api.submit_action.assert_not_called()
+                controller._session_api.submit_trajectory.assert_not_called()
 
     def test_millimeter_transport_has_explicit_precision_holes_and_conservative_patch(self):
         from PIL import Image

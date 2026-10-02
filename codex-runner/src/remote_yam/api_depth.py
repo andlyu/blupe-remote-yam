@@ -20,6 +20,30 @@ from .cameras import trusted_origin
 from .camera_calibration import matrix, rigid
 
 MAX_BYTES = 16_000_000
+MAX_DEPTH_AGE_S = 5.0
+MOVING_DEPTH_AGE_S = 2.0
+
+
+def depth_robot_stopped(observation):
+    return (observation.get('settled') is True
+            and observation.get('mode') not in ('EXECUTING', 'HOMING'))
+
+
+def require_depth_age(age, *, stopped=False):
+    if not math.isfinite(age) or age < 0:
+        raise StaleDepth('Invalid depth capture age')
+    if stopped is True:
+        if age > MAX_DEPTH_AGE_S:
+            raise NoDepthImage()
+    elif age >= MOVING_DEPTH_AGE_S:
+        raise NoDepthImage()
+
+
+def depth_image_event(on_event, camera, *, recovered=False):
+    state = 'recovered' if recovered else 'retrying'
+    message = 'Camera feeds recovered. Continuing the run.' if recovered else 'No image: waiting for depth.'
+    on_event('camera_recovered' if recovered else 'camera_retry', message,
+             dict(camera=camera, state=state, cause=None if recovered else 'No image'))
 
 
 def validate_factory_profile(profile, image_size):
@@ -119,6 +143,9 @@ class ApiDepth:
             response.close()
             if len(data)>limit:
                 raise ValueError('Depth API response exceeds its size limit')
+            if depth and status in (204, 503):
+                self._depth_receipt = None
+                raise NoDepthImage(self.camera)
             if status != 200:
                 raise error.HTTPError(url,status,'Depth API read failed',{},None)
             if self.monotonic_freshness and depth:
@@ -127,14 +154,18 @@ class ApiDepth:
                 if not math.isfinite(source_age) or source_age < 0 or not 0 <= elapsed:
                     raise StaleDepth('Invalid private source age')
                 self._depth_receipt = (headers, source_age + elapsed, time.monotonic())
+        except NoDepthImage:
+            raise  # The complete empty response can reuse its connection.
         except Exception:
             connection.close()
             raise
         return data
 
-    def capture(self, *, cancelled=lambda: False, report=None):
+    def capture(self, *, cancelled=lambda: False, report=None, stopped=False,
+                wait_for_image=False, on_event=lambda *args: None):
         # Retry observation reads only, never motion. Cloud depth has brief gaps.
         deadline = time.monotonic() + 8
+        waiting = False
         while True:
             if cancelled():
                 raise RuntimeError('Depth capture cancelled')
@@ -142,7 +173,22 @@ class ApiDepth:
                 calibration = report if report is not None else json.loads(self.read('/calibration', 256_000))
                 data = self.read(self.depth_suffix)
                 receipt = self._depth_receipt if self.monotonic_freshness else None
-                return self.decode(data, calibration, receipt=receipt)
+                snapshot = self.decode(data, calibration, receipt=receipt, stopped=stopped)
+                if cancelled():
+                    raise RuntimeError('Depth capture cancelled')
+                if waiting:
+                    depth_image_event(on_event, self.camera, recovered=True)
+                return snapshot
+            except NoDepthImage as exc:
+                exc.camera = self.camera
+                if not wait_for_image:
+                    raise
+                if not waiting:
+                    depth_image_event(on_event, self.camera)
+                waiting = True
+                # No image is a recoverable observation gap, not a failed run.
+                # Keep the ordinary timeout budget for separate transport errors.
+                deadline = time.monotonic() + 8
             except error.HTTPError as exc:
                 if exc.code != 503 or time.monotonic() >= deadline:
                     raise RuntimeError('Fresh API depth unavailable; no motion proposed') from exc
@@ -154,7 +200,7 @@ class ApiDepth:
                     raise RuntimeError('API depth transfer failed; no motion proposed') from None
             time.sleep(.1)
 
-    def decode(self, data, report, *, receipt=None):
+    def decode(self, data, report, *, receipt=None, stopped=False):
         if len(data) > MAX_BYTES:
             raise ValueError('RGB-D bundle exceeds its size limit')
         if report.get('schema_version') != 1 or report.get('robot_id') != self.robot_id:
@@ -266,10 +312,9 @@ class ApiDepth:
                     or headers['x-calibration-id'] != report['calibration_id']):
                 raise ValueError('Private depth response identity mismatch')
             age_upper = age_at_receipt + time.monotonic() - received_mono
-            if not math.isfinite(age_upper) or not 0 <= age_upper <= 2:
-                raise StaleDepth('Private depth exceeds two-second age bound')
-        elif not 0 <= self.clock() - captured <= 2:
-            raise StaleDepth('Depth is older than two seconds or from the future')
+            require_depth_age(age_upper, stopped=stopped)
+        else:
+            require_depth_age(self.clock() - captured, stopped=stopped)
         if np.isinf(depth).any() or (depth < 0).any() or not (np.isfinite(depth) & (depth > 0)).any():
             raise ValueError('Depth is invalid or entirely missing')
         if self.calibration_id not in (None, report['calibration_id']):
@@ -280,6 +325,12 @@ class ApiDepth:
 
 class StaleDepth(ValueError):
     pass
+
+
+class NoDepthImage(StaleDepth):
+    def __init__(self, camera=None):
+        super().__init__('No image')
+        self.camera = camera
 
 
 class DepthSnapshot:

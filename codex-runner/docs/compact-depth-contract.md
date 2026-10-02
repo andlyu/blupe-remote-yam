@@ -20,9 +20,13 @@ and `depth_dtype: "<f4"`. All source timestamps, robot/camera/calibration ID,
 units, alignment, optical-Z semantics and sensor metadata stay unchanged.
 
 The exporter reads the existing loopback camera API; it opens no camera or motor
-device and has no controller access. It rejects source frames older than two
-seconds. Consumers also enforce the two-second limit after transfer and decode,
+device and has no controller access. It rejects source frames older than five
+seconds. Consumers permit that age only with confirmed stopped feedback;
+otherwise depth must be less than two seconds old after transfer and decode. They
 retain calibration quality warnings, and never substitute a saved frame.
+Missing or expired depth returns `204 No Content` with an empty body and
+`X-Camera-Error: no_image`. Remote-yam reports **No image** and retries the
+complete observation while the run remains active and the robot is stopped.
 
 This private contract is accepted only when an explicit `--depth-url` is supplied.
 The public API's default `rgbd-npz-v1` format and behavior remain unchanged.
@@ -43,7 +47,7 @@ The source's `depth_units: "meters"` describes reconstructed optical Z;
 clients explicitly convert the uint16 wire array to float32 meters. Measurement
 responses retain the rounding bounds, and patch-spread validation adds the
 one-millimeter quantization interval conservatively. Identity, calibration,
-resource limits and the two-second freshness check are unchanged.
+resource limits and the same freshness checks apply.
 
 ## Local wrist RGB snapshots
 
@@ -75,7 +79,8 @@ Private RGB-D responses include `X-Source-Capture-Age-S`: nonnegative source
 age measured on the robot's monotonic clock after encoding. The client adds
 its full monotonic request/response duration, plus subsequent local processing,
 to obtain a conservative upper bound on capture age. Require that bound to be
-at most two seconds. This works without synchronized wall clocks: the server's
+at most five seconds when the robot is confirmed stopped, and less than two
+seconds otherwise. This works without synchronized wall clocks: the server's
 age sample is between the client's request start and response completion.
 Preserve the original finite positive `captured_at`; require it to match
 `X-Captured-At`. Missing/invalid ages, identity, serial or calibration headers

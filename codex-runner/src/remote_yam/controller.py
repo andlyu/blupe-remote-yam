@@ -116,6 +116,8 @@ class RunnerController:
                                    "provider": provider.public_config().get("provider"),
                                    "model": provider.public_config().get("model")}
             self._provider = provider
+            if hasattr(provider, 'cancelled'):
+                provider.cancelled = lambda: self._provider_cancelled(provider)
             self._run_configuration = run_configuration(provider, prompt, run_duration_s)
             self._prompt = prompt
             self._session_id = session_id
@@ -897,6 +899,14 @@ class RunnerController:
         finally:
             pool.shutdown(wait=False, cancel_futures=True)
 
+    def _provider_cancelled(self, provider):
+        with self._lock:
+            if self._stop_event.is_set() or self._provider is not provider:
+                return True
+            started = getattr(self, '_run_started_at', None)
+            return (self._status == 'running' and started is not None
+                    and time.time() - started >= self._run_duration_s)
+
     def _dispatch_trajectory(
         self,
         builder: Any,
@@ -910,7 +920,7 @@ class RunnerController:
     ) -> None:
         def still_running():
             with self._lock:
-                return (not self._stop_event.is_set() and self._status == "running"
+                return (not self._provider_cancelled(provider) and self._status == "running"
                         and self._provider is provider and self._session_id == session_id
                         and self._episode_id == episode_id and self._lease_id == lease_id)
 

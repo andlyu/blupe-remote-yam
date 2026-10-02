@@ -7,7 +7,7 @@ from unittest.mock import MagicMock, patch
 import numpy as np
 import pytest
 
-from remote_yam.api_depth import ApiDepth, StaleDepth
+from remote_yam.api_depth import ApiDepth, NoDepthImage, StaleDepth, depth_robot_stopped
 from remote_yam.api_depth_set import ApiDepthSet, PairedDepthFrame
 from remote_yam.codex_depth_policy import CodexDepthAdapter
 from remote_yam.codex_policy import DECISION_SCHEMA
@@ -61,12 +61,24 @@ def test_private_monotonic_bound_preserves_timestamp_despite_clock_offset():
     snap=api.decode(data,report,receipt=receipt)
     assert snap.metadata['captured_at']==100 and snap.age()<1
     assert api.clock()<snap.metadata['captured_at']
-    for bound in (-1,2.1,float('nan'),float('inf')):
+    for bound in (-1,5.01,float('nan'),float('inf')):
         with pytest.raises(StaleDepth):api.decode(data,report,receipt=(headers(),bound,time.monotonic()))
     for key,value in [('x-captured-at','101'),('x-camera-role','left'),
                       ('x-camera-serial','wrong'),('x-calibration-id','wrong')]:
         with pytest.raises(ValueError):api.decode(data,report,receipt=(dict(headers(),**{key:value}),.6,time.monotonic()))
     with pytest.raises(ValueError):api.decode(data,report)
+
+
+def test_private_age_includes_processing_and_accepts_through_five_seconds():
+    api = private_api(); report, _, data = fixture()
+    with patch('remote_yam.api_depth.time.monotonic', return_value=12.):
+        for bound in (1., 3.):
+            snap = api.decode(data, report, receipt=(headers(), bound, 10.), stopped=True)
+            assert snap.age() == bound + 2.
+        with pytest.raises(StaleDepth):
+            api.decode(data, report, receipt=(headers(), 3.01, 10.), stopped=True)
+        with pytest.raises(StaleDepth):
+            api.decode(data, report, receipt=(headers(), 0., 10.))
 
 
 def test_private_read_includes_full_round_trip_in_bound_and_rejects_invalid_source_age():
@@ -162,11 +174,68 @@ def test_all_camera_observation_has_six_paired_images_and_queries_wrist_pose():
         provider._workspace.cleanup()
 
 
-def test_assembling_set_rejects_an_aged_view():
+@pytest.mark.parametrize('age', [-.01, 5.01, float('nan'), float('inf')])
+def test_assembling_set_rejects_an_aged_view(age):
     from remote_yam.cameras import CameraUnavailable
     good=MagicMock();good.age.return_value=.5
-    old=MagicMock();old.age.return_value=2.01
-    with pytest.raises(CameraUnavailable):ApiDepthSet.require_fresh({'left':good,'top':old,'right':good})
+    old=MagicMock();old.age.return_value=age
+    expected = NoDepthImage if age == 5.01 else CameraUnavailable
+    with pytest.raises(expected):ApiDepthSet.require_fresh({'left':good,'top':old,'right':good}, stopped=True)
+
+
+def test_assembling_set_accepts_views_up_to_five_seconds_old():
+    snapshots = {role: MagicMock() for role in ('left', 'top', 'right')}
+    for snapshot, age in zip(snapshots.values(), (0., 3., 5.)):
+        snapshot.age.return_value = age
+    ApiDepthSet.require_fresh(snapshots, stopped=True)
+    with pytest.raises(NoDepthImage):
+        ApiDepthSet.require_fresh(snapshots)
+
+
+def test_depth_stop_confirmation_requires_explicit_settled_feedback():
+    assert depth_robot_stopped({'settled': True, 'mode': 'API_ACTIVE'})
+    for value in (None, False, 1, 'true'):
+        assert not depth_robot_stopped({'settled': value})
+    for mode in ('EXECUTING', 'HOMING'):
+        assert not depth_robot_stopped({'settled': True, 'mode': mode})
+
+
+def test_missing_depth_retries_entire_set_and_recovers_after_more_than_ten_attempts():
+    source = ApiDepthSet('https://api.example', 'https://api.example')
+    counts, events = dict.fromkeys(('top', 'left', 'right'), 0), []
+    def capture(role):
+        counts[role] += 1
+        if role == 'left' and counts[role] <= 12:
+            raise NoDepthImage(role)
+        snap = MagicMock(metadata=dict(captured_at=counts[role], sensor_serial=role, calibration_id='test'))
+        snap.image.return_value = f'{role}:{counts[role]}'.encode()
+        snap.age.return_value = 1.
+        return snap
+    for role in counts:
+        api = source.apis[role] = MagicMock()
+        api.read.return_value = b'{}'
+        api.capture.side_effect = lambda role=role, **kwargs: capture(role)
+    with patch('remote_yam.api_depth_set.time.sleep'):
+        frames = source.capture_for_policy({'robot_id': 'yam-1', 'settled': True},
+                                           on_event=lambda *args: events.append(args))
+    assert counts == dict.fromkeys(counts, 13)
+    assert all(frame.jpeg == f'{frame.name}:13'.encode() for frame in frames)
+    assert [event[0] for event in events] == ['camera_retry', 'camera_recovered']
+    assert events[0][2]['cause'] == 'No image'
+
+
+def test_missing_depth_wait_can_be_cancelled_without_reusing_saved_snapshots():
+    source = ApiDepthSet('https://api.example', 'https://api.example')
+    source.snapshots = {'top': object()}
+    cancelled = [False]
+    def event(*args):
+        cancelled[0] = True
+    with patch.object(source, 'capture', side_effect=NoDepthImage('left')) as capture, \
+         patch('remote_yam.api_depth_set.time.sleep'):
+        with pytest.raises(RuntimeError, match='cancelled'):
+            source.capture_for_policy({'settled': True}, cancelled=lambda: cancelled[0], on_event=event)
+    capture.assert_called_once()
+    assert source.snapshots == {}
 
 
 def test_factory_rays_match_installed_sdk_oracle_at_corners_and_task_pixels():

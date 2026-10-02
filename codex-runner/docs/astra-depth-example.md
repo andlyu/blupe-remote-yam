@@ -78,7 +78,13 @@ commands or web tools. An unnamed arm retains its measured joints and gripper
 command; `--active-arm left|right` optionally restricts the allowed arm.
 
 The client checks robot/camera identity, calibration identity, dimensions, dtype,
-alignment, optical-Z units and a two-second freshness bound. Calibration stays
+alignment and optical-Z units. Depth may be up to five seconds old when measured
+feedback confirms the robot is stopped; without that confirmation it must be
+less than two seconds old. The runner waits for settled hardware feedback before
+querying depth for the next decision; it does not end the session to wait.
+Missing or expired depth displays **No image**. The run stays active while
+Remote-yam retries the observation; no new motion is sent until images return.
+Calibration stays
 fixed within a run. The depth client retries observation reads only and submits
 no motion itself. Captures can age while Astra reasons. Wrist RGB and measured
 joints are not hardware synchronized with overhead depth.

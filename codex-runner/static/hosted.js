@@ -872,9 +872,9 @@ function renderStepMetricsChart(container, timings) {
     else if ($('message').textContent.startsWith('Motion paused while refreshing robot status:')) message('Robot status confirmed. Continuing the run.');
     else if (state.provider?.provider === 'groot' && state.provider.warmup === 'warming') message('In the robot queue · warming GR00T GPU…');
     else if (state.provider?.provider === 'groot' && state.provider.warmup === 'failed') message('GR00T GPU startup failed. Leave the queue and try again.', true);
-    else if (state.provider?.vision?.retry?.state === 'retrying') message(state.provider.vision.retry.message);
+    else if (state.provider?.vision?.retry?.state === 'retrying') message(state.provider.vision.retry.message, state.provider.vision.retry.cause === 'No image');
     else if (state.provider?.vision?.retry?.state === 'failed') message(state.provider.vision.retry.message, true);
-    else if (state.provider?.vision?.retry?.state === 'recovered' && $('message').textContent.startsWith('Waiting for next ')) message('Camera feeds recovered. Continuing the run.');
+    else if (state.provider?.vision?.retry?.state === 'recovered' && /^(Waiting for next |No image)/.test($('message').textContent)) message('Camera feeds recovered. Continuing the run.');
     const queue = state.queue_snapshot;
     const sharedError = state.public_run?.error || state.robot_fault;
     $('publicRunError').hidden = !sharedError;
