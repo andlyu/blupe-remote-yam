@@ -7,10 +7,12 @@ const source = fs.readFileSync(path.join(__dirname, '../static/hosted.js'), 'utf
 const start = source.indexOf('  const ROBOT_STATUS =');
 const end = source.indexOf('  function render(state)', start);
 const elements = {station: {dataset: {}}, status: {}};
-const context = vm.createContext({$: id => elements[id]});
+const catalog = JSON.parse(fs.readFileSync(path.join(__dirname, '../config/robots.json'), 'utf8'));
+const context = vm.createContext({$: id => elements[id], robotCatalog: {robots: catalog}});
 vm.runInContext(source.slice(start, end), context);
 const now = 1800000000;
-const robots = ['yam-1', 'robot-abecb4cd868ab24b', 'robot-3652c537a175cbae'];
+const robots = catalog.map(robot => robot.id);
+const yamRobots = catalog.filter(robot => robot.hardware === 'yam').map(robot => robot.id);
 function state(robot, station = {}, extra = {}) {
   return {status: 'idle', last_observation: {homed: true, settled: true, observed_at: now},
     queue_snapshot: {generated_at: now, stations: [{jetson_id: robot, connected: true,
@@ -91,27 +93,27 @@ for (const robot of robots) {
     assert.equal(label(state(robot), robot), 'Ready for the next run');
   });
 }
-test('parked YAM reports automatic readiness while disabled and uninitialized', () => {
+for (const robot of yamRobots) test(`${robot}: parked YAM reports automatic readiness while disabled and uninitialized`, () => {
   // A torque-off YAM reports settled=false; localhost has no operator tunnel.
-  const s = state('yam-1', {mode: 'DISABLED', queue_ready: true, available: false}, {
+  const s = state(robot, {mode: 'DISABLED', queue_ready: true, available: false}, {
     status: 'stopped', robot_auto_queue_enabled: null,
     last_observation: {homed: false, settled: false, observed_at: now}});
-  assert.equal(label(s, 'yam-1'), 'Stopped but ready');
+  assert.equal(label(s, robot), 'Stopped but ready');
   assert.equal(elements.station.dataset.tone, 'ready');
-  assert.equal(label({...s, robot_auto_queue_enabled: true}, 'yam-1'), 'Stopped but ready');
-  assert.equal(label({...s, robot_auto_queue_enabled: false}, 'yam-1'), 'Stopped');
-  assert.equal(label({...s, status: 'queued'}, 'yam-1'), 'Queued — waiting for robot readiness');
-  assert.equal(label({...s, status: 'running'}, 'yam-1'), 'Running');
+  assert.equal(label({...s, robot_auto_queue_enabled: true}, robot), 'Stopped but ready');
+  assert.equal(label({...s, robot_auto_queue_enabled: false}, robot), 'Stopped');
+  assert.equal(label({...s, status: 'queued'}, robot), 'Queued — waiting for robot readiness');
+  assert.equal(label({...s, status: 'running'}, robot), 'Running');
   for (const [station, expected] of [
     [{mode: 'DISABLED', queue_ready: false}, 'Stopped'],
     [{mode: 'DISABLED', observed_at: now - 11}, 'Checking / unavailable'],
     [{mode: 'FAULT'}, 'Fault'], [{connected: false}, 'Offline'],
     [{mode: 'API_ACTIVE'}, 'Running'], [{mode: 'PARKING_ZERO'}, 'Parking'],
   ]) {
-    assert.equal(label(state('yam-1', {queue_ready: true, ...station}, {
-      last_observation: s.last_observation}), 'yam-1'), expected);
+    assert.equal(label(state(robot, {queue_ready: true, ...station}, {
+      last_observation: s.last_observation}), robot), expected);
   }
-  for (const robot of robots.slice(1)) {
+  for (const robot of robots.filter(id => !yamRobots.includes(id))) {
     assert.equal(label(state(robot, {mode: 'DISABLED', queue_ready: true}, {
       last_observation: s.last_observation}), robot), 'Checking / unavailable');
   }
