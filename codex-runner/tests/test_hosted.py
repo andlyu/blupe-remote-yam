@@ -52,6 +52,27 @@ class HostedTests(unittest.IsolatedAsyncioTestCase):
         self.assertNotIn('private_test', visitor.saved_keys)
         visitor.controller.stop()
 
+    async def test_provider_transform_precedes_queue_and_failure_cannot_launch(self):
+        _, visitor = self.app.new_visitor()
+        def fail(provider):
+            raise ValueError('Grant unavailable')
+        with self.assertRaises(ValueError):
+            self.app.launch(visitor, {'provider':'openai','api_key':'placeholder','model':'test','prompt':'Move'},
+                            paid=True,provider_transform=fail)
+        self.assertEqual(visitor.launches,0)
+        self.assertFalse(visitor.controller.busy())
+        observed=[]
+        def transform(provider):
+            observed.append(visitor.controller.busy())
+            provider._api_key='new-transport'
+            return provider
+        self.app.launch(visitor, {'provider':'openai','api_key':'placeholder','model':'test','prompt':'Move'},
+                        paid=True,provider_transform=transform)
+        self.assertEqual(observed,[False])
+        self.assertEqual(self.providers[-1]._api_key,'new-transport')
+        self.assertEqual(visitor.saved_keys,{})
+        visitor.controller.stop()
+
     async def test_groot_joins_same_queue_without_visitor_key_and_starts_preparation(self):
         keyfile = self.app.root/'groot-test-key'
         keyfile.write_text('service-secret')
