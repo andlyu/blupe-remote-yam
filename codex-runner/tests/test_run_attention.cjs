@@ -23,6 +23,21 @@ render({status:'preparing',session_id:'mine'});
 assert.equal($('position').textContent,'Up next');
 assert.equal($('viewerCue').hidden,false);
 assert.equal($('viewerCueTitle').textContent,'Your run is preparing');
+render({status:'running',session_id:'mine',first_call_wander_enabled:true,run_metrics:{model_calls:0}});
+assert.equal($('viewerCueTitle').textContent,'Your robot is warming up');
+assert.equal($('viewerCueDetail').textContent,'The arms do a short dance while Astra plans the first move. Your task begins after they return.');
+assert.equal($('queueGuidance').textContent,'Startup dance — waiting for Astra’s first decision.');
+// Repeated warmup polls and the first settled decision must not scroll again.
+render({status:'running',session_id:'mine',first_call_wander_enabled:true,run_metrics:{model_calls:0}});
+assert.equal($('liveViewer').scrolls.length,1);
+render({status:'running',session_id:'mine',first_call_wander_enabled:true,run_metrics:{model_calls:1}});
+assert.equal($('viewerCueTitle').textContent,'Your run is live');
+assert.equal($('viewerCueDetail').textContent,'Watch your robot here. The video may follow with a short delay.');
+// Missing metrics or disabled startup animation must not claim a dance.
+render({status:'running',session_id:'mine',first_call_wander_enabled:true});
+assert.equal($('viewerCueTitle').textContent,'Your run is live');
+render({status:'running',session_id:'mine',first_call_wander_enabled:false,run_metrics:{model_calls:0}});
+assert.equal($('viewerCueTitle').textContent,'Your run is live');
 render({status:'running',session_id:'mine'});
 assert.equal($('viewerCue').hidden,false);
 assert.equal($('viewerCueTitle').textContent,'Your run is live');

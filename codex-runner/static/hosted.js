@@ -689,18 +689,22 @@ function renderStepMetricsChart(container, timings) {
     const queued = phase === 'queued';
     const preparing = phase === 'preparing';
     const live = phase === 'running';
+    // The first call is counted only after the startup dance has returned.
+    const warmingUp = live && state.first_call_wander_enabled === true && state.run_metrics?.model_calls === 0;
     $('yourQueue').classList.toggle('yourTurnWaiting', queued || preparing);
     $('position').closest('.queuePlace').hidden = !(queued || preparing || live);
     $('liveViewer').classList.toggle('yourRunLive', live);
     $('viewerCue').hidden = !(preparing || live);
-    $('viewerCueTitle').textContent = preparing ? 'Your run is preparing' : 'Your run is live';
+    $('viewerCueTitle').textContent = preparing ? 'Your run is preparing' : warmingUp ? 'Your robot is warming up' : 'Your run is live';
     $('viewerCueDetail').textContent = preparing
       ? 'The robot is getting ready. You can stop your run here.'
+      : warmingUp ? `The arms do a short dance while ${liveModelName} plans the first move. Your task begins after they return.`
       : 'Watch your robot here. The video may follow with a short delay.';
     $('position').textContent = queued ? (state.queue_position ? `#${state.queue_position}` : 'Joining…') : preparing ? 'Up next' : live ? 'Your turn' : '—';
     $('queueGuidance').textContent = queued
       ? (state.queue_position === 1 ? "You're next. We'll bring you to the viewer when your run starts." : "You're in the queue. We'll bring you to the viewer when it's your turn.")
       : preparing ? 'The robot is getting ready for your run.'
+      : warmingUp ? `Startup dance — waiting for ${liveModelName}’s first decision.`
       : live ? 'Your run is live — watch the highlighted viewer.'
       : 'Join the queue to reserve your turn.';
     if (changed && (queued || preparing || live)) {
