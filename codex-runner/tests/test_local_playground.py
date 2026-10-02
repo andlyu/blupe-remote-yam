@@ -116,6 +116,12 @@ class LocalPlaygroundTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(depth_calls, ['codex'])
         self.assertEqual(self.providers, [])
         await self.call('/api/stop', {})
+        controller = next(iter(self.app.visitors.values())).controller
+        for _ in range(100):
+            if not controller.busy() and controller.status()['status'] not in {'queued', 'preparing', 'running', 'stopping'}:
+                break
+            await asyncio.sleep(.01)
+        self.assertFalse(controller.busy())
         next(iter(self.app.visitors.values())).last_launch = 0
         code, _ = await self.call('/api/run', {**payload, 'use_api_depth': False})
         self.assertEqual(code, 200)
