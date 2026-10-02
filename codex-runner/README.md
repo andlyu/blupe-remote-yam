@@ -345,3 +345,18 @@ See [run defaults](docs/RUN-DEFAULTS.md) for provider settings and motion limits
 See the [runnable example and read-only probes](docs/astra-depth-example.md)
 and [public transport contract](docs/api-depth-contract.md). Local YAM Astra
 runs expose **Use depth from the API**, unchecked by default.
+
+## Per-robot live video
+
+The viewer selects YAM-1 by default; an explicit robot selection still takes priority.
+YAM-1 uses the synchronized WebRTC stream. Configure additional existing streams
+with `YAM_VIDEO_STREAMS`, for example:
+
+```sh
+export YAM_VIDEO_STREAMS='{"robot-ba8413962083809c":{"path":"robo-house","cameras":["top","left","right"]}}'
+```
+
+Camera roles follow the compositor tile order. Paths must be one safe path segment.
+WebRTC and HLS fallback use the same selected stream; robots without a configured
+stream use JPEG snapshots. Local runners proxy configured media paths through the
+public Playground. Model camera capture remains independent of viewing transport.

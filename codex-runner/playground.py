@@ -158,6 +158,8 @@ class HostedRunner:
         if not self.policy_camera_names or not set(self.policy_camera_names).issubset(self.camera_names):
             raise ValueError("Policy cameras must be selected from the robot cameras")
         self.robot_id = robot_id
+        from remote_yam.video_stream import video_stream
+        self.video_stream = video_stream(robot_id)
         self.robots = robots if robots is not None else [
             {"id": robot_id, "name": "YAM", "url": public_origin.rstrip("/") + "/"}]
         ids = set()
@@ -473,7 +475,7 @@ class HostedRunner:
                 from remote_yam.subscription_setup import subscription_status
                 local_setup = {**local_setup, 'local_runner': True, 'default_provider': self.default_provider,
                                'claude': await asyncio.to_thread(subscription_status, 'claude'), 'claude_model': CLAUDE_MODEL}
-            await self.json(send, 200, {**local_setup, **application_setup, "robot_id": self.robot_id, "cameras": list(self.camera_names), "model_cameras": list(self.model_camera_names()), "joint_policy": self.joint_counts != (6,6), "claude_supported": self.hardware == "makerarm" or self.joint_counts in {(6,6), (5,5), (5,0)}, "csrf": visitor.csrf, "astra_enabled": bool(self.astra_endpoint), "groot_enabled": bool(self.groot_key_file),
+            await self.json(send, 200, {**local_setup, **application_setup, "robot_id": self.robot_id, "video_stream": self.video_stream, "cameras": list(self.camera_names), "model_cameras": list(self.model_camera_names()), "joint_policy": self.joint_counts != (6,6), "claude_supported": self.hardware == "makerarm" or self.joint_counts in {(6,6), (5,5), (5,0)}, "csrf": visitor.csrf, "astra_enabled": bool(self.astra_endpoint), "groot_enabled": bool(self.groot_key_file),
                                       "simulation": self.simulation, "share_conversation": self.share_conversation,
                                       "api_depth": {"available": bool(self.api_depth_provider_factory and self.local_codex),
                                                     "enabled": self.use_api_depth},

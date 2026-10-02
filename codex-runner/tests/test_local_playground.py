@@ -179,6 +179,40 @@ class LocalPlaygroundTests(unittest.IsolatedAsyncioTestCase):
         code,_=await self.call('/api/stop',{})
         self.assertEqual(code,200)
 
+    async def test_robohouse_session_exposes_configured_continuous_stream(self):
+        stream = {'path': 'robo-house', 'cameras': ['top', 'left', 'right']}
+        rid = 'robot-ba8413962083809c'
+        with patch.dict('os.environ', {'YAM_VIDEO_STREAMS': json.dumps({rid: stream})}):
+            app = LocalPlayground(public_origin='http://127.0.0.1:8791',
+                robot_id=rid, session_api=None, camera_origin='http://127.0.0.1:8089',
+                development=True, api_factory=MockSessionAPI)
+        previous, self.app = self.app, app
+        try:
+            code, body = await self.call('/api/session', {})
+            self.assertEqual(code, 200)
+            self.assertEqual(body['robot_id'], rid)
+            self.assertEqual(body['video_stream'], stream)
+        finally:
+            for visitor in app.visitors.values():
+                await asyncio.to_thread(visitor.close)
+            shutil.rmtree(app.root, ignore_errors=True)
+            self.app = previous
+
+    async def test_other_robot_stream_is_proxied_without_browser_credentials(self):
+        from unittest.mock import MagicMock
+        self.app._fleet_apps = {'yam-1': self.app, 'robo': SimpleNamespace(video_stream={'path':'robo-house','cameras':['top','left','right']})}
+        response = MagicMock(status=200, headers={'Content-Type':'application/vnd.apple.mpegurl'})
+        response.__enter__.return_value = response
+        response.read.return_value = b'#EXTM3U\n'
+        with patch('local_playground.request.urlopen', return_value=response) as upstream:
+            code, body = await self.call('/robo-house/index.m3u8')
+        self.assertEqual((code, body), (200, b'#EXTM3U\n'))
+        request = upstream.call_args.args[0]
+        self.assertEqual(request.full_url, 'https://playground.blupe.io/robo-house/index.m3u8')
+        self.assertEqual(request.get_header('Origin'), 'https://playground.blupe.io')
+        self.assertIsNone(request.get_header('Cookie'))
+        self.assertIsNone(request.get_header('X-yam-runner-token'))
+
     async def test_shared_page_and_video_library_are_served(self):
         code,body=await self.call('/')
         self.assertEqual(code,200)

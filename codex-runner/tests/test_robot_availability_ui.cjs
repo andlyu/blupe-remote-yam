@@ -14,7 +14,7 @@ test('disconnect replaces camera tiles, keeps run controls, and does not start a
  let stopped=0,removed=0,notice;
  const controls={replaceWith(n){assert.equal(n,controls)}};
  const viewer={innerHTML:'',dataset:{},querySelectorAll:()=>[{remove(){removed++}}],prepend(n){notice=n}};
- const ctx={$:id=>({liveViewer:viewer,liveRunControls:controls,videoDelayNotice:{}}[id]),document:{querySelectorAll:()=>[{yamStop(){stopped++}}],createElement:()=>({setAttribute(){},style:{}})},originalCameraMarkup:'initial',cameraNames:[],cameraEpoch:0,camerasDisconnected:true,selectedRobot:'yam-1'};
+ const ctx={$:id=>({liveViewer:viewer,liveRunControls:controls,videoDelayNotice:{}}[id]),document:{querySelectorAll:()=>[{yamStop(){stopped++}}],createElement:()=>({setAttribute(){},style:{}})},originalCameraMarkup:'initial',cameraNames:[],cameraEpoch:0,camerasDisconnected:true,selectedRobot:'yam-1',videoStream:{path:'synchronized',cameras:['top','observer','left','right']}};
  vm.runInNewContext(source.slice(a,b)+";selectedCameras(['left','top','right']);",ctx);
  assert.equal(stopped,1);assert.equal(removed,1);assert.equal(notice.textContent,'Arms are disconnected');
 });
