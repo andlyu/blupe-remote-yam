@@ -59,11 +59,16 @@ class ApiDepthSet(CameraFrameSource):
                 # one missing camera recovers. The run remains active and held.
                 time.sleep(.1)
 
-    def capture(self, observation):
+    def capture_preflight(self, *, stopped, cancelled=lambda: False):
+        self._cancelled = cancelled
+        return self.capture({'robot_id': 'yam-1'}, stopped=stopped)
+
+    def capture(self, observation, *, stopped=None):
         if observation.get('robot_id', observation.get('jetson_id', 'yam-1')) != 'yam-1':
             raise ValueError('All-camera depth is configured only for YAM')
         report = json.loads(self.apis['top'].read('/calibration', 256_000))
-        stopped = depth_robot_stopped(observation)
+        if stopped is None:
+            stopped = depth_robot_stopped(observation)
         snapshots = {}
         with ThreadPoolExecutor(max_workers=3) as pool:
             futures = {role: pool.submit(api.capture, report=report, cancelled=self._cancelled, stopped=stopped)

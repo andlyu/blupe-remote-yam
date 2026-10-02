@@ -141,3 +141,15 @@ This example adapts its observation, measurement and feedback pattern to the YAM
 public API. It uses bounded numeric queries and structured decisions rather than
 the paper's autonomous programming workspace. It is AGP-inspired, not a
 reproduction of the complete policy or reported results.
+
+
+### Startup depth check
+
+Before queue admission, the local runner reads fresh hardware station feedback.
+A reported DISABLED state permits the five-second image allowance even though
+`settled` is false before initialization. Other states still require explicit
+settled feedback for that allowance; moving, unknown, or stale feedback retains
+the two-second limit. Missing images retry for up to 15 seconds during startup,
+refreshing station feedback on every attempt. Startup failure does not join the
+queue. Once a run starts, missing images continue to wait until recovery, Stop,
+or the selected run duration, and motion still requires settled feedback.

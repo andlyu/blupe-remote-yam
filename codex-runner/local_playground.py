@@ -20,10 +20,13 @@ class LocalPlayground(HostedRunner):
     def api_depth_provider(self, origin):
         def factory(name, key, model, directory):
             from remote_yam.codex_depth_policy import CodexDepthAdapter
+            from remote_yam.depth_preflight import capture_before_queue
             provider = CodexDepthAdapter(origin, model or 'gpt-6-astra', all_depth_origin=origin,
                                          recording_root=directory)
             try:
-                provider._camera_source.capture_for_policy({'robot_id': 'yam-1'}, cancelled=provider.cancelled)
+                capture_before_queue(provider._camera_source.capture_preflight,
+                    lambda: self.monitor_api.get_robot_observation('yam-1'),
+                    cancelled=provider.cancelled)
                 provider.set_depth_calibration(provider._camera_source.snapshots['top'].calibration)
             except Exception as exc:
                 provider._workspace.cleanup()

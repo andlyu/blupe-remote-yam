@@ -114,6 +114,7 @@ def serve(args):
     import uvicorn
     from local_playground import LocalPlayground
     from remote_yam.codex_depth_policy import CodexDepthAdapter
+    from remote_yam.depth_preflight import capture_before_queue
     def factory(name,key,model,directory):
         if name!='codex':
             raise ValueError('This example uses Astra with a Codex subscription')
@@ -124,10 +125,14 @@ def serve(args):
         # Check data before queue admission can trigger automatic hardware home.
         try:
             if args.all_depth_origin:
-                provider._camera_source.capture_for_policy({'robot_id':'yam-1'},cancelled=provider.cancelled)
+                capture_before_queue(provider._camera_source.capture_preflight,
+                    lambda: app.monitor_api.get_robot_observation('yam-1'),
+                    cancelled=provider.cancelled)
                 report=provider._camera_source.snapshots['top'].calibration
             else:
-                snapshot = provider.depth_api.capture(cancelled=provider.cancelled)
+                snapshot = capture_before_queue(provider.depth_api.capture,
+                    lambda: app.monitor_api.get_robot_observation('yam-1'),
+                    cancelled=provider.cancelled)
                 report=snapshot.calibration
             if args.calibration_id and report['calibration_id'] != args.calibration_id:
                 raise ValueError('Required camera calibration is not published yet; no session queued')
