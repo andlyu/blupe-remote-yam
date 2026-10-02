@@ -75,6 +75,10 @@ class EphemeralController(RunnerController):
         with self._lock:
             if self._provider is not None and hasattr(self._provider, "_api_key"):
                 self._provider._api_key = ""
+            close = getattr(self._provider, 'close_transport', None)
+            if callable(close):
+                with suppress(Exception):
+                    close()
 
     def busy(self):
         with self._lock:
@@ -687,7 +691,7 @@ class HostedRunner:
         else:
             raise RequestError(404, "Not found")
 
-    def launch(self, visitor, payload, *, paid=False):
+    def launch(self, visitor, payload, *, paid=False, provider_transform=None):
         self.remember_runner(visitor)
         self.validate_launch(visitor, payload, paid)
         with visitor.lock:
@@ -864,6 +868,8 @@ class HostedRunner:
                 provider.reasoning_effort = effort
             if fast_provider:
                 provider.response_speed = response_speed
+            if provider_transform is not None:
+                provider = provider_transform(provider)
             visitor.last_launch = time.monotonic()
             visitor.launches += 1
             try:
@@ -882,6 +888,10 @@ class HostedRunner:
             except Exception:
                 if hasattr(provider, "_api_key"):
                     provider._api_key = ""
+                close = getattr(provider, 'close_transport', None)
+                if callable(close):
+                    with suppress(Exception):
+                        close()
                 visitor.controller.disconnect("launch_failed")
                 raise RequestError(503, "Could not join the robot queue. Please try again.") from None
             # Optional metadata must never cancel an already accepted session.

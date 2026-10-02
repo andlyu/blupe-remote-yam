@@ -41,6 +41,24 @@ class HostedTests(unittest.IsolatedAsyncioTestCase):
         from remote_yam.past_runs import RunNames
         self.app.run_names = RunNames(self.app.root/'names.sqlite3')
 
+    async def test_private_transport_is_attached_before_queue_and_closed_after_stop(self):
+        _,visitor=self.app.new_visitor()
+        calls=[]
+        def transform(provider):
+            calls.append(visitor.controller.busy())
+            provider.close_transport=lambda:calls.append('closed')
+            provider._api_key=''
+            return provider
+        self.app.launch(visitor,{'provider':'openai','api_key':'placeholder','model':'test','prompt':'Move'},
+                        paid=True,provider_transform=transform)
+        self.assertEqual(calls,[False])
+        self.assertEqual(visitor.saved_keys,{})
+        visitor.controller.stop()
+        for _ in range(50):
+            if not visitor.controller.busy(): break
+            await asyncio.sleep(.02)
+        self.assertIn('closed',calls)
+
     async def test_configured_policy_joins_queue_without_browser_key_and_disables_internal_sharing(self):
         _, visitor = self.app.new_visitor()
         provider = HeldProvider('server-secret')

@@ -17,6 +17,7 @@ import signal
 import subprocess
 import tempfile
 import time
+from types import MethodType
 import uuid
 
 from .robocurve_policy import RoboCurveResponsesAdapter
@@ -234,6 +235,39 @@ def codex_failure(raw):
     return 'Codex request failed. Check subscription limits, model access and codex login status; no motion sent.'
 
 
+def use_codex_executor(provider, executor, *, close=None):
+    """Attach an app-owned model executor without exposing a local CLI runner.
+
+    The selected robot keeps its geometry, observations, decision validator and
+    motion checks. The executor receives structured inputs, never API keys or
+    shell commands. Its failure cannot fall back to the original HTTP transport.
+    """
+    if not isinstance(provider, RoboCurveResponsesAdapter):
+        raise ValueError('This robot does not support structured Codex decisions')
+    provider._api_key = ''
+    provider._workspace = tempfile.TemporaryDirectory(prefix='yam-codex-transport-')
+    provider._thread_id, provider._sent_items = None, 0
+    provider._decision_executor = executor
+    provider._binary = None
+    provider.reasoning_effort = 'low'
+    provider.response_speed = 'standard'
+    provider._post_json = MethodType(CodexAdapter._post_json, provider)
+    original_config = provider.public_config
+    def config():
+        return {**original_config(), 'api_key_configured': False,
+                'authentication': 'chatgpt', 'transport': 'codex_executor',
+                'funding': 'sponsored_codex_subscription'}
+    provider.public_config = config
+    def cleanup():
+        try:
+            if close:
+                close()
+        finally:
+            provider._workspace.cleanup()
+    provider.close_transport = cleanup
+    return provider
+
+
 class CodexAdapter(RoboCurveResponsesAdapter):
     provider_name = 'codex'
     response_speed = 'fast'
@@ -315,7 +349,15 @@ class CodexAdapter(RoboCurveResponsesAdapter):
             command += ['--image', str(path)]
         command += ['-']
         try:
-            events = self._execute(command, '\n'.join(lines), root)
+            executor = getattr(self, '_decision_executor', None)
+            if executor is None:
+                events = self._execute(command, '\n'.join(lines), root)
+            else:
+                events = executor(schema=json.loads(schema.read_text()), prompt='\n'.join(lines),
+                                  images=tuple(path.read_bytes() for path in images),
+                                  thread_id=self._thread_id, model=self.model,
+                                  cancelled=self.cancelled,
+                                  progress=FirstCallProgress(getattr(self, '_interaction', None) if first_call else None))
         finally:
             for path in images:
                 path.unlink(missing_ok=True)
