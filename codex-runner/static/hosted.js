@@ -811,7 +811,8 @@ function renderStepMetricsChart(container, timings) {
     const observation = state.last_observation;
     const home = fresh(observation?.observed_at) ? observation.homed : null;
     // YAM also reports queue_ready while verified parked with automatic queue on.
-    const parkedYam = robotId === 'yam-1' && mode === 'DISABLED' && station.queue_ready === true;
+    const isYam = robotId === 'yam-1' || robotCatalog?.robots?.some(robot => robot.id === robotId && robot.hardware === 'yam');
+    const parkedYam = isYam && mode === 'DISABLED' && station.queue_ready === true;
     // READY/STOPPED + queue_ready is the controllers' automatic admission signal.
     // Legacy SO101 "active" and transport "available" alone do not establish it.
     const automatic = state.robot_auto_queue_enabled ??
