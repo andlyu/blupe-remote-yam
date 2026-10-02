@@ -687,7 +687,7 @@ class HostedRunner:
         else:
             raise RequestError(404, "Not found")
 
-    def launch(self, visitor, payload, *, paid=False):
+    def launch(self, visitor, payload, *, paid=False, provider_transform=None):
         self.remember_runner(visitor)
         self.validate_launch(visitor, payload, paid)
         with visitor.lock:
@@ -864,6 +864,9 @@ class HostedRunner:
                 provider.reasoning_effort = effort
             if fast_provider:
                 provider.response_speed = response_speed
+            if provider_transform is not None:
+                # Application credentials/transports stay outside robot policy selection.
+                provider = provider_transform(provider)
             visitor.last_launch = time.monotonic()
             visitor.launches += 1
             try:
