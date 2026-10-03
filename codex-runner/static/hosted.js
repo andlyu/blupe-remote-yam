@@ -326,6 +326,19 @@ function renderStepMetricsChart(container, timings) {
   let claudeModel = 'claude-opus-5-5';
   const originalProviderMarkup = $('provider').innerHTML;
   let selectedRobot = window.yamApplication?.defaultRobot || new URLSearchParams(location.search).get('robot_id') || 'yam-1', robotGeneration = 0, robotCatalog = null, pollingStarted = false;
+  function selectRobotPrompt() {
+    const defaults = {
+      'yam-1': 'place red block on other towel',
+      'robot-ba8413962083809c': 'place a block onto the green towel',
+    };
+    const prompt = $('prompt');
+    const fallback = 'place green block on plate';
+    const next = defaults[selectedRobot] || fallback;
+    if (!prompt.value.trim() || [fallback, ...Object.values(defaults)].includes(prompt.value)) {
+      prompt.value = next;
+    }
+    prompt.dataset.defaultPrompt = next;
+  }
   let ownRunLive = false, conversationSharingAllowed = true;
   let csrf = '', ended = false, submitting = false, active = false, lastHistory = 0, contactRequested = false;
   function message(text, error = false) {
@@ -531,6 +544,9 @@ function renderStepMetricsChart(container, timings) {
     updateRunLabel();
   }
   function providerChanged() {
+    if ($('provider').value !== 'local_raise_lower' && $('prompt').value === 'Raise and lower both arms.') {
+      $('prompt').value = $('prompt').dataset?.defaultPrompt || 'place green block on plate';
+    }
     $('apiDepthSettings').hidden = !$('useApiDepth').dataset?.available || $('provider').value !== 'codex';
     $('speedField').hidden = !['openai', 'codex', 'anthropic', 'claude'].includes($('provider').value);
     $('effortField').hidden = !['codex', 'claude'].includes($('provider').value);
@@ -570,7 +586,8 @@ function renderStepMetricsChart(container, timings) {
     $('providerFields').hidden = builtIn;
     $('apiKey').required = !builtIn; updateSavedKey();
     $('apiKey').value = '';
-    $('prompt').value = builtIn ? 'Raise and lower both arms.' : 'place green block on plate';
+    if (builtIn) $('prompt').value = 'Raise and lower both arms.';
+    else if (!$('prompt').value.trim()) $('prompt').value = $('prompt').dataset?.defaultPrompt || 'place green block on plate';
     $('policyHelp').textContent = builtIn ? 'The built-in policy performs three raise/lower cycles. No model calls or API key are needed.' : 'The model observes the cameras, chooses a move, and waits for robot feedback before deciding again.';
   }
   $('provider').addEventListener('change', () => { providerChanged(); applyModelName(lastLive); window.yamAnalytics?.selected($('provider').value, $('model').value.trim()); });
@@ -1439,12 +1456,14 @@ function renderStepMetricsChart(container, timings) {
         selector.append(Object.assign(document.createElement('option'), {value: '', textContent: 'MakerMods MakerArm — setup pending', disabled: true}));
       }
       selector.value = selectedRobot;
+      selectRobotPrompt();
       window.dispatchEvent(new CustomEvent('blupe-robot-selected', {detail:selectedRobot}));
       selector.disabled = robotCatalog.robots.length < 2;
       selector.onchange = async () => {
         if (submitting) { selector.value = selectedRobot; return; }
         if (window.yamApplication?.selectRobot?.(selector.value)) return;
         selectedRobot = selector.value; robotGeneration++;
+        selectRobotPrompt();
         camerasDisconnected = robotCatalog.robots.find(robot => robot.id === selectedRobot)?.connected === false;
         const robotUrl = new URL(location.href); robotUrl.searchParams.set('robot_id', selectedRobot);
         window.history.replaceState(null, '', robotUrl);

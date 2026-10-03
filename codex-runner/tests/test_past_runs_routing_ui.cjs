@@ -73,7 +73,7 @@ test('history waits for robot selection and ignores a previous robot response', 
   const context = {makerModsPage:false, makerModsRobot:'robot-3652c537a175cbae', robotCatalog:{robots:[]}, submitting:false, selector:node, selectedRobot:'yam-1', robotGeneration:0,
     URL, location:{href:'http://localhost/?robot_id=yam-1'},
     history:async()=>{}, window:{history:{replaceState(a,b,url){replaced++;assert.equal(url.searchParams.get('robot_id'),'so101');}},dispatchEvent(){}},
-    CustomEvent:class {}, $:()=>node, document:{querySelectorAll:()=>[]}, buttons(){}, renderRobotStatus(){},
+    CustomEvent:class {}, $:()=>node, document:{querySelectorAll:()=>[]}, buttons(){}, renderRobotStatus(){}, selectRobotPrompt(){},
     start:async()=>{started++;}, csrf:'',active:false,ended:false,lastChatSnapshot:''};
   await vm.runInNewContext('(async()=>{'+handler+'})()',context);
   assert.equal(replaced,1); assert.equal(started,1);
