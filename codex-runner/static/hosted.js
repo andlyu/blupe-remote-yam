@@ -175,6 +175,7 @@ function renderStepMetricsChart(container, timings) {
     player.src = source.url;
     player.defaultPlaybackRate = player.playbackRate = source.rate;
     if (!dialog.open) dialog.showModal();
+    dialog.scrollTop = 0;
     player.play().catch(() => {});
   }
   $('closePastRun').addEventListener('click', () => dialog.close());
