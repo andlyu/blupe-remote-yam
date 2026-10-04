@@ -63,6 +63,76 @@ def test_dispatch_error_reconciles_authoritative_timeout():
     assert public_run_error(state) == 'Run reached time limit'
 
 
+def test_provider_cancellation_at_local_deadline_wins_over_running_gateway():
+    from unittest.mock import Mock, patch
+    from remote_yam.controller import RunnerController
+    from remote_yam.session import MockSessionAPI
+    controller = RunnerController(MockSessionAPI())
+    controller._session_id = 'test-local-timeout'
+    controller._status = 'running'
+    controller._run_started_at = 100.
+    controller._run_duration_s = 300
+    controller._provider = provider = Mock()
+    controller._session_api.get_session = Mock(return_value={'status': 'running'})
+    controller._session_api.stop_session = Mock()
+    controller._events = events = Mock()
+    def cancelled_decision(_):
+        assert controller._provider_cancelled(provider)
+        raise RuntimeError('Astra did not complete a valid decision. No motion was sent.')
+    controller.process_next_event = cancelled_decision
+    with patch('remote_yam.controller.time.time', return_value=400.):
+        controller._run_loop(None)
+        state = controller.status()
+    assert state['status'] == 'timed_out'
+    assert public_run_error(state) == 'Run reached time limit'
+    assert state['run_elapsed_s'] == 300.
+    controller._session_api.stop_session.assert_called_once_with('test-local-timeout')
+    events.close.assert_called_once()
+    assert controller._stop_event.is_set() and controller._provider is None
+
+
+def test_error_before_deadline_is_not_reclassified_by_slow_gateway_lookup():
+    from unittest.mock import Mock, patch
+    from remote_yam.controller import RunnerController
+    from remote_yam.session import MockSessionAPI
+    controller = RunnerController(MockSessionAPI())
+    controller._session_id = 'test-model-error'
+    controller._status = 'running'
+    controller._run_started_at = 100.
+    controller._run_duration_s = 300
+    controller._session_api.stop_session = Mock()
+    controller.process_next_event = Mock(side_effect=RuntimeError('model failed'))
+    with patch('remote_yam.controller.time.time', return_value=399.) as clock:
+        def delayed_status(_):
+            clock.return_value = 401.
+            return {'status': 'running'}
+        controller._session_api.get_session = delayed_status
+        controller._run_loop(None)
+    state = controller.status()
+    assert state['status'] == 'stopped'
+    assert state['error'] == 'RuntimeError: model failed'
+
+
+def test_user_stop_at_deadline_is_not_changed_to_timeout():
+    from unittest.mock import Mock, patch
+    from remote_yam.controller import RunnerController
+    from remote_yam.session import MockSessionAPI
+    controller = RunnerController(MockSessionAPI())
+    controller._session_id = 'test-user-stop'
+    controller._session_api.stop_session = Mock(return_value={'status': 'stopped'})
+    controller._status = 'running'
+    controller._run_started_at = 100.
+    controller._run_duration_s = 300
+    def stopped_decision(_):
+        controller.stop()
+        raise RuntimeError('cancelled by user')
+    controller.process_next_event = stopped_decision
+    with patch('remote_yam.controller.time.time', return_value=400.):
+        controller._run_loop(None)
+    assert controller.status()['status'] == 'stopped'
+    assert public_run_error(controller.status()) is None
+
+
 def test_station_unsafe_displays_recorded_diagnostic_without_outcome_change(tmp_path):
     from remote_yam.past_runs import RunNames
     error='RuntimeError: Hardware feedback blocked: station_unsafe'
