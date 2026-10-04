@@ -5,7 +5,7 @@ const source = fs.readFileSync(__dirname + '/../static/hosted.js', 'utf8');
 test('RoboHouse selects its continuous stream with three correctly labeled camera tiles', () => {
   const tiles = Array.from({length: 4}, (_, i) => {
     const caption = {firstChild: {textContent: ''}}, button = {setAttribute(k,v){this[k]=v}};
-    const figure = {removed:false, remove(){this.removed=true}, querySelector(s){return s==='figcaption' ? caption : button}};
+    const figure = {dataset:{},removed:false, remove(){this.removed=true}, querySelector(s){return s==='figcaption' ? caption : button}};
     return {dataset:{syncTile:String(i)}, parentElement:{}, figure, caption, button,
       closest(){return figure}, setAttribute(k,v){this[k]=v}};
   });
@@ -25,6 +25,12 @@ test('RoboHouse selects its continuous stream with three correctly labeled camer
   assert.equal(tiles[3].figure.removed,true);
   assert.equal(notice.hidden,false);
   assert.equal(tiles[1].button['aria-label'],'Expand left camera');
+  assert.equal(viewer.dataset.layout,'top-with-grippers');
+  assert.deepEqual(tiles.slice(0,3).map(t=>t.figure.dataset.cameraRole),['top','left','right']);
+  assert.deepEqual(tiles.slice(0,3).map(t=>t.caption.firstChild.textContent),['Top ','Left wrist ','Right wrist ']);
+  context.selectedRobot='yam-1';
+  vm.runInNewContext(source.slice(a,b)+";selectedCameras(['top','left','right'])",context);
+  assert.equal(viewer.dataset.layout,'multi');
 });
 
 test('RoboHouse YAM is the default viewer, while explicit robot choices retain priority', () => {
