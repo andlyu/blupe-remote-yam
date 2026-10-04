@@ -325,7 +325,7 @@ function renderStepMetricsChart(container, timings) {
   const $ = id => document.getElementById(id);
   let claudeModel = 'claude-opus-5-5';
   const originalProviderMarkup = $('provider').innerHTML;
-  let selectedRobot = window.yamApplication?.defaultRobot || new URLSearchParams(location.search).get('robot_id') || 'yam-1', robotGeneration = 0, robotCatalog = null, pollingStarted = false;
+  let selectedRobot = window.yamApplication?.defaultRobot || new URLSearchParams(location.search).get('robot_id') || 'robot-ba8413962083809c', robotGeneration = 0, robotCatalog = null, pollingStarted = false;
   function selectRobotPrompt() {
     const defaults = {
       'yam-1': 'place red block on other towel',
@@ -1474,7 +1474,7 @@ function renderStepMetricsChart(container, timings) {
       }
       robotCatalog.robots.sort((a,b) => Number(b.connected === true) - Number(a.connected === true));
       if (!window.yamApplication?.defaultRobot && !new URLSearchParams(location.search).get('robot_id')) {
-        selectedRobot = robotCatalog.robots.find(robot => robot.id === 'yam-1')?.id
+        selectedRobot = robotCatalog.robots.find(robot => robot.id === 'robot-ba8413962083809c')?.id
           || robotCatalog.robots.find(robot => robot.connected === true)?.id || selectedRobot;
       }
       selector.replaceChildren(...robotCatalog.robots.map(robot =>
