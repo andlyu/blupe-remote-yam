@@ -1176,6 +1176,75 @@ function renderStepMetricsChart(container, timings) {
   $('video').addEventListener('error', () => { $('replayHelp').textContent = 'Video is not available yet. Try again after the robot finishes uploading.'; });
   $('video').addEventListener('loadeddata', () => { $('replayHelp').textContent = 'Published robot recording'; });
   let videoStream = null;
+  function cameraExpansion(video, tiles) {
+    let dialog = null, expanded = null, marker = null, trigger = null;
+    let stopped = false, opening = false;
+    function restore() {
+      const focus = trigger;
+      if (marker?.isConnected) marker.replaceWith(expanded);
+      dialog?.remove();
+      dialog = expanded = marker = trigger = null;
+      document.body.classList.remove('cameraExpanded');
+      if (!stopped && focus?.isConnected) focus.focus({preventScroll:true});
+    }
+    function showDialog(panel, control) {
+      if (stopped || !panel.isConnected) return;
+      marker = document.createComment('expanded camera');
+      panel.before(marker);
+      expanded = panel; trigger = control;
+      dialog = document.createElement('dialog');
+      dialog.className = 'cameraDialog';
+      dialog.setAttribute('aria-label', (panel.dataset.cameraRole || 'Robot') + ' camera');
+      const close = document.createElement('button');
+      close.type = 'button'; close.className = 'closeCamera';
+      close.textContent = 'Close'; close.setAttribute('aria-label', 'Close camera');
+      close.addEventListener('click', () => dialog.close());
+      dialog.addEventListener('close', restore);
+      dialog.append(close, panel);
+      document.body.append(dialog);
+      document.body.classList.add('cameraExpanded');
+      dialog.showModal(); close.focus();
+    }
+    async function toggle(panel, control) {
+      if (stopped || opening) return;
+      if (dialog) { dialog.close(); return; }
+      if (document.fullscreenElement === panel) {
+        await document.exitFullscreen?.().catch(() => {});
+        return;
+      }
+      video.play().catch(() => {});
+      // Phone layouts use a full-window dialog with an explicit close control.
+      // Native fullscreen may be absent or reject arbitrary elements on mobile.
+      if (!window.matchMedia?.('(max-width: 740px)')?.matches && panel.requestFullscreen) {
+        opening = true;
+        try { await panel.requestFullscreen(); return; }
+        catch { /* Keep expansion usable if the browser denies native fullscreen. */ }
+        finally { opening = false; }
+      }
+      showDialog(panel, control);
+    }
+    tiles.forEach(tile => {
+      const panel = tile.closest('figure');
+      const button = panel.querySelector('[data-expand-camera]');
+      tile.tabIndex = 0;
+      tile.setAttribute('role', 'button');
+      tile.setAttribute('aria-label', button.getAttribute('aria-label'));
+      panel.addEventListener('click', event => toggle(panel, event.target === tile ? tile : button));
+      tile.addEventListener('keydown', event => {
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault(); toggle(panel, tile);
+        }
+      });
+    });
+    return () => {
+      stopped = true;
+      // Close synchronously before selectedCameras replaces the original grid.
+      restore();
+      if (tiles.some(tile => tile.closest('figure') === document.fullscreenElement)) {
+        document.exitFullscreen?.().catch(() => {});
+      }
+    };
+  }
   function synchronizedPanels(video, sourceLabel) {
     const tiles = [...document.querySelectorAll('canvas[data-sync-tile]')];
     if (!tiles.length) return;
@@ -1184,11 +1253,7 @@ function renderStepMetricsChart(container, timings) {
     const context = atlas.getContext('2d', {alpha:false});
     const contexts = tiles.map(tile => tile.getContext('2d', {alpha:false}));
     const labels = [...document.querySelectorAll('[data-sync-status]')];
-    tiles.forEach(tile => {
-      tile.tabIndex = 0;
-      tile.addEventListener('click', () => video.play().catch(() => {}));
-      tile.addEventListener('keydown', event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); video.play().catch(() => {}); } });
-    });
+    const stopExpanding = cameraExpansion(video, tiles);
     let callback, lastMediaTime = -1, stopped = false, frame = 0;
     const stopSnapshots = [];
     // A bounded still-image request gives each panel a real picture while the
@@ -1243,15 +1308,9 @@ function renderStepMetricsChart(container, timings) {
       });
       callback = requestAnimationFrame(paint);
     }
-    document.querySelectorAll('[data-expand-camera]').forEach(button => {
-      button.addEventListener('click', () => {
-        const panel = button.closest('figure');
-        if (document.fullscreenElement) document.exitFullscreen?.().catch(() => {});
-        else panel.requestFullscreen?.().catch(() => {});
-      });
-    });
     video.yamStopPainting = () => {
       stopped = true; cancelAnimationFrame(callback);
+      stopExpanding();
       stopSnapshots.forEach(stop => stop());
     };
     window.addEventListener('pagehide', video.yamStopPainting);
