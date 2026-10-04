@@ -59,16 +59,16 @@
     </div>
   </section>
   <div class="videoOverlays">
+  <section class="panel astraStream" aria-labelledby="astraStreamTitle">
   <section id="runOutcome" class="runOutcome" role="status" aria-live="polite" aria-atomic="true" aria-labelledby="runOutcomeTitle" hidden>
     <div class="runOutcomeHeading"><strong id="runOutcomeTitle"></strong><span id="runOutcomeAttribution"></span></div>
-    <p id="runOutcomeSummary"></p>
-    <p id="runOutcomeDetail" class="help" hidden></p>
+    <p id="runOutcomeSummary" hidden></p>
   </section>
-  <section class="panel astraStream" aria-labelledby="astraStreamTitle">
     <div class="statusHeader"><h2 id="astraStreamTitle" title="Request progress and brief decision summaries">Live decisions</h2></div>
     <span id="astraStreamState" hidden>Waiting for a run</span>
     <div role="status" aria-live="polite" aria-atomic="true">
       <p id="astraStreamOutput">Astra’s next note will appear here.</p>
+      <p id="runOutcomeDetail" class="help" hidden></p>
       <time id="astraStreamTime" hidden></time>
     </div>
   </section>
