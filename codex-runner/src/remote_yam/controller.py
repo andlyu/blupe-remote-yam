@@ -919,9 +919,12 @@ class RunnerController:
         with self._lock:
             if self._stop_event.is_set() or self._provider is not provider:
                 return True
-            started = getattr(self, '_run_started_at', None)
-            return (self._status == 'running' and started is not None
-                    and time.time() - started >= self._run_duration_s)
+            return self._run_deadline_reached()
+
+    def _run_deadline_reached(self):
+        started = getattr(self, '_run_started_at', None)
+        return (self._status == 'running' and started is not None
+                and time.time() - started >= self._run_duration_s)
 
     def _dispatch_trajectory(
         self,
@@ -1491,12 +1494,26 @@ class RunnerController:
                         self.stop("max_steps")
                         return
         except Exception as exc:
-            if self._stop_event.is_set():
+            with self._lock:
+                if self._stop_event.is_set():
+                    return
+                failed_session = self._session_id
+                # A provider can observe the local deadline before the gateway
+                # publishes timed_out. Snapshot before network I/O so a genuine
+                # earlier failure is not reclassified by a slow status request.
+                local_timeout = self._run_deadline_reached()
+                if local_timeout:
+                    self._lifecycle({}, {"state": "timed_out", "reason": "session_timeout"})
+            if local_timeout:
+                try:
+                    if failed_session is not None:
+                        self._session_api.stop_session(failed_session)
+                except Exception:
+                    pass  # Preserve the deadline outcome if contact is lost.
+                self._close_events()
                 return
             # Inference/dispatch may fail after the robot has already expired
             # the session, before this worker can consume its queued timeout event.
-            with self._lock:
-                failed_session = self._session_id
             if failed_session is not None:
                 try:
                     terminal = self._session_api.get_session(failed_session)

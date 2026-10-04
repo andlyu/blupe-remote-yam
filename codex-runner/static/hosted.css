@@ -86,6 +86,10 @@ main.chatClosed{grid-template-columns:minmax(0,1fr)}.visitorChatHeading{display:
 #station[data-tone="error"]{color:#a72c24}
 
 .publicRunError{color:#a72c24;background:#fff0ed;border-left:3px solid #a72c24;padding:10px 12px;font-size:13px;line-height:1.5;overflow-wrap:anywhere}
+.runOutcome{padding:16px;border:1px solid #bdd2bf;border-left:4px solid #28643b;border-radius:8px;background:#f0f7ef;color:var(--ink);overflow-wrap:anywhere}
+.runOutcome[data-tone="warning"]{background:#fff8eb;border-color:#e0c795;border-left-color:#8a5300}
+.runOutcomeHeading{display:flex;align-items:baseline;flex-wrap:wrap;gap:4px 12px}.runOutcomeHeading strong{font-size:20px;color:#28643b}.runOutcome[data-tone="warning"] strong{color:#8a5300}
+.runOutcomeHeading span{font-size:12px;color:var(--muted)}.runOutcome p{margin:8px 0 0;line-height:1.5;white-space:pre-wrap}.runOutcome .help{font-size:12px}
 .streamHealth{display:inline-block;margin-left:8px;font-weight:650;color:#626c64}.streamHealth::before{content:'●';margin-right:5px}.streamHealth[data-state="live"]{color:#28643b}.streamHealth[data-state="stalled"]{color:#a72c24}.streamHealth[data-state="behind"],.streamHealth[data-state="delayed"]{color:#8a5300}#streamHealthDetail{margin-left:8px;font-variant-numeric:tabular-nums}
 /* Compact public stopwatch over the lower-right camera. */
 #liveViewer{position:relative}
@@ -206,6 +210,27 @@ main > .coffeeSupport{grid-column:1 / -1;margin-top:4px;width:100%}
 #liveViewer[data-layout=single]{grid-template-columns:1fr;max-width:760px;width:100%}
 #liveViewer[data-layout=single] figure img{aspect-ratio:16/9}
 
+/* RoboHouse: wrist views sit inside the bottom corners of the overhead feed. */
+#liveViewer[data-layout="top-with-grippers"]{--camera-inset:12px;--top-caption-height:36px;grid-template-columns:minmax(0,1fr);grid-template-areas:"top";max-width:none;align-items:start}
+#liveViewer[data-layout="top-with-grippers"]:has(>.viewerCue:not([hidden])){grid-template-areas:"cue" "top"}
+#liveViewer[data-layout="top-with-grippers"]>.viewerCue{grid-area:cue}
+#liveViewer[data-layout="top-with-grippers"]>figure[data-camera-role="top"]{grid-area:top}
+#liveViewer[data-layout="top-with-grippers"]>figure[data-camera-role="top"]>figcaption{height:var(--top-caption-height);align-items:center}
+#liveViewer[data-layout="top-with-grippers"]>figure[data-camera-role="top"] .expandCamera{top:7px;bottom:auto}
+#liveViewer[data-layout="top-with-grippers"]>figure[data-camera-role="top"] .modelCameraBadge{top:7px;bottom:auto}
+#liveViewer[data-layout="top-with-grippers"]>figure:is([data-camera-role="left"],[data-camera-role="right"]):not(:fullscreen){grid-area:top;align-self:end;width:16.8%;max-width:180px;margin:0 var(--camera-inset) calc(var(--top-caption-height) + var(--camera-inset));z-index:1;border:2px solid #fff;border-radius:8px;box-shadow:0 3px 16px #0005}
+#liveViewer[data-layout="top-with-grippers"]>figure[data-camera-role="left"]:not(:fullscreen){justify-self:start}
+#liveViewer[data-layout="top-with-grippers"]>figure[data-camera-role="right"]:not(:fullscreen){justify-self:end}
+#liveViewer[data-layout="top-with-grippers"]>figure:is([data-camera-role="left"],[data-camera-role="right"]):not(:fullscreen)>figcaption{padding:5px 8px;font-size:11px}
+#liveViewer[data-layout="top-with-grippers"]>figure:is([data-camera-role="left"],[data-camera-role="right"]):not(:fullscreen)>figcaption span{display:none}
+#liveViewer[data-layout="top-with-grippers"]>.liveStopwatch{right:50%;transform:translateX(50%);bottom:calc(var(--top-caption-height) + var(--camera-inset))}
+@media(max-width:740px){
+  #liveViewer[data-layout="top-with-grippers"]{--camera-inset:6px}
+  #liveViewer[data-layout="top-with-grippers"]>figure:is([data-camera-role="left"],[data-camera-role="right"]):not(:fullscreen){width:18%}
+  #liveViewer[data-layout="top-with-grippers"]>figure:is([data-camera-role="left"],[data-camera-role="right"]):not(:fullscreen)>figcaption{padding:3px;font-size:9px;white-space:nowrap}
+  #liveViewer[data-layout="top-with-grippers"]>figure:is([data-camera-role="left"],[data-camera-role="right"]):not(:fullscreen) .modelCameraBadge{display:none}
+}
+
 /* One action group: consistent targets and a quiet secondary action. */
 #runButtons{display:flex;align-items:stretch;gap:8px;max-width:100%;margin-left:auto}
 #runButtons button{width:auto;min-height:52px;margin:0;padding:8px 14px;font-size:14px;line-height:1.25;align-self:stretch}
@@ -305,3 +330,87 @@ main > .coffeeSupport{grid-column:1 / -1;margin-top:4px;width:100%}
 #localRunMessage:empty{display:none}#localRunMessage{font-size:13px;margin-bottom:0}
 
 .localRunMode #codexSetup,.localRunMode #claudeSetup,.localRunMode #policyHelp{display:none}
+
+/* Video-first playground: compact header, prompt below, status over the feed. */
+main{padding-top:14px}
+.playgroundHeader{display:flex;align-items:center;justify-content:space-between;gap:12px 24px;flex-wrap:wrap}
+.playgroundHeader .intro{padding:0;max-width:none;min-width:0}
+.playgroundHeader h1{font-size:32px;line-height:1.1;letter-spacing:-.05em;margin:0}
+.playgroundHeader .eyebrow{margin:6px 0 0}
+.playgroundHeader .robotNavigation{margin:0;gap:8px}
+.playgroundHeader .robotNavigation select{padding:8px 10px;font-size:13px}
+.playgroundIntro{margin:8px 0 12px;font-size:12px;color:var(--muted)}
+.watchToolbar{display:flex;align-items:center;justify-content:space-between;gap:8px 16px;flex-wrap:wrap;margin-bottom:10px}
+.watchLayout{row-gap:10px}
+.watchLayout>.watchToolbar{grid-column:1/-1;margin-bottom:0}
+.watchToolbar .conversationModes{margin:0}
+.watchToolbar #videoDelayNotice{margin:0;font-size:11px}
+.videoPanel{position:relative;min-width:0;isolation:isolate}
+.watchLayout .videoPanel .cameras{max-width:none;margin:0}
+.videoOverlays{position:absolute;left:12px;right:12px;bottom:48px;z-index:3;display:flex;flex-direction:column;gap:6px;max-height:calc(100% - 64px);pointer-events:none}
+/* Keep the status stack between the two wrist views. */
+.videoPanel:has(>[data-layout="top-with-grippers"]) .videoOverlays{left:calc(min(16.8%,180px) + 24px);right:calc(min(16.8%,180px) + 24px)}
+.watchLayout .videoOverlays .astraStream{margin:0;padding:10px 12px;border:1px solid #ffffff38;border-radius:8px;background:rgb(15 28 23 / .72);color:#fff;box-shadow:0 2px 12px #0002;backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);pointer-events:auto;min-height:0}
+.watchLayout .videoOverlays .astraStream{height:auto;max-height:none;flex-shrink:1}
+.videoOverlays .runOutcome{margin:0 0 8px;padding:0;border:0;border-radius:0;background:none;box-shadow:none}
+.videoOverlays .runOutcome[data-tone="warning"]{background:none}
+.videoOverlays .runOutcomeHeading{gap:2px 10px}
+.videoOverlays .runOutcomeHeading strong{font-size:15px;color:#d5ffb1}
+.videoOverlays .runOutcome[data-tone="warning"] strong{color:#ffd28c}
+.videoOverlays .runOutcomeHeading span{font-size:10px;color:#e0e9e2}
+.watchLayout .videoOverlays #runOutcomeDetail{font-size:10px;line-height:1.4;color:#e0e9e2;margin:6px 0 0}
+.watchLayout .videoOverlays .astraStream .statusHeader{margin-bottom:4px}
+.watchLayout .videoOverlays .astraStream .statusHeader h2{font-size:10px;font-weight:650;letter-spacing:.08em;text-transform:uppercase;color:#dae6dc}
+.watchLayout .videoOverlays #astraStreamOutput{font-size:13px;line-height:1.45;color:#fff;max-height:4.35em;overflow:auto}
+.watchLayout .videoOverlays #astraStreamTime{color:#d2ddd5;margin-top:4px;font-size:10px}
+.videoPanel #liveViewer>.liveStopwatch{top:12px;bottom:auto;right:50%;transform:translateX(50%)}
+.watchVisuals>.runSetup>.panel{padding:14px 16px}
+.watchVisuals .runSetup #message:empty{display:none!important}
+.watchVisuals .runHeading{margin-bottom:10px}
+.watchVisuals .runHeading h2{font-size:18px}
+.watchVisuals .cameraStatusLine{font-size:11px}
+@media(max-width:740px){
+  main{padding-top:12px}
+  .playgroundHeader{gap:10px}
+  .playgroundHeader h1{font-size:28px}
+  .playgroundHeader .robotNavigation{justify-content:flex-start;flex-wrap:nowrap;width:100%}
+  .playgroundHeader .robotNavigation select{flex:1;min-width:0;width:0}
+  .playgroundIntro{margin:8px 0 10px;line-height:1.5}
+  .watchToolbar{gap:8px;order:3}
+  .watchToolbar #videoDelayNotice{order:-1;width:100%}
+  .watchToolbar .conversationModes{padding:3px}
+  .watchToolbar .conversationModes button{padding:7px 9px;font-size:12px}
+  .watchLayout{display:flex;flex-direction:column;gap:14px}
+  .watchVisuals{display:contents}
+  .watchVisuals>.videoPanel{order:0}
+  .watchVisuals>.cameraStatusLine{order:2}
+  .watchLayout>#liveConversationPanel{order:4}
+  .watchVisuals>.runSetup{order:1}
+  .watchLayout .videoPanel #liveViewer{position:relative;top:auto;padding:0;margin:0;z-index:auto}
+  .watchLayout .liveConversation{height:auto;min-height:0;max-height:60dvh;margin:0}
+  .videoPanel:has(>[data-layout="top-with-grippers"]) .videoOverlays{left:calc(18% + 12px);right:calc(18% + 12px)}
+  .videoOverlays{left:6px;right:6px;bottom:42px;gap:4px;max-height:calc(100% - 76px)}
+  .watchLayout .videoOverlays .astraStream{padding:6px 8px;border-radius:6px}
+  .videoOverlays .runOutcomeHeading strong{font-size:14px}
+  .videoOverlays .runOutcomeHeading span,.watchLayout .videoOverlays #runOutcomeDetail{font-size:9px}
+  .watchLayout .videoOverlays #astraStreamOutput{font-size:11px;line-height:1.35}
+  .watchLayout .videoOverlays #astraStreamOutput{max-height:2.7em}
+  .watchLayout .videoOverlays #astraStreamTime{font-size:9px}
+  .watchLayout .videoOverlays .astraStream .statusHeader h2{font-size:9px}
+  .watchVisuals>.runSetup>.panel{margin:0;padding:12px}
+}
+
+/* Full-window camera view works without the native Fullscreen API on phones. */
+body.cameraExpanded{overflow:hidden}
+.syncTile{cursor:zoom-in;touch-action:manipulation}
+.syncTile:fullscreen{cursor:zoom-out}
+.cameraDialog{position:fixed;inset:0;box-sizing:border-box;width:100%;height:100%;height:100dvh;max-width:none;max-height:none;margin:0;padding:0;border:0;border-radius:0;background:#101714;color:#fff;overflow:hidden;overscroll-behavior:contain}
+.cameraDialog[open]{display:flex;flex-direction:column;justify-content:center}
+.cameraDialog::backdrop{background:#101714}
+.cameraDialog .closeCamera{position:absolute;z-index:2;top:max(12px,env(safe-area-inset-top));right:max(12px,env(safe-area-inset-right));min-width:72px;min-height:44px;background:#263b30;color:#fff;border:1px solid #728477}
+.cameraDialog>.syncTile{width:100%;max-width:none;margin:0;border:0;border-radius:0;background:#101714;cursor:zoom-out}
+.cameraDialog .syncTilePicture{width:100%}
+.cameraDialog .syncTile canvas{width:100%;height:auto;max-height:calc(100dvh - 120px);aspect-ratio:16/9;object-fit:contain}
+.cameraDialog .syncTile>figcaption{display:flex;justify-content:space-between;padding:12px max(16px,env(safe-area-inset-right)) 12px max(16px,env(safe-area-inset-left));font-size:14px;color:#fff}
+.cameraDialog .syncTile>figcaption span{color:#c9d8ce}
+.cameraDialog .expandCamera{display:none}

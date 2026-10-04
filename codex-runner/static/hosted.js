@@ -175,6 +175,7 @@ function renderStepMetricsChart(container, timings) {
     player.src = source.url;
     player.defaultPlaybackRate = player.playbackRate = source.rate;
     if (!dialog.open) dialog.showModal();
+    dialog.scrollTop = 0;
     player.play().catch(() => {});
   }
   $('closePastRun').addEventListener('click', () => dialog.close());
@@ -325,7 +326,7 @@ function renderStepMetricsChart(container, timings) {
   const $ = id => document.getElementById(id);
   let claudeModel = 'claude-opus-5-5';
   const originalProviderMarkup = $('provider').innerHTML;
-  let selectedRobot = window.yamApplication?.defaultRobot || new URLSearchParams(location.search).get('robot_id') || 'yam-1', robotGeneration = 0, robotCatalog = null, pollingStarted = false;
+  let selectedRobot = window.yamApplication?.defaultRobot || new URLSearchParams(location.search).get('robot_id') || 'robot-ba8413962083809c', robotGeneration = 0, robotCatalog = null, pollingStarted = false;
   function selectRobotPrompt() {
     const defaults = {
       'yam-1': 'place red block on other towel',
@@ -341,6 +342,7 @@ function renderStepMetricsChart(container, timings) {
   }
   let ownRunLive = false, conversationSharingAllowed = true;
   let csrf = '', ended = false, submitting = false, active = false, lastHistory = 0, contactRequested = false;
+  let needsSessionRecovery = false, viewerDisconnected = false;
   function message(text, error = false) {
     for (const id of ['message', 'localRunMessage']) { $(id).textContent = text; $(id).classList.toggle('error', error); }
   }
@@ -373,7 +375,11 @@ function renderStepMetricsChart(container, timings) {
       throw Object.assign(new Error('Robot session changed'), {stale:true});
     }
     if (!response.ok) {
-      if (response.status === 401 && path !== '/api/chat') { ended = true; buttons(); $('apiKey').value = ''; }
+      if (response.status === 401 && path !== '/api/chat') {
+        ended = true;
+        needsSessionRecovery = !viewerDisconnected && path !== '/api/session';
+        buttons(); $('apiKey').value = '';
+      }
       const error = new Error(result.error || 'Request failed');
       error.subscriptionSetup = result.subscription_setup;
       error.paymentConfirmed = result.payment_confirmed === true;
@@ -656,6 +662,7 @@ function renderStepMetricsChart(container, timings) {
       try { await api(path, {}); } catch (_) { /* Contact details remain available if handoff fails. */ }
       if (contactRequested) operatorContact(); buttons(); return;
     }
+    if (id === 'disconnect') { viewerDisconnected = true; needsSessionRecovery = false; }
     $('apiKey').value = '';
     try { const result = await api(path, {}); updateSavedKey(result.saved_key_providers); if (id === 'disconnect') ended = true; message(text); }
     catch (error) { message(error.message, true); }
@@ -735,8 +742,58 @@ function renderStepMetricsChart(container, timings) {
     attentionSession = session;
     attentionPhase = phase;
   }
+  function modelResponseTools(event) {
+    if (event?.kind !== 'model_response') return [];
+    const tools = event.details?.tools;
+    const calls = Array.isArray(tools) ? tools : [...String(event.details?.response || event.message || '')
+      .matchAll(/^(move_to|done|give_up):[ \t]*(\{[^\n]*\})[ \t]*$/gm)]
+      .map(match => ({name: match[1], arguments: match[2]}));
+    return calls.flatMap(call => {
+      try {
+        const args = typeof call.arguments === 'string' ? JSON.parse(call.arguments) : call.arguments;
+        return args && typeof args === 'object' && !Array.isArray(args) ? [{name: call.name, args}] : [];
+      } catch (_) { return []; }
+    });
+  }
+  function modelRunResult(live) {
+    if (!live || live.error || !['stopped', 'completed'].includes(live.status)) return null;
+    const latest = [...(live.events || [])].reverse()
+      .find(event => ['model_request', 'model_response', 'model_error'].includes(event.kind));
+    const decision = modelResponseTools(latest).find(call => ['done', 'give_up'].includes(call.name));
+    if (!decision) return null;
+    const completed = decision.name === 'done';
+    const reason = decision.args[completed ? 'summary' : 'reason'];
+    if (typeof reason !== 'string' || !reason.trim()) return null;
+    const metrics = live.run_metrics;
+    const facts = [];
+    if (Number.isInteger(metrics?.model_calls) && metrics.model_calls > 0) {
+      facts.push(`${metrics.model_calls} model call${metrics.model_calls === 1 ? '' : 's'}`);
+    }
+    if (metrics?.accepted_packets === 0) facts.push('No task movements sent');
+    return {label: completed ? 'Completed' : 'Could not complete', tone: completed ? 'success' : 'warning',
+      attribution: `${live.model_name || liveModelName} ${completed ? 'reported task complete' : 'ended the task'}`,
+      summary: reason.trim(), detail: facts.join(' · ')};
+  }
+  function renderModelRunResult(live) {
+    const result = modelRunResult(live);
+    const panel = $('runOutcome');
+    if (!panel) return result; // A previously loaded page may still have older markup.
+    panel.hidden = !result;
+    panel.dataset.tone = result?.tone || '';
+    $('runOutcomeTitle').textContent = result?.label || '';
+    $('runOutcomeAttribution').textContent = result?.attribution || '';
+    $('runOutcomeSummary').textContent = result?.summary || '';
+    $('runOutcomeDetail').textContent = result?.detail || '';
+    $('runOutcomeDetail').hidden = !result?.detail;
+    return result;
+  }
   function astraStreamNote(event, notesOnly = false) {
     if (event.kind !== 'model_response') return '';
+    const final = modelResponseTools(event).find(call => ['done', 'give_up'].includes(call.name));
+    const reason = final?.args[final.name === 'done' ? 'summary' : 'reason'];
+    if (typeof reason === 'string' && reason.trim()) {
+      return `${final.name === 'done' ? 'Task complete' : 'Could not complete'}: ${reason.trim()}`;
+    }
     const response = event.details?.response || event.message || '';
     const notes = [];
     // Public conversation output contains tool names followed by JSON arguments.
@@ -793,7 +850,7 @@ function renderStepMetricsChart(container, timings) {
       body.textContent = output;
       body.scrollTop = 0;
     }
-    $('astraStreamState').textContent = running ? 'Live' : live ? 'Run ended' : 'Waiting for a run';
+    $('astraStreamState').textContent = running ? 'Live' : modelRunResult(live)?.label || (live ? 'Run ended' : 'Waiting for a run');
     const time = $('astraStreamTime');
     const date = latest?.timestamp != null ? new Date(latest.timestamp * 1000) : null;
     const validDate = date && Number.isFinite(date.getTime());
@@ -874,8 +931,9 @@ function renderStepMetricsChart(container, timings) {
     syncStopwatch(live, state.queue_snapshot?.generated_at);
     $('currentRunner').textContent = 'Runner: ' + (live?.runner_name || '—');
     $('currentPrompt').textContent = live?.task || 'Waiting for someone to run a policy.';
-    $('conversationState').textContent = (live?.status || 'Waiting for a run').replaceAll('_', ' ') + (live?.error ? ' · ' + live.error : '');
     applyModelName(live);
+    const result = renderModelRunResult(live);
+    $('conversationState').textContent = (result?.label || live?.status || 'Waiting for a run').replaceAll('_', ' ') + (live?.error ? ' · ' + live.error : '');
     renderConversation(live?.events || [], 'liveConversationMessages');
     renderAstraStream(live);
     $('sideRunner').textContent = $('currentRunner').textContent;
@@ -1119,6 +1177,75 @@ function renderStepMetricsChart(container, timings) {
   $('video').addEventListener('error', () => { $('replayHelp').textContent = 'Video is not available yet. Try again after the robot finishes uploading.'; });
   $('video').addEventListener('loadeddata', () => { $('replayHelp').textContent = 'Published robot recording'; });
   let videoStream = null;
+  function cameraExpansion(video, tiles) {
+    let dialog = null, expanded = null, marker = null, trigger = null;
+    let stopped = false, opening = false;
+    function restore() {
+      const focus = trigger;
+      if (marker?.isConnected) marker.replaceWith(expanded);
+      dialog?.remove();
+      dialog = expanded = marker = trigger = null;
+      document.body.classList.remove('cameraExpanded');
+      if (!stopped && focus?.isConnected) focus.focus({preventScroll:true});
+    }
+    function showDialog(panel, control) {
+      if (stopped || !panel.isConnected) return;
+      marker = document.createComment('expanded camera');
+      panel.before(marker);
+      expanded = panel; trigger = control;
+      dialog = document.createElement('dialog');
+      dialog.className = 'cameraDialog';
+      dialog.setAttribute('aria-label', (panel.dataset.cameraRole || 'Robot') + ' camera');
+      const close = document.createElement('button');
+      close.type = 'button'; close.className = 'closeCamera';
+      close.textContent = 'Close'; close.setAttribute('aria-label', 'Close camera');
+      close.addEventListener('click', () => dialog.close());
+      dialog.addEventListener('close', restore);
+      dialog.append(close, panel);
+      document.body.append(dialog);
+      document.body.classList.add('cameraExpanded');
+      dialog.showModal(); close.focus();
+    }
+    async function toggle(panel, control) {
+      if (stopped || opening) return;
+      if (dialog) { dialog.close(); return; }
+      if (document.fullscreenElement === panel) {
+        await document.exitFullscreen?.().catch(() => {});
+        return;
+      }
+      video.play().catch(() => {});
+      // Phone layouts use a full-window dialog with an explicit close control.
+      // Native fullscreen may be absent or reject arbitrary elements on mobile.
+      if (!window.matchMedia?.('(max-width: 740px)')?.matches && panel.requestFullscreen) {
+        opening = true;
+        try { await panel.requestFullscreen(); return; }
+        catch { /* Keep expansion usable if the browser denies native fullscreen. */ }
+        finally { opening = false; }
+      }
+      showDialog(panel, control);
+    }
+    tiles.forEach(tile => {
+      const panel = tile.closest('figure');
+      const button = panel.querySelector('[data-expand-camera]');
+      tile.tabIndex = 0;
+      tile.setAttribute('role', 'button');
+      tile.setAttribute('aria-label', button.getAttribute('aria-label'));
+      panel.addEventListener('click', event => toggle(panel, event.target === tile ? tile : button));
+      tile.addEventListener('keydown', event => {
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault(); toggle(panel, tile);
+        }
+      });
+    });
+    return () => {
+      stopped = true;
+      // Close synchronously before selectedCameras replaces the original grid.
+      restore();
+      if (tiles.some(tile => tile.closest('figure') === document.fullscreenElement)) {
+        document.exitFullscreen?.().catch(() => {});
+      }
+    };
+  }
   function synchronizedPanels(video, sourceLabel) {
     const tiles = [...document.querySelectorAll('canvas[data-sync-tile]')];
     if (!tiles.length) return;
@@ -1127,11 +1254,7 @@ function renderStepMetricsChart(container, timings) {
     const context = atlas.getContext('2d', {alpha:false});
     const contexts = tiles.map(tile => tile.getContext('2d', {alpha:false}));
     const labels = [...document.querySelectorAll('[data-sync-status]')];
-    tiles.forEach(tile => {
-      tile.tabIndex = 0;
-      tile.addEventListener('click', () => video.play().catch(() => {}));
-      tile.addEventListener('keydown', event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); video.play().catch(() => {}); } });
-    });
+    const stopExpanding = cameraExpansion(video, tiles);
     let callback, lastMediaTime = -1, stopped = false, frame = 0;
     const stopSnapshots = [];
     // A bounded still-image request gives each panel a real picture while the
@@ -1186,15 +1309,9 @@ function renderStepMetricsChart(container, timings) {
       });
       callback = requestAnimationFrame(paint);
     }
-    document.querySelectorAll('[data-expand-camera]').forEach(button => {
-      button.addEventListener('click', () => {
-        const panel = button.closest('figure');
-        if (document.fullscreenElement) document.exitFullscreen?.().catch(() => {});
-        else panel.requestFullscreen?.().catch(() => {});
-      });
-    });
     video.yamStopPainting = () => {
       stopped = true; cancelAnimationFrame(callback);
+      stopExpanding();
       stopSnapshots.forEach(stop => stop());
     };
     window.addEventListener('pagehide', video.yamStopPainting);
@@ -1290,8 +1407,10 @@ function renderStepMetricsChart(container, timings) {
     });
     video.addEventListener('waiting', () => { if (!ended) label.textContent = 'Buffering'; });
     video.addEventListener('error', () => { if (video.getAttribute('src') && !ended) offline(); });
+    video.yamReconnect = () => connect();
     const watchdog = setInterval(async () => {
-      if (ended) { cleanup(); label.textContent = 'Session ended'; clearInterval(watchdog); return; }
+      if (disposed) { clearInterval(watchdog); return; }
+      if (ended) { cleanup(); label.textContent = 'Reconnecting'; return; }
       if (document.hidden || retry) return;
       if (video.yamHealth) return; // Frame monitor owns synchronized-stream recovery.
       if (transport === 'webrtc') {
@@ -1314,7 +1433,26 @@ function renderStepMetricsChart(container, timings) {
     connect();
   }
   let statusPollError = '';
+  async function renewViewerSession() {
+    // Only renew viewing access. Never replay a run, payment, or robot command,
+    // and do not invoke application startup hooks that may submit a saved run.
+    const session = await api('/api/session', {});
+    if (viewerDisconnected) return;
+    csrf = session.csrf; ended = false; needsSessionRecovery = false;
+    active = false; ownRunLive = false; lastChatSnapshot = '';
+    updateSavedKey([]);
+    buttons();
+    document.querySelectorAll('[data-camera]').forEach(video => video.yamReconnect?.());
+    message('Reconnected. Live viewing has resumed.');
+    statusPollError = '';
+  }
   async function poll() {
+    if (needsSessionRecovery && !document.hidden) {
+      try { await renewViewerSession(); }
+      catch (error) { if (!error.stale) message('Reconnecting to the playground…', true); }
+      setTimeout(poll, needsSessionRecovery ? 3000 : 1000);
+      return;
+    }
     if (ended || !csrf) { setTimeout(poll, 1000); return; }
     try {
       const state = await api('/api/status');
@@ -1357,7 +1495,12 @@ function renderStepMetricsChart(container, timings) {
     // Preserve the stop listener when robot selection rebuilds the camera tiles.
     $('liveRunControls').replaceWith(runControls);
     $('videoDelayNotice').hidden = !videoStream;
-    $('liveViewer').dataset.layout = names.length === 1 ? 'single' : 'multi';
+    const roles = videoStream?.cameras || names;
+    const topWithGrippers = selectedRobot === 'robot-ba8413962083809c'
+      && roles.length === 3 && ['top', 'left', 'right'].every(role => roles.includes(role));
+    $('liveViewer').dataset.layout = topWithGrippers ? 'top-with-grippers' : names.length === 1 ? 'single' : 'multi';
+    const cameraLabel = role => topWithGrippers && role !== 'top'
+      ? `${role[0].toUpperCase() + role.slice(1)} wrist` : role[0].toUpperCase() + role.slice(1);
     if (camerasDisconnected) {
       $('liveViewer').querySelectorAll('figure, video, canvas').forEach(node => node.remove());
       $('videoDelayNotice').hidden = true;
@@ -1373,9 +1516,10 @@ function renderStepMetricsChart(container, timings) {
       $('liveViewer').querySelectorAll('[data-sync-tile]').forEach(tile => {
         const role = roles[Number(tile.dataset.syncTile)], figure = tile.closest('figure');
         if (!role) { figure.remove(); return; }
+        figure.dataset.cameraRole = role;
         tile.dataset.cameraRole = role;
         tile.setAttribute('aria-label', role + ' robot camera');
-        figure.querySelector('figcaption').firstChild.textContent = role[0].toUpperCase() + role.slice(1) + ' ';
+        figure.querySelector('figcaption').firstChild.textContent = cameraLabel(role) + ' ';
         figure.querySelector('[data-expand-camera]').setAttribute('aria-label', 'Expand ' + role + ' camera');
         addModelBadge(tile.parentElement, role);
       });
@@ -1389,7 +1533,9 @@ function renderStepMetricsChart(container, timings) {
     const generation = robotGeneration;
     for (const name of names) {
       const figure = document.createElement('figure'), image = document.createElement('img'), caption = document.createElement('figcaption');
-      image.alt = name + ' robot camera'; caption.textContent = name + ' · Connecting';
+      figure.dataset.cameraRole = name;
+      const label = topWithGrippers ? cameraLabel(name) : name;
+      image.alt = name + ' robot camera'; caption.textContent = label + ' · Connecting';
       const picture = document.createElement('div');
       picture.className = 'modelCameraPicture'; picture.append(image);
       addModelBadge(picture, name);
@@ -1407,10 +1553,10 @@ function renderStepMetricsChart(container, timings) {
           await pending.decode();
           if (generation !== robotGeneration || epoch !== cameraEpoch || ended) return;
           image.src = pending.src;
-          caption.textContent = name + ' · Live';
+          caption.textContent = label + ' · Live';
         } catch {
           // Keep the last successful frame visible while reconnecting.
-          if (generation === robotGeneration && epoch === cameraEpoch) caption.textContent = name + (image.hasAttribute('src') ? ' · Reconnecting (last frame)' : ' · Connecting');
+          if (generation === robotGeneration && epoch === cameraEpoch) caption.textContent = label + (image.hasAttribute('src') ? ' · Reconnecting (last frame)' : ' · Connecting');
           delay = 1000;
         } finally {
           clearTimeout(timer); pending.onload = pending.onerror = null;
@@ -1447,7 +1593,7 @@ function renderStepMetricsChart(container, timings) {
       }
       robotCatalog.robots.sort((a,b) => Number(b.connected === true) - Number(a.connected === true));
       if (!window.yamApplication?.defaultRobot && !new URLSearchParams(location.search).get('robot_id')) {
-        selectedRobot = robotCatalog.robots.find(robot => robot.id === 'yam-1')?.id
+        selectedRobot = robotCatalog.robots.find(robot => robot.id === 'robot-ba8413962083809c')?.id
           || robotCatalog.robots.find(robot => robot.connected === true)?.id || selectedRobot;
       }
       selector.replaceChildren(...robotCatalog.robots.map(robot =>
@@ -1469,6 +1615,7 @@ function renderStepMetricsChart(container, timings) {
         window.history.replaceState(null, '', robotUrl);
         window.dispatchEvent(new CustomEvent('blupe-robot-selected', {detail:selectedRobot}));
         csrf = ''; active = false; ended = false; lastChatSnapshot = '';
+        needsSessionRecovery = false; viewerDisconnected = false;
         $('apiKey').value = ''; $('robotSelectorStatus').textContent = 'Connecting…';
         renderRobotStatus('unknown');
         $('queue').replaceChildren();
@@ -1576,7 +1723,12 @@ function renderStepMetricsChart(container, timings) {
     if (!chatSending) $('chatStatus').textContent = 'Shared with all visitors';
   }
   async function pollChat() {
-    if (ended) { $('chatSend').disabled = true; $('chatStatus').textContent = 'Reload to reconnect to chat.'; return; }
+    if (ended) {
+      $('chatSend').disabled = true;
+      $('chatStatus').textContent = viewerDisconnected ? 'Chat disconnected.' : 'Reconnecting to chat…';
+      setTimeout(pollChat, 2000);
+      return;
+    }
     if (csrf && !document.hidden) {
       try { await refreshChat(); } catch (error) { $('chatStatus').textContent = error.message; }
     }

@@ -18,6 +18,7 @@ function harness({ready = false} = {}) {
   const atlas = {getContext: () => ({drawImage: (...args) => draws.push({role: 'atlas', args})})};
   const context = {
     selectedRobot: 'yam-1', Date, encodeURIComponent, video,
+    cameraExpansion: () => () => {},
     label: {textContent: 'Loading video'},
     setTimeout(fn) {timers.set(++id, fn); return id;}, clearTimeout(id) {timers.delete(id);},
     requestAnimationFrame(fn) {callback = fn; return 1;}, cancelAnimationFrame() {callback = null;},
