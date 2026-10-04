@@ -341,6 +341,7 @@ function renderStepMetricsChart(container, timings) {
   }
   let ownRunLive = false, conversationSharingAllowed = true;
   let csrf = '', ended = false, submitting = false, active = false, lastHistory = 0, contactRequested = false;
+  let needsSessionRecovery = false, viewerDisconnected = false;
   function message(text, error = false) {
     for (const id of ['message', 'localRunMessage']) { $(id).textContent = text; $(id).classList.toggle('error', error); }
   }
@@ -373,7 +374,11 @@ function renderStepMetricsChart(container, timings) {
       throw Object.assign(new Error('Robot session changed'), {stale:true});
     }
     if (!response.ok) {
-      if (response.status === 401 && path !== '/api/chat') { ended = true; buttons(); $('apiKey').value = ''; }
+      if (response.status === 401 && path !== '/api/chat') {
+        ended = true;
+        needsSessionRecovery = !viewerDisconnected && path !== '/api/session';
+        buttons(); $('apiKey').value = '';
+      }
       const error = new Error(result.error || 'Request failed');
       error.subscriptionSetup = result.subscription_setup;
       error.paymentConfirmed = result.payment_confirmed === true;
@@ -656,6 +661,7 @@ function renderStepMetricsChart(container, timings) {
       try { await api(path, {}); } catch (_) { /* Contact details remain available if handoff fails. */ }
       if (contactRequested) operatorContact(); buttons(); return;
     }
+    if (id === 'disconnect') { viewerDisconnected = true; needsSessionRecovery = false; }
     $('apiKey').value = '';
     try { const result = await api(path, {}); updateSavedKey(result.saved_key_providers); if (id === 'disconnect') ended = true; message(text); }
     catch (error) { message(error.message, true); }
@@ -1290,8 +1296,10 @@ function renderStepMetricsChart(container, timings) {
     });
     video.addEventListener('waiting', () => { if (!ended) label.textContent = 'Buffering'; });
     video.addEventListener('error', () => { if (video.getAttribute('src') && !ended) offline(); });
+    video.yamReconnect = () => connect();
     const watchdog = setInterval(async () => {
-      if (ended) { cleanup(); label.textContent = 'Session ended'; clearInterval(watchdog); return; }
+      if (disposed) { clearInterval(watchdog); return; }
+      if (ended) { cleanup(); label.textContent = 'Reconnecting'; return; }
       if (document.hidden || retry) return;
       if (video.yamHealth) return; // Frame monitor owns synchronized-stream recovery.
       if (transport === 'webrtc') {
@@ -1314,7 +1322,26 @@ function renderStepMetricsChart(container, timings) {
     connect();
   }
   let statusPollError = '';
+  async function renewViewerSession() {
+    // Only renew viewing access. Never replay a run, payment, or robot command,
+    // and do not invoke application startup hooks that may submit a saved run.
+    const session = await api('/api/session', {});
+    if (viewerDisconnected) return;
+    csrf = session.csrf; ended = false; needsSessionRecovery = false;
+    active = false; ownRunLive = false; lastChatSnapshot = '';
+    updateSavedKey([]);
+    buttons();
+    document.querySelectorAll('[data-camera]').forEach(video => video.yamReconnect?.());
+    message('Reconnected. Live viewing has resumed.');
+    statusPollError = '';
+  }
   async function poll() {
+    if (needsSessionRecovery && !document.hidden) {
+      try { await renewViewerSession(); }
+      catch (error) { if (!error.stale) message('Reconnecting to the playground…', true); }
+      setTimeout(poll, needsSessionRecovery ? 3000 : 1000);
+      return;
+    }
     if (ended || !csrf) { setTimeout(poll, 1000); return; }
     try {
       const state = await api('/api/status');
@@ -1469,6 +1496,7 @@ function renderStepMetricsChart(container, timings) {
         window.history.replaceState(null, '', robotUrl);
         window.dispatchEvent(new CustomEvent('blupe-robot-selected', {detail:selectedRobot}));
         csrf = ''; active = false; ended = false; lastChatSnapshot = '';
+        needsSessionRecovery = false; viewerDisconnected = false;
         $('apiKey').value = ''; $('robotSelectorStatus').textContent = 'Connecting…';
         renderRobotStatus('unknown');
         $('queue').replaceChildren();
@@ -1576,7 +1604,12 @@ function renderStepMetricsChart(container, timings) {
     if (!chatSending) $('chatStatus').textContent = 'Shared with all visitors';
   }
   async function pollChat() {
-    if (ended) { $('chatSend').disabled = true; $('chatStatus').textContent = 'Reload to reconnect to chat.'; return; }
+    if (ended) {
+      $('chatSend').disabled = true;
+      $('chatStatus').textContent = viewerDisconnected ? 'Chat disconnected.' : 'Reconnecting to chat…';
+      setTimeout(pollChat, 2000);
+      return;
+    }
     if (csrf && !document.hidden) {
       try { await refreshChat(); } catch (error) { $('chatStatus').textContent = error.message; }
     }
