@@ -741,8 +741,58 @@ function renderStepMetricsChart(container, timings) {
     attentionSession = session;
     attentionPhase = phase;
   }
+  function modelResponseTools(event) {
+    if (event?.kind !== 'model_response') return [];
+    const tools = event.details?.tools;
+    const calls = Array.isArray(tools) ? tools : [...String(event.details?.response || event.message || '')
+      .matchAll(/^(move_to|done|give_up):[ \t]*(\{[^\n]*\})[ \t]*$/gm)]
+      .map(match => ({name: match[1], arguments: match[2]}));
+    return calls.flatMap(call => {
+      try {
+        const args = typeof call.arguments === 'string' ? JSON.parse(call.arguments) : call.arguments;
+        return args && typeof args === 'object' && !Array.isArray(args) ? [{name: call.name, args}] : [];
+      } catch (_) { return []; }
+    });
+  }
+  function modelRunResult(live) {
+    if (!live || live.error || !['stopped', 'completed'].includes(live.status)) return null;
+    const latest = [...(live.events || [])].reverse()
+      .find(event => ['model_request', 'model_response', 'model_error'].includes(event.kind));
+    const decision = modelResponseTools(latest).find(call => ['done', 'give_up'].includes(call.name));
+    if (!decision) return null;
+    const completed = decision.name === 'done';
+    const reason = decision.args[completed ? 'summary' : 'reason'];
+    if (typeof reason !== 'string' || !reason.trim()) return null;
+    const metrics = live.run_metrics;
+    const facts = [];
+    if (Number.isInteger(metrics?.model_calls) && metrics.model_calls > 0) {
+      facts.push(`${metrics.model_calls} model call${metrics.model_calls === 1 ? '' : 's'}`);
+    }
+    if (metrics?.accepted_packets === 0) facts.push('No task movements sent');
+    return {label: completed ? 'Completed' : 'Could not complete', tone: completed ? 'success' : 'warning',
+      attribution: `${live.model_name || liveModelName} ${completed ? 'reported task complete' : 'ended the task'}`,
+      summary: reason.trim(), detail: facts.join(' · ')};
+  }
+  function renderModelRunResult(live) {
+    const result = modelRunResult(live);
+    const panel = $('runOutcome');
+    if (!panel) return result; // A previously loaded page may still have older markup.
+    panel.hidden = !result;
+    panel.dataset.tone = result?.tone || '';
+    $('runOutcomeTitle').textContent = result?.label || '';
+    $('runOutcomeAttribution').textContent = result?.attribution || '';
+    $('runOutcomeSummary').textContent = result?.summary || '';
+    $('runOutcomeDetail').textContent = result?.detail || '';
+    $('runOutcomeDetail').hidden = !result?.detail;
+    return result;
+  }
   function astraStreamNote(event, notesOnly = false) {
     if (event.kind !== 'model_response') return '';
+    const final = modelResponseTools(event).find(call => ['done', 'give_up'].includes(call.name));
+    const reason = final?.args[final.name === 'done' ? 'summary' : 'reason'];
+    if (typeof reason === 'string' && reason.trim()) {
+      return `${final.name === 'done' ? 'Task complete' : 'Could not complete'}: ${reason.trim()}`;
+    }
     const response = event.details?.response || event.message || '';
     const notes = [];
     // Public conversation output contains tool names followed by JSON arguments.
@@ -799,7 +849,7 @@ function renderStepMetricsChart(container, timings) {
       body.textContent = output;
       body.scrollTop = 0;
     }
-    $('astraStreamState').textContent = running ? 'Live' : live ? 'Run ended' : 'Waiting for a run';
+    $('astraStreamState').textContent = running ? 'Live' : modelRunResult(live)?.label || (live ? 'Run ended' : 'Waiting for a run');
     const time = $('astraStreamTime');
     const date = latest?.timestamp != null ? new Date(latest.timestamp * 1000) : null;
     const validDate = date && Number.isFinite(date.getTime());
@@ -880,8 +930,9 @@ function renderStepMetricsChart(container, timings) {
     syncStopwatch(live, state.queue_snapshot?.generated_at);
     $('currentRunner').textContent = 'Runner: ' + (live?.runner_name || '—');
     $('currentPrompt').textContent = live?.task || 'Waiting for someone to run a policy.';
-    $('conversationState').textContent = (live?.status || 'Waiting for a run').replaceAll('_', ' ') + (live?.error ? ' · ' + live.error : '');
     applyModelName(live);
+    const result = renderModelRunResult(live);
+    $('conversationState').textContent = (result?.label || live?.status || 'Waiting for a run').replaceAll('_', ' ') + (live?.error ? ' · ' + live.error : '');
     renderConversation(live?.events || [], 'liveConversationMessages');
     renderAstraStream(live);
     $('sideRunner').textContent = $('currentRunner').textContent;

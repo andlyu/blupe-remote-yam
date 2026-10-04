@@ -120,6 +120,11 @@
     </div>
   </section>
   <div class="cameraStatusLine"><p id="station" role="status" aria-live="polite">Checking / unavailable</p><span id="status" hidden class="tag">Connecting</span><p id="publicRunError" class="publicRunError" role="status" aria-live="polite" hidden></p></div>
+  <section id="runOutcome" class="runOutcome" role="status" aria-live="polite" aria-atomic="true" aria-labelledby="runOutcomeTitle" hidden>
+    <div class="runOutcomeHeading"><strong id="runOutcomeTitle"></strong><span id="runOutcomeAttribution"></span></div>
+    <p id="runOutcomeSummary"></p>
+    <p id="runOutcomeDetail" class="help" hidden></p>
+  </section>
   <section class="panel astraStream" aria-labelledby="astraStreamTitle">
     <div class="statusHeader"><h2 id="astraStreamTitle">Live decisions</h2></div>
     <p class="help">Request progress and brief decision summaries, not private internal reasoning.</p>

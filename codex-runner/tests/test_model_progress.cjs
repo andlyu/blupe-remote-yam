@@ -25,7 +25,7 @@ test('live first-call summary is visible before a response and replaced by the f
  const nodes = {};
  const ui = {liveModelName:'Astra', $:id => nodes[id] ||= {textContent:'',scrollTop:0}};
  vm.createContext(ui);
- const notes = source.slice(source.indexOf('  function astraStreamNote('), source.indexOf("  let liveModelName"));
+ const notes = source.slice(source.indexOf('  function modelResponseTools('), source.indexOf("  let liveModelName"));
  const render = source.slice(source.indexOf('  function renderAstraStream('), source.indexOf('  const ROBOT_STATUS'));
  vm.runInContext(notes + helper + render, ui);
  const events = [{kind:'model_request',timestamp:100}, {kind:'model_progress',message:'Checking gripper alignment.',progress_type:'summary'}];
