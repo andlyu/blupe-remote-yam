@@ -41,7 +41,9 @@ class TransformersSam3Engine:
     def encode_text(self, text):
         limit = self.model.config.text_config.max_position_embeddings
         full_ids = self.processor.tokenizer.encode(text, add_special_tokens=True, truncation=False)
-        encoded = self.processor(text=text, return_tensors='pt', truncation=True, max_length=limit)
+        # Transformers 5.2 Sam3Processor does not forward text kwargs.
+        encoded = self.processor.tokenizer(text, return_tensors='pt', padding='max_length',
+            truncation=True, max_length=limit)
         effective = self.processor.tokenizer.decode(encoded.input_ids[0].tolist(), skip_special_tokens=True)
         return encoded.to('cuda'), dict(token_limit=limit, original_tokens=len(full_ids),
             truncated=len(full_ids)>limit, effective_text=effective)
