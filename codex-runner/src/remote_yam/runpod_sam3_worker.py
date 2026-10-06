@@ -38,6 +38,14 @@ class TransformersSam3Engine:
         self.model = Sam3Model.from_pretrained(reference, attn_implementation='sdpa', **kwargs).to('cuda').eval()
         self._bf16 = torch.cuda.is_bf16_supported()
 
+    def encode_text(self, text):
+        limit = self.model.config.text_config.max_position_embeddings
+        full_ids = self.processor.tokenizer.encode(text, add_special_tokens=True, truncation=False)
+        encoded = self.processor(text=text, return_tensors='pt', truncation=True, max_length=limit)
+        effective = self.processor.tokenizer.decode(encoded.input_ids[0].tolist(), skip_special_tokens=True)
+        return encoded.to('cuda'), dict(token_limit=limit, original_tokens=len(full_ids),
+            truncated=len(full_ids)>limit, effective_text=effective)
+
     def infer(self, rgb, queries, threshold):
         torch = self.torch
         # Follow HF's efficient multi-prompt API: one image encoder pass.
@@ -45,8 +53,9 @@ class TransformersSam3Engine:
             image_inputs = self.processor(images=Image.fromarray(rgb), return_tensors='pt').to('cuda')
             vision = self.model.get_vision_features(pixel_values=image_inputs.pixel_values)
             predictions = {}
+            self.last_query_encoding = {}
             for name, text in queries.items():
-                text_inputs = self.processor(text=text, return_tensors='pt').to('cuda')
+                text_inputs, self.last_query_encoding[name] = self.encode_text(text)
                 output = self.model(vision_embeds=vision, **text_inputs)
                 result = self.processor.post_process_instance_segmentation(output,
                     threshold=threshold, mask_threshold=.5, target_sizes=[rgb.shape[:2]])[0]
@@ -138,7 +147,8 @@ class Sam3Worker:
             inference_s = time.monotonic()-started
             objects = {name: encode_object(*prediction, rgb.shape[:2]) for name, prediction in predictions.items()}
             return dict(model=MODEL, width=width, height=height, png_sha256=digest,
-                objects=objects, timing=dict(self._startup_timing, inference_s=round(inference_s, 4)))
+                objects=objects, query_encoding=getattr(self._engine, 'last_query_encoding', {}),
+                timing=dict(self._startup_timing, inference_s=round(inference_s, 4)))
 
 
 def main():
