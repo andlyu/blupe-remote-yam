@@ -1,0 +1,9 @@
+# syntax=docker/dockerfile:1.7
+# RunPod's GitHub builder uses the repository root as its build context.
+FROM pytorch/pytorch:2.8.0-cuda12.8-cudnn9-runtime
+WORKDIR /worker
+COPY codex-runner/deploy/runpod-sam3/requirements.txt /worker/requirements.txt
+RUN pip install --no-cache-dir -r /worker/requirements.txt
+COPY codex-runner/src/remote_yam/runpod_sam3_worker.py /worker/handler.py
+ENV PYTHONUNBUFFERED=1 HF_HOME=/models/huggingface
+CMD ["python", "-u", "handler.py"]

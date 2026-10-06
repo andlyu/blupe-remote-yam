@@ -1,0 +1,8 @@
+**
+!codex-runner/
+!codex-runner/deploy/
+!codex-runner/deploy/runpod-sam3/
+!codex-runner/deploy/runpod-sam3/requirements.txt
+!codex-runner/src/
+!codex-runner/src/remote_yam/
+!codex-runner/src/remote_yam/runpod_sam3_worker.py
