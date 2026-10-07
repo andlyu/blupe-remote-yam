@@ -2029,8 +2029,9 @@ function taskRunFailure(run) {
     reason:String(reason),task:run.task || run.task_progress?.task};
 }
 
+// ASPIRE task progress is shared; station library and recovery stay local.
 (() => {
-  if (!['127.0.0.1', 'localhost'].includes(location.hostname)) return;
+  const localAspire = ['127.0.0.1', 'localhost'].includes(location.hostname);
   const $ = id => document.getElementById(id);
   let catalog, robot, liveRun, liveState, pendingAttempt, signature = '', selected = 'preview', fetchGeneration = 0, draftPreview = false;
   const node = (tag, text, className) => Object.assign(document.createElement(tag), {textContent:text || '', className:className || ''});
@@ -2091,7 +2092,7 @@ function taskRunFailure(run) {
   const badge = (box,text) => box.append(node('span',text,'aspireBadge'));
   const url = value => value+(value.includes('?') ? '&' : '?')+'robot_id='+encodeURIComponent(robot);
   const link = (box,label,item) => {
-    if (!item || !/^\/api\/aspire-lineage\/artifacts\/[a-f0-9]{64}$/.test(item.url)) return;
+    if (!localAspire || !item || !/^\/api\/aspire-lineage\/artifacts\/[a-f0-9]{64}$/.test(item.url)) return;
     const a = node('a',label);a.href = url(item.url);a.target = '_blank';a.rel = 'noopener';box.append(a);
   };
   function snippets(box,refs = []) {
@@ -2193,7 +2194,7 @@ function taskRunFailure(run) {
     setHidden(box,!answer);if(!answer)return;
     for(const [field,value] of Object.entries({title:answer.title,detail:answer.detail,next:'Next: '+answer.next_action}))
       if(view[field].textContent !== value) view[field].textContent=value;
-    view.runId=runId;setHidden(view.button,!runId || !answer.recovery_available);
+    view.runId=runId;setHidden(view.button,!localAspire || !runId || !answer.recovery_available);
   }
   function renderRecoveryTraces(box,attempts = [],events = []) {
     let views=repairTraceViews.get(box);
@@ -2391,8 +2392,10 @@ function taskRunFailure(run) {
         progress?.recovery ? 'Astra recovery in progress' :
         progress?.lineage ? aspireProgramAttribution(progress.lineage) :
           liveRun.status === 'running' ? 'Task running' : liveRun.status === 'queued' ? 'Task queued' : 'Preparing this task';
-      if(currentWork.heading.textContent !== attribution) currentWork.heading.textContent=attribution;
-      currentWork.heading.hidden=!!failure;
+      const authorship=progress?.lineage?.authorship?.generated_by_codex === true ? aspireProgramAttribution(progress.lineage) : '';
+      const heading=[attribution,authorship && authorship !== attribution ? authorship : ''].filter(Boolean).join(' · ');
+      if(currentWork.heading.textContent !== heading) currentWork.heading.textContent=heading;
+      currentWork.heading.hidden=!heading;
       renderVision(currentWork.visionBox,vision);
       renderTaskAnswer(currentWork.answer,aspireTaskAnswer({...liveRun,task_progress:progress}));
       renderVision(currentWork.stageBox,stage);
@@ -2406,14 +2409,14 @@ function taskRunFailure(run) {
           ['current',pendingAttempt?.version ?? liveRun.attempt_id ?? liveRun.run_id ?? liveRun.task])] : []));
         currentWork.lineageKey=lineageKey;
       }
-      const outcomeKey=JSON.stringify(progress?.outcome ?? null);
+      const outcomeKey=JSON.stringify([progress?.outcome ?? null,!!live]);
       if(currentWork.outcomeKey !== outcomeKey) {
         currentWork.outcome.replaceChildren();currentWork.outcomeKey=outcomeKey;
         if(progress?.outcome) {
           const outcome=progress.outcome, box=node('div','','aspireOutcome');
           paragraph(box,'After-parking result: '+outcome.status+'.');
           paragraph(box,outcome.reason || 'Placement evidence is unavailable.');
-          for(const item of outcome.images || []) {
+          for(const item of localAspire ? outcome.images || [] : []) {
             if(!/^\/api\/aspire-lineage\/artifacts\/[a-f0-9]{64}$/.test(item.url)) continue;
             const image=node('img');image.src=url(item.url);image.alt=item.camera+' camera after parking';
             image.style.maxWidth='100%';box.append(image);
@@ -2421,6 +2424,8 @@ function taskRunFailure(run) {
             link(box,'Open '+item.camera+' parked-scene image',item);
           }
           currentWork.outcome.append(box);
+        } else if(!live) {
+          paragraph(currentWork.outcome,'After-parking evaluation not recorded. Physical success remains unverified.','aspireCaveat');
         }
       }
       const errors = [];
@@ -2449,6 +2454,7 @@ function taskRunFailure(run) {
     signature = '';refresh();
   }
   async function loadCatalog() {
+    if(!localAspire) return;
     robot = $('robotSelector')?.value || new URLSearchParams(location.search).get('robot_id');if(!robot) return;
     const generation = ++fetchGeneration;catalog = null;signature = '';panel.hidden = selectorBox.hidden = true;
     try {
