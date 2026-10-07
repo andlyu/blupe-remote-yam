@@ -905,10 +905,60 @@ function createRunLaunchGuard() {
     attentionSession = session;
     attentionPhase = attention;
   }
+  function modelResponseTools(event) {
+    if (event?.kind !== 'model_response') return [];
+    const tools = event.details?.tools;
+    const calls = Array.isArray(tools) ? tools : [...String(event.details?.response || event.message || '')
+      .matchAll(/^(move_to|done|give_up):[ \t]*(\{[^\n]*\})[ \t]*$/gm)]
+      .map(match => ({name: match[1], arguments: match[2]}));
+    return calls.flatMap(call => {
+      try {
+        const args = typeof call.arguments === 'string' ? JSON.parse(call.arguments) : call.arguments;
+        return args && typeof args === 'object' && !Array.isArray(args) ? [{name: call.name, args}] : [];
+      } catch (_) { return []; }
+    });
+  }
+  function modelRunResult(live) {
+    if (!live || live.error || !['stopped', 'completed'].includes(live.status)) return null;
+    const latest = [...(live.events || [])].reverse()
+      .find(event => ['model_request', 'model_response', 'model_error'].includes(event.kind));
+    const decision = modelResponseTools(latest).find(call => ['done', 'give_up'].includes(call.name));
+    if (!decision) return null;
+    const completed = decision.name === 'done';
+    const reason = decision.args[completed ? 'summary' : 'reason'];
+    if (typeof reason !== 'string' || !reason.trim()) return null;
+    const metrics = live.run_metrics;
+    const facts = [];
+    if (Number.isInteger(metrics?.model_calls) && metrics.model_calls > 0) {
+      facts.push(`${metrics.model_calls} model call${metrics.model_calls === 1 ? '' : 's'}`);
+    }
+    if (metrics?.accepted_packets === 0) facts.push('No task movements sent');
+    return {label: completed ? 'Completed' : 'Could not complete', tone: completed ? 'success' : 'warning',
+      attribution: `${live.model_name || liveModelName} ${completed ? 'reported task complete' : 'ended the task'}`,
+      summary: reason.trim(), detail: facts.join(' · ')};
+  }
+  function renderModelRunResult(live) {
+    const result = modelRunResult(live);
+    const panel = $('runOutcome');
+    if (!panel) return result; // A previously loaded page may still have older markup.
+    panel.hidden = !result;
+    panel.dataset.tone = result?.tone || '';
+    $('runOutcomeTitle').textContent = result?.label || '';
+    $('runOutcomeAttribution').textContent = result?.attribution || '';
+    $('runOutcomeSummary').textContent = result?.summary || '';
+    $('runOutcomeDetail').textContent = result?.detail || '';
+    $('runOutcomeDetail').hidden = !result?.detail;
+    return result;
+  }
   function astraStreamNote(event, notesOnly = false) {
     if(event.kind === 'model_progress') return ['summary','status'].includes(event.progress_type || event.details?.progress_type)
       ? String(event.message || '').slice(0,4000) : '';
     if (event.kind !== 'model_response') return '';
+    const final = modelResponseTools(event).find(call => ['done', 'give_up'].includes(call.name));
+    const reason = final?.args[final.name === 'done' ? 'summary' : 'reason'];
+    if (typeof reason === 'string' && reason.trim()) {
+      return `${final.name === 'done' ? 'Task complete' : 'Could not complete'}: ${reason.trim()}`;
+    }
     const response = event.details?.response || event.message || '';
     const notes = [];
     // Public conversation output contains tool names followed by JSON arguments.
@@ -967,15 +1017,17 @@ function createRunLaunchGuard() {
     const summary = [...events].reverse().find(event => event.kind === 'model_progress' && (event.progress_type || event.details?.progress_type) === 'summary');
     const publicUpdate = summary ? 'First-call summary: ' + summary.message + '\n\n' : '';
     const note = latest && astraStreamNote(latest);
-    const output = progress ? publicUpdate + progress + (note ? '\n\nPrevious decision: ' + note : '') : note || (summary ? 'Public summary: '+summary.message : '') || (live
+    let output = live?.reviewing_prompt ? 'Reviewing your prompt…' : progress ? publicUpdate + progress + (note ? '\n\nPrevious decision: ' + note : '') : note || (summary ? 'Public summary: '+summary.message : '') || (live
       ? (running ? `Waiting for ${liveModelName}’s first note…` : `No ${liveModelName} note was recorded for this run.`)
       : `${liveModelName}’s next note will appear here.`);
+    if (live?.error) output += '\n\nRun error: ' + live.error;
+    if (live?.display_error) output += '\n\nPlayground error: ' + live.display_error;
     const body = $('astraStreamOutput');
     if (body.textContent !== output) {
       body.textContent = output;
       body.scrollTop = 0;
     }
-    $('astraStreamState').textContent = running ? 'Live' : live ? 'Run ended' : 'Waiting for a run';
+    $('astraStreamState').textContent = live?.reviewing_prompt ? 'Reviewing your prompt…' : running ? 'Live' : modelRunResult(live)?.label || (live ? 'Run ended' : 'Waiting for a run');
     const time = $('astraStreamTime');
     const date = latest?.timestamp != null ? new Date(latest.timestamp * 1000) : null;
     const validDate = date && Number.isFinite(date.getTime());
@@ -1056,8 +1108,9 @@ function createRunLaunchGuard() {
     text('currentPrompt',live?.task || 'Waiting for someone to run a policy.');
     applyModelName(live || (state.provider?.launch_route ? {
       model_name:state.provider.launch_route.actual_policy === 'astra' ? 'Astra' : 'ASPIRE · Codex/Astra'} : null));
+    const result = renderModelRunResult(live);
     text('conversationState',failure ? failure.label+' · '+failure.reason : live?.reviewing_prompt ? 'Reviewing your prompt…' :
-      (live?.status || 'Waiting for a run').replaceAll('_', ' ') + (live?.error ? ' · ' + live.error : ''));
+      (result?.label || live?.status || 'Waiting for a run').replaceAll('_', ' ') + (live?.error ? ' · ' + live.error : ''));
     if(identity(live) !== identity(previous) || live?.reviewing_prompt) renderCurrentConversation.errorTimes=new Map();
     const errorTimes=renderCurrentConversation.errorTimes ||= new Map();
     const events = [...(live?.events || [])];
@@ -1192,9 +1245,9 @@ function createRunLaunchGuard() {
   function renderConversation(events, target = 'conversationMessages') {
     if (target === 'sideConversationMessages') sideConversationEvents = events;
     const reasoning = target === 'sideConversationMessages' && $('liveConversationPanel').dataset.mode === 'reasoning';
-    const messages = events.filter(event => ['model_request', 'model_response'].includes(event.kind) ||
-      reasoning && event.kind === 'model_progress' && ['summary','status'].includes(event.progress_type || event.details?.progress_type));
-    const snapshot = JSON.stringify([reasoning, messages]);
+    const messages = events.filter(event => ['model_request', 'model_response', 'model_error'].includes(event.kind) ||
+      event.kind === 'model_progress' && ['summary','status'].includes(event.progress_type || event.details?.progress_type));
+    const snapshot = JSON.stringify([reasoning, liveModelName, messages]);
     if (snapshot === conversationSnapshots[target]) return;
     conversationSnapshots[target] = snapshot;
     const list = $(target), follow = list.scrollHeight - list.scrollTop - list.clientHeight < 80;
@@ -1229,19 +1282,19 @@ function createRunLaunchGuard() {
         previousInput = input;
       }
 
-      if (reasoning && !astraStreamNote(event, true)) return null;
+      if (reasoning && event.kind !== 'model_error' && !astraStreamNote(event, true)) return null;
       const li = document.createElement('li'), heading = document.createElement('strong'), body = document.createElement('p');
       li.classList.add('conversationTurn');
       li.classList.add(event.kind === 'model_request' ? 'conversationOutgoing' : 'conversationIncoming');
       heading.className = 'conversationHeading';
-      const speaker = event.speaker || (event.kind === 'model_progress' ? liveModelName + ((event.progress_type || event.details?.progress_type) === 'summary' ? ' · public summary' : ' · status') : event.kind === 'model_request' ? 'To ' + liveModelName : event.kind === 'model_response' ? liveModelName : 'Robot / tool feedback');
+      const speaker = event.speaker || (event.kind === 'model_progress' ? liveModelName + ((event.progress_type || event.details?.progress_type) === 'summary' ? ' · public summary' : ' · status') : event.kind === 'model_request' ? 'To ' + liveModelName : event.kind === 'model_response' ? liveModelName : 'Run error');
       const speakerLabel = document.createElement('span'), timestamp = document.createElement('time');
       speakerLabel.textContent = speaker;
       timestamp.textContent = new Date(event.timestamp * 1000).toLocaleTimeString([], {hour:'numeric', minute:'2-digit', second:'2-digit'});
       heading.append(speakerLabel, timestamp);
       body.textContent = event.kind === 'model_request' ? event.details?.request_text || event.details?.observation || event.message : event.details?.response || event.message;
       if (freshText !== null) body.textContent = freshText;
-      if (reasoning) body.textContent = astraStreamNote(event, true);
+      if (reasoning && event.kind !== 'model_error') body.textContent = astraStreamNote(event, true);
       li.append(heading);
       for (const ref of refs) {
         const marker = document.createElement('button'); marker.type = 'button';
@@ -1903,7 +1956,25 @@ function aspireLineageGroups(trace = {}) {
   return {used, retrievedOnly: (trace.retrieved || []).filter(item => !used.some(use => use.id === item.id && use.version === item.version)),
     created, newTitle: 'New skills added', pending: created.length === 0, unknown: trace.usage_recorded !== true};
 }
+function publicModelRun(run) {
+  if(!run || !Array.isArray(run.events)) return run;
+  const prefix='PUBLIC_MODEL_EVENT_V1\n';
+  return {...run,events:run.events.flatMap(event => {
+    if(event.speaker !== 'Tool' || event.kind !== 'model_request' ||
+        typeof event.message !== 'string' || !event.message.startsWith(prefix)) return [event];
+    try {
+      const value=JSON.parse(event.message.slice(prefix.length));
+      if(event.message.length > 8000 || value.task !== run.task ||
+          !['model_progress','model_error'].includes(value.kind) ||
+          value.kind === 'model_progress' && !['summary','status'].includes(value.progress_type) ||
+          typeof value.message !== 'string' || value.message.length > 4000 ||
+          !Number.isFinite(value.timestamp)) return [];
+      return [{kind:value.kind,progress_type:value.progress_type,message:value.message,timestamp:value.timestamp}];
+    } catch(_) {return [];}
+  })};
+}
 function aspireSharedRun(run) {
+  run=publicModelRun(run);
   if(!run || run.task_progress || !Array.isArray(run.events)) return run;
   const prefix='ASPIRE_TASK_PROGRESS_V1\n';
   let progress=null;
@@ -1955,7 +2026,9 @@ function aspireAttemptUpdates(attempts = []) {
   return attempts.map(attempt => ({happened:(attempt.mode === 'offline_rerun_diagnosis' ? 'Justified unchanged-code rerun' : attempt.mode === 'offline_code_repair' ? 'Astra repair' : attempt.policy === 'astra' ? 'Astra recovery' : attempt.policy === 'codex_local' ? 'Local Codex repair' : 'Saved program')+
       ' · '+attempt.id+' · '+attempt.status,
     changed:attempt.parent_attempt_id ? 'Follows '+attempt.parent_attempt_id+'. '+
-      (attempt.reason || attempt.diagnosis || attempt.outcome?.summary || attempt.outcome?.reason ||
+      ((attempt.reason || attempt.result?.reason) ?
+        (attempt.reason || attempt.result.reason)+(attempt.diagnosis && attempt.diagnosis !== (attempt.reason || attempt.result.reason) ? ' Astra diagnosis: '+attempt.diagnosis : '') :
+        attempt.diagnosis || attempt.outcome?.summary || attempt.outcome?.reason ||
         (attempt.mode === 'offline_rerun_diagnosis' ? 'The unchanged effective program is a justified retry, not a new code fix.' : attempt.mode === 'offline_code_repair' ? 'Revised code is retained separately from the original outcome.' : 'Fresh observations; saved source is unchanged.')) :
       (attempt.result?.reason || 'Source SHA256 '+(attempt.source_sha256 || 'unrecorded')),
     next_action:attempt.policy === 'astra' ? 'Astra outcome is separate; physical success requires observed verification.' :
@@ -2021,7 +2094,12 @@ function aspireProgramAttribution(trace = {}) {
   return 'Program authorship not recorded';
 }
 function aspireRecordedUpdates(item) {
-  if (item.task_updates?.length) return item.task_updates;
+  if (item.task_updates?.length) {
+    if(item.verification_error && !item.task_updates.some(update => update.changed?.includes(item.verification_error)))
+      return [...item.task_updates,{happened:'Post-parking verification failed.',changed:item.verification_error,
+        next_action:'Review the recorded detection failure; it does not establish that placement failed or a reset is needed.'}];
+    return item.task_updates;
+  }
   const updates = [];
   for (const attempt of item.attempts || []) {
     const trace = attempt.lineage || {}, used = trace.used || [];
@@ -2044,7 +2122,7 @@ function aspireRecordedUpdates(item) {
       next_action:'Inspect the after-parking evidence separately.'});
   }
   if (item.review_status) updates.push({happened:item.visual_review_success === true ? 'Visual placement retained after parking.' : 'After-parking review: '+item.review_status.replaceAll('_',' ')+'.',
-    changed:item.after_parking_success === true ? 'Automated after-parking checks passed for this episode.' : 'Automated after-parking outcome remains unverified. The review and images are available below.',
+    changed:item.after_parking_success === true ? 'Automated after-parking checks passed for this episode.' : item.verification_error || 'Automated after-parking outcome remains unverified. The review and images are available below.',
     next_action:item.postpark_checks && Object.values(item.postpark_checks).some(value => value === false) ?
       'Failed automated checks remain unresolved: '+Object.entries(item.postpark_checks).filter(([,v]) => v === false).map(([k]) => k).join(', ')+'.' :
       'This evidence applies to the recorded episode; future tasks need fresh measurements.'});
@@ -2392,7 +2470,7 @@ function taskRunFailure(run) {
     robot = $('robotSelector')?.value || robot;
     const fallback = !draftPreview && (liveRun?.launch_route || liveState?.provider?.launch_route)?.actual_policy === 'astra';
     const stationMatches = catalog ? robot === catalog.robot_id : !!liveRun?.task_progress;
-    const enabled = !fallback && stationMatches && ($('provider')?.value === 'aspire' || liveRun?.task_progress || selected !== 'preview');
+    const enabled = !!(!fallback && stationMatches && ($('provider')?.value === 'aspire' || liveRun?.task_progress || selected !== 'preview'));
     const reasoning = $('liveConversationPanel')?.dataset.mode === 'reasoning';
     if(panel.dataset.enabled !== String(enabled)) panel.dataset.enabled = String(enabled);
     setHidden(panel,!enabled || !reasoning);setHidden(selectorBox,!enabled || !reasoning);
@@ -2544,7 +2622,12 @@ function taskRunFailure(run) {
     },
     rejected(reason,version) {
       if(pendingAttempt?.version !== version) return;
-      pendingAttempt.phase='rejected';liveRun={...liveRun,status:'failed',error:reason};signature='';refresh();
+      pendingAttempt.phase='rejected';
+      const progress=liveRun.task_progress;
+      liveRun={...liveRun,status:'failed',error:reason,task_progress:progress ? {...progress,updates:[
+        ...(progress.updates || []),{happened:'Preparation failed.',changed:reason,
+          next_action:'Resolve this error before starting another attempt.'}]} : null};
+      signature='';refresh();
     },
     live(run,state) {
       const candidate=aspireLiveTask(run,state);
@@ -2563,6 +2646,6 @@ function taskRunFailure(run) {
   };
   selector.addEventListener('change',() => {selected = selector.value;draftPreview=selected === 'preview';signature = '';refresh();});
   $('prompt')?.addEventListener('input',() => {if(!liveRun || !['running','preparing'].includes(liveRun.status)) {draftPreview=true;selected = 'preview';selector.value = selected;refresh();}});
-  window.addEventListener('blupe-robot-selected',() => {draftPreview=false;liveRun = liveState = pendingAttempt = null;selected = 'preview';renderFailure($('taskRunFailure'),null);loadCatalog();});
+  window.addEventListener('blupe-robot-selected',() => {draftPreview=localAspire;liveRun = liveState = pendingAttempt = null;selected = 'preview';renderFailure($('taskRunFailure'),null);loadCatalog();});
   panel.hidden = selectorBox.hidden = true;loadCatalog();
 })();

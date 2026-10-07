@@ -25,7 +25,7 @@ test('live first-call summary is visible before a response and replaced by the f
  const nodes = {};
  const ui = {liveModelName:'Astra', $:id => nodes[id] ||= {textContent:'',scrollTop:0}};
  vm.createContext(ui);
- const notes = source.slice(source.indexOf('  function astraStreamNote('), source.indexOf("  let liveModelName"));
+ const notes = source.slice(source.indexOf('  function modelResponseTools('), source.indexOf("  let liveModelName"));
  const render = source.slice(source.indexOf('  function renderAstraStream('), source.indexOf('  const ROBOT_STATUS'));
  vm.runInContext(notes + helper + render, ui);
  const events = [{kind:'model_request',timestamp:100}, {kind:'model_progress',message:'Checking gripper alignment.',progress_type:'summary'}];
@@ -46,7 +46,7 @@ function reasoningFixture() {
  }
  const nodes={liveConversationPanel:{dataset:{mode:'reasoning'}},sideConversationMessages:new Element('ol')};
  const ui=vm.createContext({document:{createElement:tag=>new Element(tag)},$:id=>nodes[id],liveModelName:'Astra',sideConversationEvents:[],conversationSnapshots:{}});
- const notes=source.slice(source.indexOf('  function astraStreamNote('),source.indexOf('  let liveModelName'));
+ const notes=source.slice(source.indexOf('  function modelResponseTools('),source.indexOf('  let liveModelName'));
  const render=source.slice(source.indexOf('  function renderConversation('),source.indexOf('  const sampleDialog'));
  vm.runInContext(notes+render,ui);
  const text=element=>[element.textContent,...element.children.map(text)].join(' ');
@@ -69,6 +69,27 @@ test('actual public give_up format displays its stop reason in the notes view', 
  const f=reasoningFixture();
  f.ui.renderConversation([{kind:'model_response',speaker:'gpt-6-astra',timestamp:100,
   message:'give_up: {"reason":"A camera-to-arm coordinate mapping or measured object coordinates are needed to command a reliable grasp and placement without guessing critical geometry.","hindsight":"Provide calibration."}'}],'sideConversationMessages');
- assert.match(f.text(),/Run stopped: A camera-to-arm coordinate mapping/);
+ assert.match(f.text(),/Could not complete: A camera-to-arm coordinate mapping/);
  assert.doesNotMatch(f.text(),/response notes will appear/);
+});
+
+test('public model errors remain visible in notes and conversation views', () => {
+ const f=reasoningFixture();
+ for(const mode of ['reasoning','conversation']) {
+  f.nodes.liveConversationPanel.dataset.mode=mode;
+  f.ui.renderConversation([{kind:'model_error',timestamp:100,message:'Missing required mask: chip'}],'sideConversationMessages');
+  assert.match(f.text(),/Run error/);assert.match(f.text(),/Missing required mask: chip/);
+ }
+});
+
+test('shared updates require tool attribution, matching task and public event types', () => {
+ const c=vm.createContext({});
+ vm.runInContext(source.slice(source.indexOf('function publicModelRun('),source.indexOf('function aspireSharedRun(')),c);
+ const value={task:'Task',kind:'model_progress',progress_type:'summary',timestamp:100,message:'Recorded public summary'};
+ const event={kind:'model_request',speaker:'Tool',message:'PUBLIC_MODEL_EVENT_V1\n'+JSON.stringify(value)};
+ assert.equal(c.publicModelRun({task:'Task',events:[event]}).events[0].kind,'model_progress');
+ for(const bad of [{...value,task:'Other'}, {...value,progress_type:'raw_reasoning'}, {...value,timestamp:null}]) {
+  assert.equal(c.publicModelRun({task:'Task',events:[{...event,message:'PUBLIC_MODEL_EVENT_V1\n'+JSON.stringify(bad)}]}).events.length,0);
+ }
+ for(const speaker of ['User','Astra']) assert.equal(c.publicModelRun({task:'Task',events:[{...event,speaker}]}).events[0].kind,'model_request');
 });

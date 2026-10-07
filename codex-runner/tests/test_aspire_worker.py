@@ -109,7 +109,12 @@ class WorkerTests(unittest.TestCase):
         self.native.public_config = lambda: dict(original(), task_progress=progress)
         client = self.policy()
         client.prepare_before_session(TASK)
-        self.assertEqual(client.public_config()['task_progress'], progress)
+        projected = client.public_config()['task_progress']
+        self.assertEqual(projected['task'], progress['task'])
+        self.assertEqual(projected['updates'], progress['updates'])
+        self.assertEqual(projected['lineage']['authorship'], progress['lineage']['authorship'])
+        self.assertEqual(projected['attempts'][0]['id'], 'aspire-1')
+        self.assertEqual(projected['attempts'][0]['status'], 'running')
         progress['outcome'] = dict(status='UNVERIFIED', success=False, reason='After parking did not confirm.')
         client._accept(client._request('/runs/'+client._run_id))
         self.assertEqual(client.public_config()['task_progress']['outcome']['success'], False)
