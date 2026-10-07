@@ -49,7 +49,7 @@ test('SAM 3 startup has a real elapsed timer and distinct ready, failed and term
   assert.equal(context.aspireSam3Progress({...run,task_progress:{vision:{model:'facebook/sam3',state:'starting'}}}).timer,'');
 });
 
-test('robot viewer names the SAM 3 wait while preserving queue and initialization context', () => {
+test('SAM 3 startup keeps its progress without displaying a standalone viewer panel', () => {
   const elements={},$=id=>elements[id] ||= {hidden:false,textContent:'',classList:{toggle(){}},
     closest:()=>$('queuePlace'),focus(){},scrollIntoView(){}};
   const c=vm.createContext({$,Date:{now:()=>137000},aspireSam3Progress:context.aspireSam3Progress,
@@ -59,15 +59,19 @@ test('robot viewer names the SAM 3 wait while preserving queue and initializatio
   vm.runInContext(source.slice(source.indexOf('  let attentionSession = null;'),source.indexOf('  function modelResponseTools(')),c);
   const provider={task_progress:{vision:{model:'facebook/sam3',state:'starting',started_at:100}}};
   c.guideRunAttention({status:'queued',session_id:'fixture',provider,queue_position:2});
+  assert.equal($('viewerCue').hidden,true);
   assert.equal($('viewerCueTitle').textContent,'Waiting in the robot queue');
   assert.match($('viewerCueDetail').textContent,/37s elapsed.*vision worker.*wait for your turn/);
   c.guideRunAttention({status:'preparing',session_id:'fixture',provider});
+  assert.equal($('viewerCue').hidden,true);
   assert.equal($('viewerCueTitle').textContent,'Starting SAM 3 vision');
   assert.match($('viewerCueDetail').textContent,/robot initializes/);
   c.guideRunAttention({status:'running',session_id:'fixture',provider});
+  assert.equal($('viewerCue').hidden,true);
   assert.match($('viewerCueDetail').textContent,/Task motion waits for vision/);
   provider.task_progress.vision={...provider.task_progress.vision,state:'ready',ready_at:145};
   c.guideRunAttention({status:'running',session_id:'fixture',provider});
+  assert.equal($('viewerCue').hidden,false);
   assert.equal($('viewerCueTitle').textContent,'Your run is active');
   delete context.Date;
 });
