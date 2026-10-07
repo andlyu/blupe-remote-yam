@@ -1168,13 +1168,17 @@ function createRunLaunchGuard() {
     window.yamPolicyRoute?.(routingActive ? route : null);
     syncStopwatch(state.public_run, state.queue_snapshot?.generated_at);
     const taskFailure = renderCurrentConversation(live,state);
+    const chat=$('aspireTaskPanel');
+    const failureInChat=taskFailure && chat?.dataset.enabled === 'true' && !chat.hidden &&
+      chat.dataset.failureKey === JSON.stringify(taskFailure);
     active = ['queued', 'preparing', 'running'].includes(state.status);
     ownRunLive = ['preparing', 'running'].includes(state.status);
     $('status').textContent = state.status.replaceAll('_', ' ');
     guideRunAttention(state);
     if (contactRequested || (!contactDismissed && state.error?.startsWith('Operator request failed:'))) operatorContact();
     else if (contactDismissed && state.error?.startsWith('Operator request failed:')) { /* Keep dismissed contact information closed. */ }
-    else if (state.error || state.execution_blocked_reason) message(state.error || state.execution_blocked_reason, true);
+    else if (state.error || state.execution_blocked_reason)
+      message(failureInChat && state.error === taskFailure.reason ? '' : state.error || state.execution_blocked_reason, true);
     else if (state.feedback_warning) message(state.feedback_warning);
     else if ($('message').textContent.startsWith('Motion paused while refreshing robot status:')) message('Robot status confirmed. Continuing the run.');
     else if (state.provider?.provider === 'groot' && state.provider.warmup === 'warming') message('In the robot queue · warming GR00T GPU…');
@@ -1184,7 +1188,7 @@ function createRunLaunchGuard() {
     else if (state.provider?.vision?.retry?.state === 'recovered' && /^(Waiting for next |No image)/.test($('message').textContent)) message('Camera feeds recovered. Continuing the run.');
     const queue = state.queue_snapshot;
     const sharedError = state.public_run?.error || state.robot_fault;
-    $('publicRunError').hidden = !sharedError;
+    $('publicRunError').hidden = !sharedError || !!(failureInChat && !state.robot_fault && sharedError === taskFailure.reason);
     $('publicRunError').textContent = sharedError
       ? `${state.public_run?.error ? (state.public_run.runner_name || 'Anonymous') + (sharedError === 'Run reached time limit' ? ' — Failure: ' : ' — run error: ') : 'Robot error: '}${sharedError}` : '';
     const station = queue?.stations?.find(item => item.jetson_id === selectedRobot);
