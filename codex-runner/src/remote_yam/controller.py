@@ -95,17 +95,26 @@ class RunnerController:
                     return self.status()
             return self._join_new(provider, prompt, run_duration_s)
 
-    def _join_new(self, provider: ProviderAdapter, prompt: str, run_duration_s: int = 300) -> dict[str, Any]:
+    def _join_new(self, provider: ProviderAdapter, prompt: str, run_duration_s: int = 300, *, prepared=False) -> dict[str, Any]:
         with self._lock:
-            if self._status in {"queued", "preparing", "running"}:
+            if prepared and (self._stop_event.is_set() or self._provider is not provider):
+                raise RuntimeError("Run preparation cancelled before joining the queue")
+            if self._status in {"queued", "preparing", "running"} and not (prepared and self._status == "preparing"):
                 raise RuntimeError("Runner is already active")
             if not prompt.strip():
                 raise ValueError("Prompt is required")
-            self._stop_event.clear()
+            if not prepared:
+                self._stop_event.clear()
             self._error = None
             self._safety_error = None
+        admission = getattr(provider, 'validate_session_admission', None)
+        if callable(admission):
+            admission(self._session_api)
         created = self._session_api.create_session(prompt) if run_duration_s == 300 else self._session_api.create_session(prompt, run_duration_s=run_duration_s)
         session_id = str(created["session_id"])
+        if prepared and (self._stop_event.is_set() or self._provider is not provider):
+            self._session_api.stop_session(session_id, reason='preparation_cancelled')
+            raise RuntimeError('Run preparation cancelled while joining the queue')
         events = self._session_api.open_events(session_id)
         with self._lock:
             # Status polling continues during the WebSocket handshake. Publish the
@@ -212,6 +221,40 @@ class RunnerController:
     def _start_worker(self, provider, prompt, max_steps, run_duration_s=300):
         if max_steps is not None and not 1 <= max_steps <= MAX_COMMANDS:
             raise ValueError(f"max_steps must be between 1 and {MAX_COMMANDS}")
+        before_session=getattr(provider,'prepare_before_session',None)
+        if callable(before_session):
+            if not prompt.strip():raise ValueError('Prompt is required')
+            with self._lock:
+                self._close_events()
+                self._stop_event.clear()
+                self._provider=provider;self._prompt=prompt
+                self._session_id=None;self._episode_id=None;self._lease_id=None
+                self._run_started_at=None;self._run_ended_at=None
+                self._run_duration_s=run_duration_s
+                self._error=None;self._status='preparing'
+                self._safety_error=None;self._execution_blocked_reason=None
+                self._episode=None;self._last_event_type=None;self._heartbeat_seen=False
+                self._run_events=[];self._submitted_step_ids=[];self._step_timings=[]
+                self._trajectory=None;self._last_completed_trajectory_result=None
+                self._return_to_rest_requested=False;self._operator_requested=False
+                self._analytics_run=None;self._run_configuration=None
+                self._run_metrics=dict(model_s=0.0, execution_s=0.0, left_path_m=0.0, right_path_m=0.0, model_calls=0, execution_packets=0, accepted_packets=0, distance_waypoints=0, confirmed_waypoints=0)
+                self._command_step_id=0;self._packets_submitted=0
+                self._last_model_command=None;self._last_observation=None
+                self._feedback_checks=[];self._queue_position=None
+                self._interactions=InteractionLog(provider.public_config().get('recording_path'))
+                journal=self._interactions
+                prior_sink=getattr(provider,'interaction_sink',None)
+                def preparation_event(kind,message,**details):
+                    journal.add(kind,message,**details)
+                    if callable(prior_sink):prior_sink(kind,message,**details)
+                provider.interaction_sink=preparation_event
+                provider.cancelled=lambda:self._provider_cancelled(provider)
+                self._worker=threading.Thread(target=self._prepare_then_run,
+                    args=(provider,prompt,max_steps,run_duration_s),
+                    name='public-yam-preparation',daemon=True)
+                self._worker.start()
+            return self.status()
         result = self.join(provider, prompt, run_duration_s)
         preparation = getattr(provider, 'start_preparation', None)
         if callable(preparation):
@@ -227,6 +270,22 @@ class RunnerController:
             self._worker.start()
         return result
 
+    def _prepare_then_run(self,provider,prompt,max_steps,run_duration_s):
+        try:
+            provider.prepare_before_session(prompt)
+            with self._join_lock:
+                self._join_new(provider,prompt,run_duration_s,prepared=True)
+            self._run_loop(max_steps)
+        except Exception as exc:
+            with self._lock:
+                if self._provider is not provider:return
+                if not self._stop_event.is_set():
+                    self._status='failed'
+                    self._error=type(exc).__name__+': '+str(exc)
+                elif self._session_id is None:
+                    self._status='stopped'
+                self._close_events()
+
     def process_next_event(self, timeout_s: float | None = 0.5) -> dict[str, Any]:
         with self._lock:
             events = self._events
@@ -241,6 +300,8 @@ class RunnerController:
             self._stop_event.set()
             session_id = self._session_id
             if session_id is None or self._is_terminal(self._status):
+                if session_id is None and self._status == 'preparing':
+                    self._status = 'stopped'
                 self._close_events()
                 return self.status()
             self._return_to_rest_requested = True
@@ -764,6 +825,9 @@ class RunnerController:
             with self._lock:
                 self._trajectory["final_payload"] = dict(payload)
             return
+        reconciled_observation = getattr(provider, 'reconciled_observation', None)
+        if callable(reconciled_observation):
+            provider_observation = reconciled_observation(provider_observation, station)
         self._interactions.add('observation', 'Measured arm feedback received',
                                step_id=observation_step,
                                left_joints_deg=provider_observation['left_joints_deg'],
@@ -942,6 +1006,46 @@ class RunnerController:
 
         if hasattr(provider, "cancelled"):
             provider.cancelled = lambda: not still_running()
+        if hasattr(provider, 'refresh_observation'):
+            def refresh_observation():
+                nonlocal observation
+                if not still_running():
+                    raise RuntimeError('Model retry cancelled')
+                refresh_started = time.perf_counter()
+                live = self._session_api.get_session(session_id)
+                session_read_s = time.perf_counter()-refresh_started
+                if (live.get('status') != 'running' or live.get('episode_id') != episode_id
+                        or live.get('lease_id') != lease_id
+                        or live.get('latest_observation_step') != first_step_id
+                        or live.get('active_trajectory') is not None):
+                    raise RuntimeError('Session changed before model retry')
+                status_started = time.perf_counter()
+                response = self._session_api.get_robot_observation(self._robot_id)
+                status_read_s = time.perf_counter()-status_started
+                fresh = response.get('observation') or response.get('payload') or response
+                if fresh.get('jetson_id') != self._robot_id or fresh.get('source') != observation.get('source'):
+                    raise RuntimeError('Robot identity changed before model retry')
+                if fresh.get('source') == 'hardware':
+                    decision, reason = feedback_decision(fresh, fresh, now=time.time(), require_home=first_step_id == 0)
+                    if decision != 'ready':
+                        raise RuntimeError('Hardware feedback blocked before model retry: ' + reason)
+                if not still_running():
+                    raise RuntimeError('Model retry cancelled')
+                self.update_monitor_observation(fresh)
+                previous_observation = observation
+                observation = {**observation, **self._public_observation(fresh),
+                               'episode_id': episode_id, 'step_id': first_step_id}
+                refresh_reconciled = getattr(provider, 'refresh_reconciled_observation', None)
+                if callable(refresh_reconciled):
+                    observation = refresh_reconciled(previous_observation, observation)
+                self._interactions.add('observation', 'Fresh measured feedback for model retry',
+                    step_id=first_step_id, observed_at=observation.get('observed_at'),
+                    left_joints_deg=observation['left_joints_deg'], right_joints_deg=observation['right_joints_deg'],
+                    left_gripper=observation.get('left_gripper'), right_gripper=observation.get('right_gripper'),
+                    timing=dict(session_read_s=session_read_s, robot_observation_read_s=status_read_s,
+                                total_s=time.perf_counter()-refresh_started))
+                return observation
+            provider.refresh_observation = refresh_observation
         model_started = time.monotonic()
         with self._lock:
             previous_completed = self._last_step_completed_monotonic
@@ -1475,6 +1579,8 @@ class RunnerController:
         }
 
     def _run_loop(self, max_steps: int | None) -> None:
+        with self._lock:
+            provider = self._provider
         try:
             while not self._stop_event.is_set():
                 try:
@@ -1518,6 +1624,15 @@ class RunnerController:
                 except Exception:
                     pass
             self._close_events()
+        finally:
+            review = getattr(provider, 'review_after_session_stop', None)
+            if callable(review):
+                try:
+                    review()
+                except Exception as exc:
+                    self._interactions.add('error', 'Post-session outcome review failed',
+                                           error_type=type(exc).__name__)
+
 
     def _record_event_disconnect(self, exc: ConnectionError) -> None:
         self._interactions.add('reconnecting', 'Server contact issue — reconnecting to the same session')
