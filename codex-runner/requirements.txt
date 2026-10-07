@@ -4,3 +4,4 @@ mujoco==3.12.0
 uvicorn==0.52.4
 
 pillow==12.1.1
+scipy==1.16.0
