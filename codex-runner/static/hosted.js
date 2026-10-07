@@ -906,6 +906,8 @@ function createRunLaunchGuard() {
     attentionPhase = attention;
   }
   function astraStreamNote(event, notesOnly = false) {
+    if(event.kind === 'model_progress') return ['summary','status'].includes(event.progress_type || event.details?.progress_type)
+      ? String(event.message || '').slice(0,4000) : '';
     if (event.kind !== 'model_response') return '';
     const response = event.details?.response || event.message || '';
     const notes = [];
@@ -917,7 +919,14 @@ function createRunLaunchGuard() {
         if (note) notes.push(note);
       } catch (_) { /* An incomplete note can arrive in a later update. */ }
     }
-    return notes.join('\n\n') || (!notesOnly && event.speaker && typeof event.message === 'string' ? event.message : '');
+    if(notes.length) return notes.join('\n\n');
+    const stopped=response.match(/(?:^|\n\n)give_up:\s*(\{[\s\S]*\})\s*$/);
+    if(stopped) {
+      try {const result=JSON.parse(stopped[1]);if(typeof result.reason === 'string') return 'Run stopped: '+result.reason;} catch(_) {}
+    }
+    if(event.kind === 'model_response' && typeof response === 'string' && !/^\w+:\s*\{/.test(response))
+      return response.slice(0,4000);
+    return !notesOnly && event.speaker && typeof event.message === 'string' ? event.message : '';
   }
   let liveModelName = 'Astra', lastLive = null;
   function selectedModelName() {
@@ -952,13 +961,13 @@ function createRunLaunchGuard() {
   }
   function renderAstraStream(live) {
     const events = live?.events || [];
-    const latest = [...events].reverse().find(event => astraStreamNote(event));
+    const latest = [...events].reverse().find(event => event.kind === 'model_response' && astraStreamNote(event));
     const running = ['preparing', 'running'].includes(live?.status);
     const progress = modelRequestProgress(live, liveModelName);
     const summary = [...events].reverse().find(event => event.kind === 'model_progress' && (event.progress_type || event.details?.progress_type) === 'summary');
     const publicUpdate = summary ? 'First-call summary: ' + summary.message + '\n\n' : '';
     const note = latest && astraStreamNote(latest);
-    const output = progress ? publicUpdate + progress + (note ? '\n\nPrevious decision: ' + note : '') : note || (live
+    const output = progress ? publicUpdate + progress + (note ? '\n\nPrevious decision: ' + note : '') : note || (summary ? 'Public summary: '+summary.message : '') || (live
       ? (running ? `Waiting for ${liveModelName}’s first note…` : `No ${liveModelName} note was recorded for this run.`)
       : `${liveModelName}’s next note will appear here.`);
     const body = $('astraStreamOutput');
@@ -1182,7 +1191,8 @@ function createRunLaunchGuard() {
   function renderConversation(events, target = 'conversationMessages') {
     if (target === 'sideConversationMessages') sideConversationEvents = events;
     const reasoning = target === 'sideConversationMessages' && $('liveConversationPanel').dataset.mode === 'reasoning';
-    const messages = events.filter(event => ['model_request', 'model_response'].includes(event.kind));
+    const messages = events.filter(event => ['model_request', 'model_response'].includes(event.kind) ||
+      reasoning && event.kind === 'model_progress' && ['summary','status'].includes(event.progress_type || event.details?.progress_type));
     const snapshot = JSON.stringify([reasoning, messages]);
     if (snapshot === conversationSnapshots[target]) return;
     conversationSnapshots[target] = snapshot;
@@ -1218,12 +1228,12 @@ function createRunLaunchGuard() {
         previousInput = input;
       }
 
-      if (reasoning && (event.kind !== 'model_response' || !astraStreamNote(event, true))) return null;
+      if (reasoning && !astraStreamNote(event, true)) return null;
       const li = document.createElement('li'), heading = document.createElement('strong'), body = document.createElement('p');
       li.classList.add('conversationTurn');
       li.classList.add(event.kind === 'model_request' ? 'conversationOutgoing' : 'conversationIncoming');
       heading.className = 'conversationHeading';
-      const speaker = event.speaker || (event.kind === 'model_request' ? 'To ' + liveModelName : event.kind === 'model_response' ? liveModelName : 'Robot / tool feedback');
+      const speaker = event.speaker || (event.kind === 'model_progress' ? liveModelName + ((event.progress_type || event.details?.progress_type) === 'summary' ? ' · public summary' : ' · status') : event.kind === 'model_request' ? 'To ' + liveModelName : event.kind === 'model_response' ? liveModelName : 'Robot / tool feedback');
       const speakerLabel = document.createElement('span'), timestamp = document.createElement('time');
       speakerLabel.textContent = speaker;
       timestamp.textContent = new Date(event.timestamp * 1000).toLocaleTimeString([], {hour:'numeric', minute:'2-digit', second:'2-digit'});
@@ -1917,6 +1927,17 @@ function aspireAttemptUpdates(attempts = []) {
     next_action:attempt.policy === 'astra' ? 'Astra outcome is separate; physical success requires observed verification.' :
       'This attempt and its exact source remain in history, including any later recovery.'}));
 }
+function aspireModelUpdates(events = []) {
+  return events.filter(event => event.kind === 'model_progress' &&
+    ['summary','status'].includes(event.progress_type || event.details?.progress_type) ||
+    event.kind === 'model_response' && typeof (event.details?.summary || event.message) === 'string' &&
+      !/^\w+:\s*\{/.test(event.details?.summary || event.message))
+    .map(event => ({timestamp:event.timestamp,
+      happened:event.kind === 'model_response' ? 'Model response summary.' :
+        (event.progress_type || event.details?.progress_type) === 'summary' ? 'Public model summary.' : 'Model status.',
+      changed:String(event.details?.summary || event.message || '').slice(0,4000),
+      next_action:'Native planning, execution and observed outcomes are recorded separately.'}));
+}
 function aspireAttemptTrace(attempt,events = []) {
   if(Array.isArray(attempt.trace)) return attempt.trace.filter(e=>e.attempt_id === attempt.id);
   if(!Number.isFinite(attempt.started_at)) return [];
@@ -2372,20 +2393,21 @@ function taskRunFailure(run) {
     if(anchor && $('sidePrompt').textContent !== anchor) $('sidePrompt').textContent = anchor;
     // A previous/public run changing must not invalidate an idle draft or recorded task.
     const traceKey=(progress?.attempts || []).map(a=>aspireAttemptTrace(a,liveRun?.events));
-    const key = JSON.stringify(showCurrent ? ['current',robot,selected,liveRun?.attempt_id,liveRun?.run_id,liveRun?.status,liveRun?.error,liveRun?.display_error,progress,vision,traceKey]
+    const modelUpdates=aspireModelUpdates(liveRun?.events);
+    const key = JSON.stringify(showCurrent ? ['current',robot,selected,liveRun?.attempt_id,liveRun?.run_id,liveRun?.status,liveRun?.error,liveRun?.display_error,progress,vision,traceKey,modelUpdates]
       : selected === 'preview' ? ['preview',robot,$('prompt').value.trim()] : ['recorded',robot,selected]);
     if(key === signature) return;signature = key;
     if(showCurrent) {
       const identity = JSON.stringify([robot,pendingAttempt?.version ?? liveRun.attempt_id ?? liveRun.run_id ?? liveRun.task]);
       if(currentWork?.identity !== identity) {
-        const heading=node('p','','aspireAuthorship'),answer=node('div'),visionBox=node('div','','notice'),stageBox=node('div','','notice'),attemptLog=node('div'),repairTraces=node('div'),failureBox=node('div','','taskFailureNotice'),log=node('div'),provenance=node('div'),outcome=node('div'),error=node('div');
+        const heading=node('p','','aspireAuthorship'),answer=node('div'),visionBox=node('div','','notice'),stageBox=node('div','','notice'),attemptLog=node('div'),repairTraces=node('div'),failureBox=node('div','','taskFailureNotice'),log=node('div'),modelNote=node('p','','help'),provenance=node('div'),outcome=node('div'),error=node('div');
         answer.id='aspireTaskAnswer';
         visionBox.id='aspireVisionStatus';
         stageBox.id='aspireStageStatus';attemptLog.id='aspireAttemptLog';repairTraces.id='aspireRepairTraces';
         failureBox.setAttribute('role','alert');failureBox.setAttribute('aria-atomic','true');
         log.append(node('h3','Task work log','aspireLogTitle'));
-        work.replaceChildren(answer,heading,visionBox,stageBox,failureBox,log,attemptLog,repairTraces,provenance,outcome,error);
-        currentWork={identity,answer,heading,visionBox,stageBox,attemptLog,repairTraces,failureBox,log,provenance,outcome,error};
+        work.replaceChildren(answer,heading,visionBox,stageBox,failureBox,modelNote,log,attemptLog,repairTraces,provenance,outcome,error);
+        currentWork={identity,answer,heading,visionBox,stageBox,attemptLog,repairTraces,failureBox,log,modelNote,provenance,outcome,error};
       }
       const attribution=failure ? '' : progress?.stage?.active && progress?.attempts?.some(a=>a.mode === 'offline_code_repair' && a.status === 'running') ? 'Astra is repairing the unverified outcome' :
         !live ? (liveRun.status === 'completed' ? 'Task completed' : 'Task stopped') :
@@ -2402,7 +2424,12 @@ function taskRunFailure(run) {
       renderUpdates(currentWork.attemptLog,aspireAttemptUpdates(progress?.attempts));
       renderRecoveryTraces(currentWork.repairTraces,progress?.attempts,liveRun?.events);
       renderFailure(currentWork.failureBox,failure);
-      renderUpdates(currentWork.log,progress?.updates || [],!!live);
+      const modelNote=modelUpdates.some(update => update.happened !== 'Model status.') ? '' :
+        'No public model summary recorded. Saved ASPIRE code reports native planning and execution in the task work log.';
+      if(currentWork.modelNote.textContent !== modelNote) currentWork.modelNote.textContent=modelNote;
+      currentWork.modelNote.hidden=!modelNote;
+      const updates=[...(progress?.updates || []),...modelUpdates].sort((a,b)=>(a.timestamp || 0)-(b.timestamp || 0));
+      renderUpdates(currentWork.log,updates,!!live);
       const lineageKey=JSON.stringify(progress?.lineage ?? null);
       if(currentWork.lineageKey !== lineageKey) {
         currentWork.provenance.replaceChildren(...(progress?.lineage ? [lineage(progress.lineage,[],

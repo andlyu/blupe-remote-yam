@@ -630,3 +630,19 @@ test('hosted terminal task without parked evidence explicitly stays unverified',
   assert.match(f.allText(f.work),/After-parking evaluation not recorded/);
   assert.match(f.allText(f.work),/Physical success remains unverified/);
 });
+
+
+test('ASPIRE task work log renders public model updates even when native progress is unchanged', async () => {
+  const f=await disclosureFixture();
+  const run={attempt_id:'summary-fixture',task:'Fixture task',status:'running',events:[],task_progress:{
+    lineage:{usage_recorded:true},updates:[{timestamp:100,happened:'Native planner running.',changed:'Testing current geometry.',next_action:'Wait for the full plan.'}]}};
+  f.api.live(run,{});
+  assert.match(f.allText(f.work),/No public model summary recorded/);
+  run.events.push({id:1,timestamp:101,kind:'model_progress',progress_type:'summary',message:'SENTINEL_ASPIRE_SUMMARY'});
+  f.api.live(run,{});
+  assert.match(f.allText(f.work),/SENTINEL_ASPIRE_SUMMARY/);
+  assert.match(f.allText(f.work),/Native planner running/);
+  run.events.push({id:2,timestamp:102,kind:'model_progress',progress_type:'raw_reasoning',message:'PRIVATE_SENTINEL'});
+  f.api.live(run,{});
+  assert.doesNotMatch(f.allText(f.work),/PRIVATE_SENTINEL/);
+});
