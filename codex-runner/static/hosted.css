@@ -206,6 +206,27 @@ main > .coffeeSupport{grid-column:1 / -1;margin-top:4px;width:100%}
 #liveViewer[data-layout=single]{grid-template-columns:1fr;max-width:760px;width:100%}
 #liveViewer[data-layout=single] figure img{aspect-ratio:16/9}
 
+/* RoboHouse: wrist views sit inside the bottom corners of the overhead feed. */
+#liveViewer[data-layout="top-with-grippers"]{--camera-inset:12px;--top-caption-height:36px;grid-template-columns:minmax(0,1fr);grid-template-areas:"top";max-width:none;align-items:start}
+#liveViewer[data-layout="top-with-grippers"]:has(>.viewerCue:not([hidden])){grid-template-areas:"cue" "top"}
+#liveViewer[data-layout="top-with-grippers"]>.viewerCue{grid-area:cue}
+#liveViewer[data-layout="top-with-grippers"]>figure[data-camera-role="top"]{grid-area:top}
+#liveViewer[data-layout="top-with-grippers"]>figure[data-camera-role="top"]>figcaption{height:var(--top-caption-height);align-items:center}
+#liveViewer[data-layout="top-with-grippers"]>figure[data-camera-role="top"] .expandCamera{top:7px;bottom:auto}
+#liveViewer[data-layout="top-with-grippers"]>figure[data-camera-role="top"] .modelCameraBadge{top:7px;bottom:auto}
+#liveViewer[data-layout="top-with-grippers"]>figure:is([data-camera-role="left"],[data-camera-role="right"]):not(:fullscreen){grid-area:top;align-self:end;width:16.8%;max-width:180px;margin:0 var(--camera-inset) calc(var(--top-caption-height) + var(--camera-inset));z-index:1;border:2px solid #fff;border-radius:8px;box-shadow:0 3px 16px #0005}
+#liveViewer[data-layout="top-with-grippers"]>figure[data-camera-role="left"]:not(:fullscreen){justify-self:start}
+#liveViewer[data-layout="top-with-grippers"]>figure[data-camera-role="right"]:not(:fullscreen){justify-self:end}
+#liveViewer[data-layout="top-with-grippers"]>figure:is([data-camera-role="left"],[data-camera-role="right"]):not(:fullscreen)>figcaption{padding:5px 8px;font-size:11px}
+#liveViewer[data-layout="top-with-grippers"]>figure:is([data-camera-role="left"],[data-camera-role="right"]):not(:fullscreen)>figcaption span{display:none}
+#liveViewer[data-layout="top-with-grippers"]>.liveStopwatch{right:50%;transform:translateX(50%);bottom:calc(var(--top-caption-height) + var(--camera-inset))}
+@media(max-width:740px){
+  #liveViewer[data-layout="top-with-grippers"]{--camera-inset:6px}
+  #liveViewer[data-layout="top-with-grippers"]>figure:is([data-camera-role="left"],[data-camera-role="right"]):not(:fullscreen){width:18%}
+  #liveViewer[data-layout="top-with-grippers"]>figure:is([data-camera-role="left"],[data-camera-role="right"]):not(:fullscreen)>figcaption{padding:3px;font-size:9px;white-space:nowrap}
+  #liveViewer[data-layout="top-with-grippers"]>figure:is([data-camera-role="left"],[data-camera-role="right"]):not(:fullscreen) .modelCameraBadge{display:none}
+}
+
 /* One action group: consistent targets and a quiet secondary action. */
 #runButtons{display:flex;align-items:stretch;gap:8px;max-width:100%;margin-left:auto}
 #runButtons button{width:auto;min-height:52px;margin:0;padding:8px 14px;font-size:14px;line-height:1.25;align-self:stretch}
