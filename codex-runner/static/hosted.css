@@ -86,6 +86,10 @@ main.chatClosed{grid-template-columns:minmax(0,1fr)}.visitorChatHeading{display:
 #station[data-tone="error"]{color:#a72c24}
 
 .publicRunError{color:#a72c24;background:#fff0ed;border-left:3px solid #a72c24;padding:10px 12px;font-size:13px;line-height:1.5;overflow-wrap:anywhere}
+.runOutcome{padding:16px;border:1px solid #bdd2bf;border-left:4px solid #28643b;border-radius:8px;background:#f0f7ef;color:var(--ink);overflow-wrap:anywhere}
+.runOutcome[data-tone="warning"]{background:#fff8eb;border-color:#e0c795;border-left-color:#8a5300}
+.runOutcomeHeading{display:flex;align-items:baseline;flex-wrap:wrap;gap:4px 12px}.runOutcomeHeading strong{font-size:20px;color:#28643b}.runOutcome[data-tone="warning"] strong{color:#8a5300}
+.runOutcomeHeading span{font-size:12px;color:var(--muted)}.runOutcome p{margin:8px 0 0;line-height:1.5;white-space:pre-wrap}.runOutcome .help{font-size:12px}
 .streamHealth{display:inline-block;margin-left:8px;font-weight:650;color:#626c64}.streamHealth::before{content:'●';margin-right:5px}.streamHealth[data-state="live"]{color:#28643b}.streamHealth[data-state="stalled"]{color:#a72c24}.streamHealth[data-state="behind"],.streamHealth[data-state="delayed"]{color:#8a5300}#streamHealthDetail{margin-left:8px;font-variant-numeric:tabular-nums}
 /* Compact public stopwatch over the lower-right camera. */
 #liveViewer{position:relative}

@@ -6,9 +6,19 @@ are deliberately outside the projection.
 """
 import json
 import math
+import re
 
 
 PREFIX = 'ASPIRE_TASK_PROGRESS_V1\n'
+MODEL_PREFIX = 'PUBLIC_MODEL_EVENT_V1\n'
+
+
+def public_text(value):
+    """Keep diagnostic meaning without publishing host paths or credentials."""
+    text = re.sub(r'\bsk-[A-Za-z0-9_-]+', '[redacted]', str(value))
+    text = re.sub(r'(?i)\bBearer\s+[A-Za-z0-9._~+/-]+=*', 'Bearer [redacted]', text)
+    return re.sub(r'''(?<![\w])(?:/(?:Users|home|opt|var|etc|private|tmp|root)(?:/[^\s"'<>]*)?|[A-Za-z]:[\\/][^\s"'<>]*)''',
+                  '[private path]', text)
 
 
 def progress_message(progress, text):
@@ -22,7 +32,7 @@ def progress_message(progress, text):
         for key in names.split():
             item = value.get(key)
             if isinstance(item, str):
-                out[key] = text(item)[:500]
+                out[key] = public_text(text(item))[:500]
             elif item is None or isinstance(item, bool):
                 if key in value:
                     out[key] = item
@@ -35,12 +45,12 @@ def progress_message(progress, text):
 
     result = fields(progress, 'task')
     if isinstance(progress.get('task'), str):
-        result['task'] = text(progress['task'])[:4000]
+        result['task'] = public_text(text(progress['task']))[:4000]
     result['updates'] = rows(progress.get('updates'), 'timestamp happened changed next_action', 12)
     for key, names in {
         'resolution': 'state title detail next_action retry_limit retry_count recovery_available',
         'outcome': 'status success reason',
-        'stage': 'stage title detail started_at event_at active candidates rejected_candidates last_failure error',
+        'stage': 'stage title detail started_at event_at elapsed_s active candidates rejected_candidates last_failure error',
         'vision': 'model state started_at ready_at ended_at',
     }.items():
         if isinstance(progress.get(key), dict):

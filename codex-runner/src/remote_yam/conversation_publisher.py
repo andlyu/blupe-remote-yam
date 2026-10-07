@@ -1,8 +1,10 @@
 """Bounded, best-effort public text snapshots; never block robot control."""
 import re
+import json
+import math
 import threading
 import time
-from .public_task_progress import progress_message, PREFIX
+from .public_task_progress import progress_message, public_text, PREFIX, MODEL_PREFIX
 
 
 class ConversationPublisher:
@@ -12,6 +14,7 @@ class ConversationPublisher:
         self._session_id = session_id
         self._secrets = tuple(s for s in secrets if isinstance(s, str) and s)
         self._model = self._text(model)[:80] or 'Model'
+        self._task = self._text(prompt)[:4000]
         self._messages = [{'role': 'user', 'content': self._text(prompt)[:8000] or 'Robot task'}]
         self._condition = threading.Condition()
         self._version, self._sent = 1, 0
@@ -47,10 +50,12 @@ class ConversationPublisher:
         for secret in self._secrets:
             text = text.replace(secret, '[redacted]')
         text = re.sub(r'\bsk-[A-Za-z0-9_-]+', '[redacted]', text)
-        return re.sub(r'(?i)\bBearer\s+[A-Za-z0-9._~+/-]+=*', 'Bearer [redacted]', text)
+        return public_text(text)
 
     def add(self, kind, message, **details):
-        if kind not in {'model_request', 'model_response'}:
+        if kind not in {'model_request', 'model_response', 'model_progress', 'model_error'}:
+            return
+        if kind == 'model_progress' and details.get('progress_type') not in {'summary', 'status'}:
             return
         # Latest observation, not the entire provider history, system prompts,
         # image blobs, encrypted reasoning, wire headers or private diagnostics.
@@ -59,10 +64,26 @@ class ConversationPublisher:
         content = self._text(content)[:8000]
         if not content:
             return
+        role = 'assistant' if kind == 'model_response' else 'user'
+        if kind in {'model_progress', 'model_error'}:
+            timestamp = details.get('timestamp')
+            if not isinstance(timestamp, (int, float)) or not math.isfinite(timestamp):
+                timestamp = time.time()
+            value = dict(task=self._task, kind=kind,
+                progress_type=details.get('progress_type') if kind == 'model_progress' else None,
+                timestamp=timestamp, message=content[:4000])
+            while True:
+                content = MODEL_PREFIX + json.dumps(value, ensure_ascii=False, separators=(',', ':'))
+                if len(content) <= 8000:
+                    break
+                if not value['message']:
+                    return
+                value['message'] = value['message'][:-200]
+            role = 'tool'
         with self._condition:
             if self._closing:
                 return
-            self._messages.append({'role': 'assistant' if kind == 'model_response' else 'user', 'content': content})
+            self._messages.append({'role': role, 'content': content})
             # Retain the task and the newest complete messages within API limits.
             self._bound_messages()
             self._version += 1

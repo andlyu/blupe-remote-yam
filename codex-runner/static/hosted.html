@@ -36,6 +36,7 @@
   <section id="liveConversationPanel" data-mode="reasoning" class="panel liveConversation" aria-label="Current run conversation">
     <div class="statusHeader"><h2 id="conversationModeTitle">Astra decision notes</h2></div>
     <p id="sideRunner" class="help">Runner: —</p>
+    <p id="policyRouteNotice" class="help" role="status" hidden></p>
     <details class="runPrompt" open><summary>Prompt</summary><p id="sidePrompt">Waiting for someone to run a policy.</p></details>
     <div class="statusHeader"><h2 id="sideConversationTitle">Response notes</h2><span id="sideConversationState" class="tag">Waiting for a run</span></div>
     <ol id="sideConversationMessages" tabindex="0" aria-label="Live conversation messages" aria-live="polite" aria-relevant="additions"><li>Astra’s replies and robot feedback from the current run appear here for everyone.</li></ol>
@@ -60,10 +61,15 @@
   </section>
   <div class="videoOverlays">
   <section class="panel astraStream" aria-labelledby="astraStreamTitle">
+  <section id="runOutcome" class="runOutcome" role="status" aria-live="polite" aria-atomic="true" aria-labelledby="runOutcomeTitle" hidden>
+    <div class="runOutcomeHeading"><strong id="runOutcomeTitle"></strong><span id="runOutcomeAttribution"></span></div>
+    <p id="runOutcomeSummary" hidden></p>
+  </section>
     <div class="statusHeader"><h2 id="astraStreamTitle" title="Request progress and brief decision summaries">Live decisions</h2></div>
     <span id="astraStreamState" hidden>Waiting for a run</span>
     <div role="status" aria-live="polite" aria-atomic="true">
       <p id="astraStreamOutput">Astra’s next note will appear here.</p>
+      <p id="runOutcomeDetail" class="help" hidden></p>
       <time id="astraStreamTime" hidden></time>
     </div>
   </section>
@@ -75,6 +81,7 @@
       <form id="runForm" autocomplete="off">
         <div class="runHeading"><h2>Prompt the arms</h2><div class="runTimeControl"><label for="runDuration">Time</label><input id="runDuration" type="number" min="1" max="10" step="1" value="5" aria-describedby="runDurationUnit" required><span id="runDurationUnit">min</span></div></div>
         <div class="promptRow"><textarea id="prompt" aria-label="Prompt the arms" rows="2" maxlength="4000" required>place green block on plate</textarea><div class="runLaunchActions"><button id="openLocalRun" class="primary" type="button" hidden disabled>Select model and run</button><button id="openSubscriptionInstructions" type="button" aria-haspopup="dialog" aria-controls="codexInstructions">Run via own LLM subscription</button></div><div id="runButtons"><button class="primary" id="run" type="submit" disabled>Run online</button><button type="button" id="openCodexInstructions">Run Locally through Subscription</button><button type="button" id="runAstra" hidden disabled>Run with Astra</button><button type="button" id="runClaude" hidden disabled>Run with Opus</button><button type="button" id="runGroot" hidden disabled>Run GR00T</button></div></div>
+        <div id="taskRunFailure" class="taskFailureNotice" role="alert" aria-atomic="true" hidden></div>
         <details id="runSettings"><summary>Settings</summary>
         <label for="provider">Model</label>
         <select id="provider"><option value="openai" selected>ChatGPT</option><option value="anthropic">Claude</option><option value="local_raise_lower">No AI — just wiggle arms</option><option value="astra" hidden disabled>Astra · bring your key</option></select>

@@ -425,7 +425,12 @@ class RemoteAspirePolicy:
 
     def public_config(self):
         with self._state_lock:
-            return deepcopy(self._config)
+            config = deepcopy(self._config)
+        if isinstance(config.get('task_progress'), dict):
+            from .public_task_progress import progress_message, public_text, PREFIX
+            message = progress_message(config['task_progress'], public_text)
+            config['task_progress'] = json.loads(message[len(PREFIX):])['task_progress'] if message else None
+        return config
 
     def prepare_before_session(self, prompt):
         if self.cancelled():
