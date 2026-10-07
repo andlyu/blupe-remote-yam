@@ -731,6 +731,45 @@ test('legacy current repair shows only existing public summaries from its own re
   assert.equal(context.aspireAttemptTrace(attempt,events).length,0);
 });
 
+test('hosted recovery streams public Astra summaries into chat when snapshots omit traces',async()=>{
+  const f=await disclosureFixture({hostname:'playground.blupe.io'});
+  f.nodes.provider.value='guest_astra';
+  const task='Place the green block on the blue chip.';
+  const progress={task,updates:[],attempts:[{id:'astra-1',policy:'astra',parent_attempt_id:'aspire-1',
+    started_at:10,status:'running'}],stage:{stage:'execution',active:true,event_at:10}};
+  const run={task,status:'running',attempt_id:'hosted-recovery',events:[
+    {speaker:'Tool',kind:'model_request',message:'ASPIRE_TASK_PROGRESS_V1\n'+JSON.stringify({task_progress:progress}),timestamp:10},
+    {id:20,speaker:'Tool',kind:'model_request',message:'PUBLIC_MODEL_EVENT_V1\n'+JSON.stringify({task,
+      kind:'model_progress',progress_type:'summary',message:'Checking the failed grasp against the fresh view.',timestamp:11}),timestamp:11}]};
+  f.poll(run);
+  const log=f.work.descendants().find(n=>n.tagName==='OL');
+  const row=log.children.find(n=>n.dataset.messageId==='model-20');
+  assert.ok(row);assert.equal(row.dataset.role,'Astra');
+  assert.match(f.allText(row),/Recovery update[\s\S]*Checking the failed grasp/);
+  run.events.push({id:21,speaker:'Tool',kind:'model_request',message:'PUBLIC_MODEL_EVENT_V1\n'+JSON.stringify({task,
+    kind:'model_progress',progress_type:'summary',message:'Adjusting the approach before testing the full plan.',timestamp:12}),timestamp:12});
+  f.poll(run);
+  assert.equal(log.children.find(n=>n.dataset.messageId==='model-20'),row,'new steps preserve existing chat messages');
+  assert.match(f.allText(log),/Adjusting the approach before testing/);
+});
+
+test('empty recovery trace does not hide public summaries and populated traces avoid duplicates',()=>{
+  const attempt={id:'astra-repair-1',policy:'astra',parent_attempt_id:'aspire-1',mode:'offline_code_repair',
+    status:'running',started_at:10,trace:[]};
+  const summary={id:20,timestamp:11,kind:'model_progress',message:'The target is partly occluded.',details:{progress_type:'summary'}};
+  const run={task:'Repair fixture',status:'stopped',events:[summary,
+    {id:21,timestamp:12,kind:'model_progress',progress_type:'raw_reasoning',message:'PRIVATE_SENTINEL'}],task_progress:{attempts:[attempt]}};
+  let messages=context.aspireActivityEntries(run);
+  assert.equal(messages.filter(row=>row.message===summary.message).length,1);
+  assert.doesNotMatch(JSON.stringify(messages),/PRIVATE_SENTINEL/);
+  attempt.trace.push({...summary,id:1,attempt_id:attempt.id,timestamp:11.01});
+  messages=context.aspireActivityEntries(run);
+  const rows=messages.filter(row=>row.message===summary.message);
+  assert.equal(rows.length,1);assert.equal(rows[0].id,'astra-repair-1-trace-1');
+  assert.equal(rows[0].role,'Astra');
+  assert.doesNotMatch(JSON.stringify(messages),/PRIVATE_SENTINEL/);
+});
+
 test('task answer separates plan validation from success and patches the next action without resetting reader state',async()=>{
   assert.equal(context.aspireTaskAnswer({status:'stopped',task_progress:{outcome:{success:false},attempts:[{status:'PLAN_VALIDATED'}]}}).state,'unresolved');
   const f=await disclosureFixture();

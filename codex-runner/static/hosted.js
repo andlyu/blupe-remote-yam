@@ -1978,7 +1978,7 @@ function publicModelRun(run) {
           value.kind === 'model_progress' && !['summary','status'].includes(value.progress_type) ||
           typeof value.message !== 'string' || value.message.length > 4000 ||
           !Number.isFinite(value.timestamp)) return [];
-      return [{kind:value.kind,progress_type:value.progress_type,message:value.message,timestamp:value.timestamp}];
+      return [{id:event.id,kind:value.kind,progress_type:value.progress_type,message:value.message,timestamp:value.timestamp}];
     } catch(_) {return [];}
   })};
 }
@@ -2181,6 +2181,10 @@ function aspireElapsed(seconds) {
 }
 function aspireActivityEntries(run = {}) {
   const progress=run.task_progress || {},messages=[];
+  const attempts=progress.attempts || [];
+  const traces=new Map(attempts.map(attempt=>[attempt,aspireAttemptTrace(attempt,run.events)]));
+  const progressType=event=>event.progress_type || event.details?.progress_type;
+  const publicMessage=event=>String(event.details?.summary || event.message || '').slice(0,4000);
   const add=(id,role,title,message,extra={})=>messages.push({id,role,title,message:message || '',...extra});
   add('prompt','You','Task',progress.task || run.task || 'Preparing your task.');
   for(const [index,update] of (progress.updates || []).entries())
@@ -2190,28 +2194,38 @@ function aspireActivityEntries(run = {}) {
     (progress.updates || []).some(u=>/generating task code|writing.*code/i.test(u.happened || ''));
   for(const [index,event] of (run.events || []).entries()) {
     if(coding && event.kind !== 'model_progress') continue;
-    if((progress.attempts || []).some(a=>Number.isFinite(a.started_at) && event.timestamp >= a.started_at && event.timestamp <= (a.ended_at || Infinity))) continue;
     const update=aspireModelUpdates([event])[0];if(!update) continue;
-    add('model-'+(event.id ?? index),'Astra',coding ? 'Code-writing update' : update.happened,
+    // Hosted snapshots omit attempt traces. Keep their separately published
+    // public summaries even when they fall inside a recovery's time window.
+    // Local traces already include these messages, so suppress only an actual
+    // matching public row rather than every event during the attempt.
+    if(attempts.some(attempt=>traces.get(attempt).some(row=>row.kind === event.kind &&
+        progressType(row) === progressType(event) && publicMessage(row) === update.changed &&
+        Number.isFinite(row.timestamp) && Number.isFinite(event.timestamp) &&
+        Math.abs(row.timestamp-event.timestamp)<1))) continue;
+    const recovering=attempts.some(attempt=>attempt.parent_attempt_id &&
+      Number.isFinite(attempt.started_at) && event.timestamp>=attempt.started_at && event.timestamp<=(attempt.ended_at || Infinity));
+    add('model-'+(event.id ?? index),'Astra',recovering ? 'Recovery update' : coding ? 'Code-writing update' : update.happened,
       update.changed.replace(/\*\*([^*]+)\*\*/g,'$1'),{timestamp:update.timestamp});
   }
-  for(const attempt of progress.attempts || []) {
+  for(const attempt of attempts) {
     const repair=attempt.mode === 'offline_code_repair' || attempt.policy === 'codex_local';
     const rerun=attempt.mode === 'offline_rerun_diagnosis';
     const actor=attempt.policy === 'codex_local' ? 'Codex' : attempt.policy === 'astra' ? 'Astra' : 'Runner';
-    const trace=aspireAttemptTrace(attempt,run.events);
+    const trace=traces.get(attempt);
     if(attempt.parent_attempt_id) add(attempt.id+'-start',actor,rerun ? 'Checking whether to rerun' : repair ? 'Repair started' : 'Recovery started',
       'Follows '+attempt.parent_attempt_id+'. '+(attempt.previous_result?.reason || attempt.code_revision_reason?.reason || ''),
       {timestamp:attempt.started_at || trace[0]?.timestamp,attempt:attempt.id});
     for(const event of trace) {
-      if(event.kind === 'model_progress' && !['summary','status'].includes(event.progress_type)) continue;
+      const category=progressType(event);
+      if(event.kind === 'model_progress' && !['summary','status'].includes(category)) continue;
       if(!['activity','model_progress','model_request','model_response','model_error','tool_request','tool_result','tool_error'].includes(event.kind)) continue;
       const model=event.kind.startsWith('model_'),error=['model_error','tool_error'].includes(event.kind);
-      const title=event.kind === 'model_progress' ? event.progress_type === 'summary' ? 'Code-writing update' : 'Model status' :
+      const title=event.kind === 'model_progress' ? category === 'summary' ? 'Recovery update' : 'Model status' :
         event.kind === 'model_response' ? 'Diagnosis and code response' : event.kind === 'model_request' ? 'Writing task code' :
         error ? 'Reported failure' : 'Activity';
       add(attempt.id+'-trace-'+event.id,model ? actor : 'Runner',title,
-        String(event.message || '').replace(/\*\*([^*]+)\*\*/g,'$1'),
+        publicMessage(event).replace(/\*\*([^*]+)\*\*/g,'$1'),
         {timestamp:event.timestamp,attempt:attempt.id,revision:event.revision,detail:event.changed,
           lesson:event.lesson,next:event.next_action,tone:error ? 'error' : ''});
     }
