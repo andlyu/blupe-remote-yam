@@ -520,7 +520,7 @@ body.cameraExpanded{overflow:hidden}
 .watchBelow{min-width:0}
 .watchVisuals>#yourQueue{margin:0;padding:6px 10px;font-size:12px;line-height:1.5;background:#f1f5e8;border-color:#d8e1cb;box-shadow:none}
 .watchVisuals>#yourQueue .queuePlace,.watchVisuals>#yourQueue button{display:none}
-#aspireVisionStatus,.viewerCue[hidden]{display:none}
+#aspireVisionStatus,.viewerCue{display:none}
 .aspireTaskDetails{padding:0 14px 10px}
 .aspireTaskDetails .aspireChatEvidence{margin:0;padding:0;border:0}
 .aspireTaskDetails #aspireRecordedTasks{margin-top:8px}
