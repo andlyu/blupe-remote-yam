@@ -527,8 +527,8 @@ body.cameraExpanded{overflow:hidden}
 .aspireTaskDetails .aspireChatEvidence{margin:0;padding:0;border:0}
 .aspireTaskDetails #aspireRecordedTasks{margin-top:8px}
 .aspireTaskDetails details{font-size:11px}
-@media(min-width:961px){
-  .watchLayout{grid-template-columns:minmax(0,1.5fr) minmax(320px,1fr);grid-template-areas:"toolbar toolbar" "video chat" "status details" "queue details";gap:10px 20px}
+@media(min-width:961px), (min-width:568px) and (orientation:landscape){
+  .watchLayout{display:grid;grid-template-columns:minmax(0,1.5fr) minmax(320px,1fr);grid-template-areas:"toolbar toolbar" "video chat" "status details" "queue details";gap:10px 20px}
   .watchLayout>.watchToolbar{grid-area:toolbar}
   .watchLayout>.watchVisuals{display:contents}
   .watchVisuals>.videoPanel{grid-area:video}
@@ -540,7 +540,7 @@ body.cameraExpanded{overflow:hidden}
   .watchLayout.conversationClosed .watchInteraction{contain:none;height:auto}
 }
 .watchLayout.conversationClosed .runSetup>.panel{border-top-color:var(--line);border-top-left-radius:12px;border-top-right-radius:12px}
-@media(max-width:960px){
+@media(max-width:960px) and (orientation:portrait), (max-width:567px){
   .watchLayout{display:flex;flex-direction:column;gap:14px}
   .watchLayout>.watchVisuals{display:contents}
   .watchVisuals>.videoPanel{order:0}
@@ -619,3 +619,25 @@ body.cameraExpanded{overflow:hidden}
 .watchInteraction #aspireTaskWork>.aspirePhaseCard{position:relative;top:auto;flex:none}
 .watchInteraction #aspireTaskActivity{min-height:0;flex:1}
 .watchInteraction :is(#aspireTaskWork,#aspireTaskActivity)>.aspireActivityLog{flex:1;height:100%;min-height:0;max-height:none}
+
+/* Keep cameras and conversation together when a phone turns sideways. */
+@media(min-width:568px) and (max-width:960px) and (orientation:landscape){
+  main{padding:8px 12px 20px}
+  .playgroundHeader{flex-wrap:nowrap;gap:12px}
+  .playgroundHeader h1{font-size:24px}
+  .playgroundHeader .robotNavigation{width:auto;flex:0 1 45%;justify-content:flex-end}
+  .playgroundIntro{margin:6px 0;font-size:11px;line-height:1.35}
+  .watchToolbar{flex-wrap:nowrap;gap:8px}
+  .watchToolbar #videoDelayNotice{width:auto;order:initial;font-size:10px}
+  .watchToolbar .conversationModes{flex-shrink:0}
+  .watchToolbar .conversationModes button{padding:6px 7px;font-size:11px}
+  .watchLayout{grid-template-columns:minmax(0,1.3fr) minmax(0,1fr);gap:8px 12px}
+  .watchInteraction>#liveConversationPanel{padding:12px;min-height:0;max-height:none}
+  .watchInteraction .runSetup>.panel{padding:8px}
+  .watchInteraction .promptRow{flex-wrap:wrap;padding:8px}
+  .watchInteraction #prompt{flex-basis:100%;min-height:32px}
+  .watchInteraction .runLaunchActions{flex:1 1 100%;min-width:0;align-self:auto}
+  .watchInteraction .runLaunchActions>*{max-width:100%}
+  .watchInteraction #openLocalRun{min-height:32px;padding:6px 8px;font-size:11px}
+  .watchInteraction #openSubscriptionInstructions{padding:6px 8px;font-size:11px}
+}
