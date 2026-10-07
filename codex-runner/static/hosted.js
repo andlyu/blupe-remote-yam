@@ -868,7 +868,7 @@ function createRunLaunchGuard() {
     $('liveConversationPanel').classList.toggle('yourTaskReview', reviewing);
     $('position').closest('.queuePlace').hidden = !(waiting || live);
     $('liveViewer').classList.toggle('yourRunLive', live);
-    $('viewerCue').hidden = !(preparing || live || aspire && queued);
+    $('viewerCue').hidden = warmingVision || !(preparing || live || aspire && queued);
     $('viewerCueTitle').textContent = warmingVision && !queued ? vision.title
       : reviewing ? 'Reviewing your prompt…'
       : aspire && queued ? 'Waiting in the robot queue'
