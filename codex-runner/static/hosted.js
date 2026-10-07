@@ -2712,7 +2712,7 @@ function aspireTaskWorking(run) {
     robot = $('robotSelector')?.value || robot;
     const fallback = !draftPreview && (liveRun?.launch_route || liveState?.provider?.launch_route)?.actual_policy === 'astra';
     const stationMatches = catalog ? robot === catalog.robot_id : !!liveRun?.task_progress;
-    const enabled = !fallback && stationMatches && ($('provider')?.value === 'aspire' || liveRun?.task_progress || selected !== 'preview');
+    const enabled = !!(!fallback && stationMatches && ($('provider')?.value === 'aspire' || liveRun?.task_progress || selected !== 'preview'));
     const reasoning = $('liveConversationPanel')?.dataset.mode === 'reasoning';
     if(panel.dataset.enabled !== String(enabled)) panel.dataset.enabled = String(enabled);
     setHidden(panel,!enabled || !reasoning);setHidden(selectorBox,!enabled || !reasoning);
