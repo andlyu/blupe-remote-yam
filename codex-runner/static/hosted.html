@@ -33,14 +33,6 @@
   </div>
     <p class="help" id="videoDelayNotice">Live views, synchronized. <span id="streamHealth" class="streamHealth" role="status">Checking stream</span> <span id="streamHealthDetail" aria-live="off"></span></p>
   </div>
-  <section id="liveConversationPanel" data-mode="reasoning" class="panel liveConversation" aria-label="Current run conversation">
-    <div class="statusHeader"><h2 id="conversationModeTitle">Astra decision notes</h2></div>
-    <p id="sideRunner" class="help">Runner: —</p>
-    <p id="policyRouteNotice" class="help" role="status" hidden></p>
-    <details class="runPrompt" open><summary>Prompt</summary><p id="sidePrompt">Waiting for someone to run a policy.</p></details>
-    <div class="statusHeader"><h2 id="sideConversationTitle">Response notes</h2><span id="sideConversationState" class="tag">Waiting for a run</span></div>
-    <ol id="sideConversationMessages" tabindex="0" aria-label="Live conversation messages" aria-live="polite" aria-relevant="additions"><li>Astra’s replies and robot feedback from the current run appear here for everyone.</li></ol>
-  </section>
 <div class="watchVisuals">
   <section class="panel" aria-label="What’s running" hidden>
     <h2>What’s running</h2><p id="whatsRunning" role="status">Checking the current run…</p>
@@ -76,11 +68,26 @@
   </div>
   </div>
   <div class="cameraStatusLine"><p id="station" role="status" aria-live="polite">Checking / unavailable</p><span id="status" hidden class="tag">Connecting</span><p id="publicRunError" class="publicRunError" role="status" aria-live="polite" hidden></p></div>
+    <aside id="yourQueue" class="panel robotQueue" tabindex="-1">      <span id="queueSummary" role="status">Queue · connecting…</span><ol id="queue" hidden><li>Waiting for queue information</li></ol>
+      <div class="queuePlace" hidden aria-live="polite" aria-atomic="true"><h3>Your place in the queue</h3><strong id="position">—</strong><p id="queueGuidance" hidden>Join the queue to reserve your turn.</p></div>
+
+      <button id="leaveQueue" type="button" hidden disabled>Leave queue</button>
+      <button id="disconnect" hidden disabled>End browser session</button>
+    </aside>
+  </div>
+  <div class="watchInteraction">
+  <section id="liveConversationPanel" data-mode="reasoning" class="panel liveConversation" aria-label="Current run conversation">
+    <div class="statusHeader"><h2 id="conversationModeTitle">Astra decision notes</h2></div>
+    <p id="sideRunner" class="help">Runner: —</p>
+    <p id="policyRouteNotice" class="help" role="status" hidden></p>
+    <details class="runPrompt" open><summary>Prompt</summary><p id="sidePrompt">Waiting for someone to run a policy.</p></details>
+    <div class="statusHeader"><h2 id="sideConversationTitle">Response notes</h2><span id="sideConversationState" class="tag">Waiting for a run</span></div>
+    <ol id="sideConversationMessages" tabindex="0" aria-label="Live conversation messages" aria-live="polite" aria-relevant="additions"><li>Astra’s replies and robot feedback from the current run appear here for everyone.</li></ol>
+  </section>
   <div class="runSetup">
     <section class="panel">
       <form id="runForm" autocomplete="off">
-        <div class="runHeading"><h2>Prompt the arms</h2><div class="runTimeControl"><label for="runDuration">Time</label><input id="runDuration" type="number" min="1" max="10" step="1" value="5" aria-describedby="runDurationUnit" required><span id="runDurationUnit">min</span></div></div>
-        <div class="promptRow"><textarea id="prompt" aria-label="Prompt the arms" rows="2" maxlength="4000" required>place green block on plate</textarea><div class="runLaunchActions"><button id="openLocalRun" class="primary" type="button" hidden disabled>Select model and run</button><button id="openSubscriptionInstructions" type="button" aria-haspopup="dialog" aria-controls="codexInstructions">Run via own LLM subscription</button></div><div id="runButtons"><button class="primary" id="run" type="submit" disabled>Run online</button><button type="button" id="openCodexInstructions">Run Locally through Subscription</button><button type="button" id="runAstra" hidden disabled>Run with Astra</button><button type="button" id="runClaude" hidden disabled>Run with Opus</button><button type="button" id="runGroot" hidden disabled>Run GR00T</button></div></div>
+        <div class="promptRow"><textarea id="prompt" aria-label="Task prompt" rows="2" maxlength="4000" required>place green block on plate</textarea><div class="runLaunchActions"><button id="openLocalRun" class="primary" type="button" hidden disabled>Select model and run</button><button id="openSubscriptionInstructions" type="button" aria-haspopup="dialog" aria-controls="codexInstructions">Run via own LLM subscription</button></div><div id="runButtons"><button class="primary" id="run" type="submit" disabled>Run online</button><button type="button" id="openCodexInstructions">Run Locally through Subscription</button><button type="button" id="runAstra" hidden disabled>Run with Astra</button><button type="button" id="runClaude" hidden disabled>Run with Opus</button><button type="button" id="runGroot" hidden disabled>Run GR00T</button></div></div>
         <div id="taskRunFailure" class="taskFailureNotice" role="alert" aria-atomic="true" hidden></div>
         <details id="runSettings"><summary>Settings</summary>
         <label for="provider">Model</label>
@@ -124,7 +131,7 @@
         </details>
         <dialog id="localRunDialog" aria-labelledby="localRunTitle">
           <div class="localRunHeader"><h3 id="localRunTitle">Select model and run</h3><button id="closeLocalRun" type="button" aria-label="Close run setup">Close</button></div>
-          <div id="localRunDialogBody"></div>
+          <div id="localRunDialogBody"><div class="runTimeControl runDurationControl"><label for="runDuration">Time</label><input id="runDuration" form="runForm" type="number" min="1" max="10" step="1" value="5" aria-describedby="runDurationUnit" required><span id="runDurationUnit">min</span></div></div>
           <p id="localRunMessage" role="status" aria-live="polite"></p>
         </dialog>
       </form>
@@ -141,13 +148,11 @@
       <div class="actions" hidden><button id="forget" disabled>Forget key &amp; stop</button><button id="operator" disabled>Call operator</button></div>
       <p id="message" role="status" aria-live="polite">Connecting to your browser session…</p>
     </section>
-    <aside id="yourQueue" class="panel robotQueue" tabindex="-1">      <span id="queueSummary" role="status">Queue · connecting…</span><ol id="queue" hidden><li>Waiting for queue information</li></ol>
-      <div class="queuePlace" hidden aria-live="polite" aria-atomic="true"><h3>Your place in the queue</h3><strong id="position">—</strong><p id="queueGuidance" hidden>Join the queue to reserve your turn.</p></div>
-
-      <button id="leaveQueue" type="button" hidden disabled>Leave queue</button>
-      <button id="disconnect" hidden disabled>End browser session</button>
-    </aside>
   </div>
+  </div>
+  <div class="watchBelow">
+    <div id="aspireTaskDetails" class="aspireTaskPanel aspireTaskDetails" hidden><div id="aspireTaskEvidence"></div></div>
+
   </div>
   </div>
   <div class="liveDashboard"><div class="liveMain" hidden>

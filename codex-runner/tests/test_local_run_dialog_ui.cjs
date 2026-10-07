@@ -1,14 +1,14 @@
 const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm'),path=require('node:path');
 const source=fs.readFileSync(path.join(__dirname,'../static/hosted.js'),'utf8');
 const body=source.slice(source.indexOf('  function configureLocalRunDialog('),source.indexOf('  function updateRunLabel()'));
-test('local and online setup use the same dialog without submitting; only online asks for a name',()=>{
+test('local and online setup use the same dialog without submitting and retain runner attribution',()=>{
  const nodes={}; const $=id=>nodes[id]||=( {dataset:{},classList:{toggle(){},add(){}},open:false,hidden:false,
  append(node){node.parent=this},before(node){node.parent='form'},showModal(){this.open=true},close(){this.open=false},focus(){this.focused=true}} );
  const context=vm.createContext({$,active:false,submitting:false,ended:false,csrf:'valid',updateRunLabel(){}});
  vm.runInContext(body,context);
  vm.runInContext('configureLocalRunDialog(true)',context);
  assert.equal($('runSettings').parent,$('localRunDialogBody'));
- assert.equal($('runnerIdentity').hidden,true);
+ assert.equal($('runnerIdentity').hidden,false);
  assert.equal($('openLocalRun').hidden,false);
  $('openLocalRun').onclick();
  assert.equal($('localRunDialog').open,true);
