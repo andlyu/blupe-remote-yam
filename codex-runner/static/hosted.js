@@ -1040,6 +1040,7 @@ function createRunLaunchGuard() {
     $('station').title = meaning;
   }
   function renderCurrentConversation(live, state) {
+    live = aspireSharedRun(live);
     const previous = renderCurrentConversation.lastRun;
     const identity = run => run?.attempt_id || run?.run_id || run?.task;
     if (live && !live.reviewing_prompt && identity(live) === identity(previous) && previous?.display_error)
@@ -1894,6 +1895,31 @@ function aspireLineageGroups(trace = {}) {
   return {used, retrievedOnly: (trace.retrieved || []).filter(item => !used.some(use => use.id === item.id && use.version === item.version)),
     created, newTitle: 'New skills added', pending: created.length === 0, unknown: trace.usage_recorded !== true};
 }
+function aspireSharedRun(run) {
+  if(!run || run.task_progress || !Array.isArray(run.events)) return run;
+  const prefix='ASPIRE_TASK_PROGRESS_V1\n';
+  let progress=null;
+  const events=run.events.filter(event => {
+    // Only a publisher's tool-role message can carry native status. A model
+    // reply or user prompt containing JSON must never become task evidence.
+    if(event.speaker !== 'Tool' || event.kind !== 'model_request' ||
+        typeof event.message !== 'string' || !event.message.startsWith(prefix)) return true;
+    try {
+      const value=JSON.parse(event.message.slice(prefix.length)).task_progress;
+      const object=item=>item && typeof item === 'object' && !Array.isArray(item);
+      if(event.message.length > 8000 || !object(value) || value.task !== run.task ||
+          !Array.isArray(value.updates) || !value.updates.every(row=>object(row) &&
+            ['happened','changed','next_action'].every(key=>typeof row[key] === 'string')) ||
+          value.attempts && (!Array.isArray(value.attempts) || !value.attempts.every(object)) ||
+          value.lineage && (!object(value.lineage) ||
+            !['used','retrieved','new_skills'].every(key=>Array.isArray(value.lineage[key]) && value.lineage[key].every(object))) ||
+          ['resolution','outcome','stage','vision'].some(key=>value[key] && !object(value[key]))) return true;
+      progress=value;
+      return false;
+    } catch(_) {return true;}
+  });
+  return progress ? {...run,task_progress:progress,events} : run;
+}
 function aspireSam3Progress(run, now = Date.now()) {
   if(!['queued','preparing','running'].includes(run?.status)) return null;
   const vision = run.task_progress?.vision;
@@ -2017,6 +2043,7 @@ function aspireRecordedUpdates(item) {
   return updates;
 }
 function aspireLiveTask(run,state) {
+  run=aspireSharedRun(run);
   const route = state?.provider?.launch_route;
   if(route?.actual_policy === 'astra') return {...run,task:route.prompt,status:state.status,
     attempt_id:state.attempt_id,launch_route:route,task_progress:null};
@@ -2528,6 +2555,6 @@ function taskRunFailure(run) {
   };
   selector.addEventListener('change',() => {selected = selector.value;draftPreview=selected === 'preview';signature = '';refresh();});
   $('prompt')?.addEventListener('input',() => {if(!liveRun || !['running','preparing'].includes(liveRun.status)) {draftPreview=true;selected = 'preview';selector.value = selected;refresh();}});
-  window.addEventListener('blupe-robot-selected',() => {draftPreview=true;liveRun = liveState = pendingAttempt = null;selected = 'preview';renderFailure($('taskRunFailure'),null);loadCatalog();});
+  window.addEventListener('blupe-robot-selected',() => {draftPreview=false;liveRun = liveState = pendingAttempt = null;selected = 'preview';renderFailure($('taskRunFailure'),null);loadCatalog();});
   panel.hidden = selectorBox.hidden = true;loadCatalog();
 })();

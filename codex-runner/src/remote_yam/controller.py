@@ -176,8 +176,13 @@ class RunnerController:
                 from .conversation_publisher import ConversationPublisher
                 config = provider.public_config()
                 self._conversation_publisher = ConversationPublisher(
-                    self._session_api, session_id, config.get('model') or provider.provider_name, prompt,
-                    secrets=(getattr(provider, '_api_key', ''),))
+                    self._session_api, session_id,
+                    (config.get('display_name') if config.get('task_progress') else None)
+                        or config.get('model') or provider.provider_name, prompt,
+                    secrets=(getattr(provider, '_api_key', ''),),
+                    task_progress=config.get('task_progress'),
+                    progress_source=(lambda: provider.public_config().get('task_progress'))
+                        if isinstance(config.get('task_progress'), dict) else None)
             if hasattr(provider, 'interaction_sink'):
                 journal, publisher = self._interactions, self._conversation_publisher
                 metrics = self._run_metrics
@@ -1593,6 +1598,11 @@ class RunnerController:
     def _run_loop(self, max_steps: int | None) -> None:
         with self._lock:
             provider = self._provider
+            publisher = self._conversation_publisher
+            # Native review happens after the control session has stopped.
+            # Keep its public status stream open until that review completes.
+            if callable(getattr(provider, 'review_after_session_stop', None)):
+                self._conversation_review_publisher = publisher
             self._last_stop_reason=None
         try:
             while not self._stop_event.is_set():
@@ -1647,6 +1657,11 @@ class RunnerController:
                 except Exception as exc:
                     self._interactions.add('error', 'Post-session outcome review failed',
                                            error_type=type(exc).__name__)
+            if publisher:
+                publisher.close()
+            with self._lock:
+                if getattr(self, '_conversation_review_publisher', None) is publisher:
+                    self._conversation_review_publisher = None
 
 
     def _record_event_disconnect(self, exc: ConnectionError) -> None:
@@ -1710,7 +1725,8 @@ class RunnerController:
     def _close_events(self) -> None:
         with self._lock:
             events, self._events = self._events, None
-            if self._conversation_publisher:
+            if (self._conversation_publisher and self._conversation_publisher is not
+                    getattr(self, '_conversation_review_publisher', None)):
                 self._conversation_publisher.close()
         if events is not None:
             events.close()
