@@ -455,6 +455,74 @@ test('owner diagnostic replaces a generic public error in the chat failure', asy
   assert.equal(f.lastRun().error,reason,'conversation and camera notes use the resolved diagnostic too');
 });
 
+test('hosted failures without native progress appear as chat messages', async () => {
+  for(const status of ['failed','stopped','timed_out','disconnected']) {
+    const f=await disclosureFixture({hostname:'playground.blupe.io'});
+    f.nodes.provider.value='guest_astra';
+    const reason='RuntimeError: right_tip_outside_workspace';
+    f.poll({attempt_id:'ordinary-astra',task:'Place the block.',status,error:reason});
+    const panel=f.document.getElementById('aspireTaskPanel');
+    assert.equal(panel.hidden,false,status);
+    assert.equal(panel.dataset.enabled,'true');
+    const failure=f.work.descendants().find(node=>node.dataset.messageId==='task-failure');
+    assert.ok(failure,'failure is a chat message for '+status);
+    assert.match(f.allText(failure),/Place the block[\s\S]*right_tip_outside_workspace/);
+    assert.equal(f.nodes.taskRunFailure.hidden,true);
+    assert.equal(f.nodes.sideConversationMessages.hidden,true);
+  }
+});
+
+test('owner errors without native progress replace the generic error for the same attempt', async () => {
+  const f=await disclosureFixture({hostname:'playground.blupe.io'});
+  f.nodes.provider.value='guest_astra';
+  const run={attempt_id:'ordinary-astra',task:'Place the block.',status:'stopped',error:'The run encountered a model or runner error.'};
+  f.poll(run,{attempt_id:'ordinary-astra',status:'stopped',error:'RuntimeError: exact preparation failure'});
+  const failure=f.work.descendants().find(node=>node.dataset.messageId==='task-failure');
+  assert.match(f.allText(failure),/exact preparation failure/);
+  assert.doesNotMatch(f.allText(failure),/model or runner error/);
+  f.poll(run,{attempt_id:'another-attempt',status:'stopped',error:'Unrelated error'});
+  assert.doesNotMatch(f.allText(f.work),/Unrelated error/);
+});
+
+test('Astra fallback failures include the owner diagnostic in chat', async () => {
+  const f=await disclosureFixture();
+  const route={actual_policy:'astra',prompt:'Uncap a pen'};
+  f.poll({attempt_id:'fallback',task:route.prompt,status:'running'},
+    {attempt_id:'fallback',status:'running',provider:{launch_route:route}});
+  assert.equal(f.document.getElementById('aspireTaskPanel').hidden,true,'active fallback keeps its response notes');
+  const reason='RuntimeError: trajectory rejected before motion';
+  f.poll({attempt_id:'fallback',task:route.prompt,status:'stopped',error:'The run encountered a model or runner error.'},
+    {attempt_id:'fallback',status:'stopped',error:reason,provider:{launch_route:route}});
+  const failure=f.work.descendants().find(node=>node.dataset.messageId==='task-failure');
+  assert.ok(failure,'fallback failure uses the chat');
+  assert.match(f.allText(failure),/Uncap a pen[\s\S]*trajectory rejected before motion/);
+  assert.doesNotMatch(f.allText(failure),/model or runner error/);
+  assert.equal(f.nodes.taskRunFailure.hidden,true);
+});
+
+test('rejected hosted preparation without progress appears in chat', async () => {
+  const f=await disclosureFixture({hostname:'playground.blupe.io'});
+  f.nodes.provider.value='guest_astra';
+  f.api.requested('Place the block.',1,false);
+  const reason='ValueError: request preparation failed';
+  f.api.rejected(reason,1);
+  const panel=f.document.getElementById('aspireTaskPanel');
+  assert.equal(panel.hidden,false);
+  const failure=f.work.descendants().find(node=>node.dataset.messageId==='task-failure');
+  assert.ok(failure);
+  assert.match(f.allText(failure),/request preparation failed/);
+});
+
+test('local submissions without native progress keep failure inside chat', async () => {
+  const f=await disclosureFixture();
+  f.api.requested('Place the block.',1,false);
+  f.api.accepted('ordinary-astra',1);
+  f.poll({attempt_id:'ordinary-astra',task:'Place the block.',status:'failed',error:'RuntimeError: task failed'});
+  assert.equal(f.document.getElementById('aspireTaskPanel').hidden,false);
+  assert.match(f.allText(f.work),/Task failed[\s\S]*RuntimeError: task failed/);
+  assert.equal(f.nodes.taskRunFailure.hidden,true);
+});
+
 test('stopped, queued and running tasks without lineage do not claim to be preparing', async () => {
   const f=await disclosureFixture();
   for(const [status,label] of [['queued','Task queued'],['running','Task running'],['stopped','Task stopped'],['completed','Task completed']]) {
