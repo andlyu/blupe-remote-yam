@@ -630,6 +630,7 @@ test('code-writing conversation works before queue admission without leaking raw
 test('hosted chat renders transported native progress and public summaries without local library requests',async()=>{
   let catalogRequests=0;
   const f=await disclosureFixture({hostname:'playground.blupe.io',fetchCatalog(){catalogRequests++;throw Error('Local library requested remotely');}});
+  f.nodes.provider.value='guest_astra';
   const task='Place the green block on the blue chip.';
   const progress={task,updates:[{happened:'Native plan passed.',changed:'Executing the saved program.',next_action:'Verify after parking.',timestamp:10}],
     stage:{stage:'execution',title:'Running the task',active:true,event_at:10},attempts:[]};
@@ -638,6 +639,7 @@ test('hosted chat renders transported native progress and public summaries witho
     {id:2,speaker:'Tool',kind:'model_request',message:'PUBLIC_MODEL_EVENT_V1\n'+JSON.stringify({task,kind:'model_progress',progress_type:'summary',message:'The grasp is ready.',timestamp:11}),timestamp:11}]});
   assert.equal(catalogRequests,0);
   assert.equal(f.document.getElementById('aspireTaskPanel').hidden,false);
+  assert.equal(f.document.getElementById('aspireTaskPanel').dataset.enabled,'true');
   assert.match(f.allText(f.work),/Native plan passed/);
   assert.match(f.allText(f.work),/The grasp is ready/);
   assert.doesNotMatch(f.allText(f.work),/ASPIRE_TASK_PROGRESS_V1|PUBLIC_MODEL_EVENT_V1/);
