@@ -894,8 +894,8 @@ function createRunLaunchGuard() {
       : warmingUp ? `Startup dance — waiting for ${liveModelName}’s first decision.`
       : live ? (aspire ? 'Your run is active — watch the highlighted viewer.' : 'Your run is live — watch the highlighted viewer.')
       : 'Join the queue to reserve your turn.';
-    if (changed && (queued || preparing || live) && !(aspire && preparing && !reviewing)) {
-      const target = $(reviewing ? 'liveConversationPanel' : live ? 'liveViewer' : 'yourQueue');
+    if (changed && (reviewing || live)) {
+      const target = $(reviewing ? 'liveConversationPanel' : 'liveViewer');
       // Guide once per transition; polling must never pull someone away from reading.
       if (aspire || live || !['queued', 'preparing'].includes(attentionPhase)) {
         target.focus({preventScroll: true});
