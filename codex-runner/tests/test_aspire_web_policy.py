@@ -173,7 +173,7 @@ class NativeWebTests(unittest.TestCase):
             generator=Mock(side_effect=AssertionError('Web must never generate ASPIRE source'))
             policy=AspireCodexPolicy(harness=harness,calibration={},robot_id='fixture',task=TASK,
                 directory=root/'run',instructions='',skill_directory=root/'skills',selected_executable=selected,
-                generator=generator,allow_hardware=False)
+                generator=generator,allow_hardware=False,execution_environment='web')
             astra=Mock()
             astra.public_config.return_value=dict(model='fixture Astra')
             astra.build_trajectory.side_effect=PolicyComplete('Fixture Astra finished')
