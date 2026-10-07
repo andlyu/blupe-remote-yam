@@ -34,9 +34,9 @@ def require_depth_age(age, *, stopped=False):
         raise StaleDepth('Invalid depth capture age')
     if stopped is True:
         if age > MAX_DEPTH_AGE_S:
-            raise NoDepthImage()
+            raise NoDepthImage(age_s=age, max_age_s=MAX_DEPTH_AGE_S)
     elif age >= MOVING_DEPTH_AGE_S:
-        raise NoDepthImage()
+        raise NoDepthImage(age_s=age, max_age_s=MOVING_DEPTH_AGE_S)
 
 
 def depth_image_event(on_event, camera, *, recovered=False):
@@ -82,6 +82,81 @@ def factory_ray(profile, u, v):
     return np.array([x,y,1.])
 
 
+def _decode_arrays(data, camera, private_depth, expected):
+    from .rgbd_native import MEMBERS, decode as decode_native
+    with zipfile.ZipFile(io.BytesIO(data)) as archive:
+        native = set(archive.namelist()) == MEMBERS
+    if native:
+        return decode_native(data, camera["image_size"], expected=expected,
+                             factory=camera.get("depth_intrinsics"), serial=camera.get("depth_sensor_serial"))
+    with zipfile.ZipFile(io.BytesIO(data)) as z:
+        entries = z.infolist()
+        names = set(z.namelist())
+        compact = names == {'rgb_jpeg.npy', 'depth_bytes.npy', 'metadata.npy'}
+        millimeters = names == {'rgb_jpeg.npy', 'depth_mm.npy', 'metadata.npy'}
+        if (len(entries) != 3 or
+                (names != {'rgb.npy', 'depth_m.npy', 'metadata.npy'}
+                 and not ((compact or millimeters) and private_depth))
+                or sum(x.file_size for x in entries) > MAX_BYTES):
+            raise ValueError('Invalid RGB-D archive')
+        arrays = {}
+        for entry in entries:
+            raw = z.read(entry)
+            stream = io.BytesIO(raw)
+            version = np.lib.format.read_magic(stream)
+            if version not in ((1, 0), (2, 0)):
+                raise ValueError('Unsupported NPY header')
+            reader = (np.lib.format.read_array_header_1_0 if version == (1, 0)
+                      else np.lib.format.read_array_header_2_0)
+            shape, _, dtype = reader(stream)
+            if (dtype.hasobject or not dtype.itemsize or any(n < 0 for n in shape)
+                    or math.prod(shape) * dtype.itemsize != len(raw) - stream.tell()):
+                raise ValueError('Invalid bounded NPY payload')
+            arrays[entry.filename] = np.load(io.BytesIO(raw), allow_pickle=False)
+    meta = arrays['metadata.npy']
+    if meta.shape != () or meta.dtype.kind != 'U' or meta.nbytes > 65536:
+        raise ValueError('Invalid depth metadata')
+    meta = json.loads(meta.item())
+    w, h = camera['image_size']
+    if type(w) is not int or type(h) is not int or min(w,h) <= 0 or w*h*4 > MAX_BYTES:
+        raise ValueError('Invalid bounded depth image dimensions')
+    if compact or millimeters:
+        # docs/compact-depth-contract.md: lossless float byte planes,
+        # JPEG color from the same frameset, with unchanged pixel geometry.
+        format_name = 'rgbd-mm-npz-v1' if millimeters else 'rgbd-compact-npz-v1'
+        dtype_name = '<u2' if millimeters else '<f4'
+        if (not isinstance(meta,dict) or meta.get('transport_format') != format_name
+                or meta.get('rgb_encoding') != 'jpeg' or meta.get('depth_dtype') != dtype_name):
+            raise ValueError('Invalid compact depth contract')
+        jpeg = arrays['rgb_jpeg.npy']
+        if jpeg.dtype != np.uint8 or jpeg.ndim != 1 or not 4 <= jpeg.size <= 4_000_000:
+            raise ValueError('Invalid compact RGB-D dimensions/dtype')
+        if millimeters:
+            mm = arrays['depth_mm.npy']
+            if (mm.dtype != np.dtype('<u2') or mm.shape != (h,w)
+                    or meta.get('wire_depth_units') != 'millimeters'
+                    or meta.get('depth_quantization_m') != .001
+                    or meta.get('depth_max_error_m') != .0005):
+                raise ValueError('Invalid millimeter depth contract')
+            depth = mm.astype('float32') / np.float32(1000)
+        else:
+            planes = arrays['depth_bytes.npy']
+            if planes.dtype != np.uint8 or planes.shape != (4,h,w):
+                raise ValueError('Invalid compact RGB-D dimensions/dtype')
+            depth = planes.transpose(1,2,0).copy().reshape(-1).view('<f4').reshape(h,w)
+        with Image.open(io.BytesIO(jpeg.tobytes())) as color:
+            if color.format != 'JPEG' or color.size != (w,h):
+                raise ValueError('Compact RGB image differs from calibration')
+            rgb = np.asarray(color.convert('RGB')).copy()
+    else:
+        rgb, depth = arrays['rgb.npy'], arrays['depth_m.npy']
+    if not millimeters and any(k in meta for k in ('depth_quantization_m','depth_max_error_m')):
+        raise ValueError('Unrecognized depth quantization')
+    if rgb.shape != (h, w, 3) or rgb.dtype != np.uint8 or depth.shape != (h, w) or depth.dtype != np.float32:
+        raise ValueError('Depth dimensions/dtype differ from calibration')
+    return rgb, depth, meta
+
+
 class ApiDepth:
     def __init__(self, origin, robot_id='yam-1', *, camera='top', depth_url=None,
                  monotonic_freshness=False, timeout=5, clock=time.time):
@@ -121,11 +196,19 @@ class ApiDepth:
         connection = self.depth_connection if depth else self.connection
         path = self.depth_path if depth else self.route + suffix
         url = self.depth_url if depth else self.origin + path
+        timing = dict(stage='bundle_http' if depth else
+                      'calibration_http' if suffix == '/calibration' else 'api_http',
+                      started_at=time.time(), bytes=0, http_status=None, status='error')
+        timing_started = time.perf_counter()
+        started = time.monotonic()
         try:
-            started = time.monotonic()
             deadline = started + self.timeout
             connection.request('GET',path,headers={'Cache-Control':'no-cache'})
+            requested = time.perf_counter()
+            timing['request_s'] = requested-timing_started
             response=connection.getresponse()
+            headers_received = time.perf_counter()
+            timing.update(headers_s=headers_received-requested, http_status=response.status)
             parts, size = [], 0
             while True:
                 if time.monotonic() >= deadline:
@@ -138,6 +221,7 @@ class ApiDepth:
                 if size > limit:
                     raise ValueError('Depth API response exceeds its size limit')
             data=b''.join(parts)
+            timing.update(body_s=time.perf_counter()-headers_received, bytes=size)
             status=response.status
             headers = {k.lower(): v for k,v in response.getheaders()} if self.monotonic_freshness and depth else {}
             response.close()
@@ -145,7 +229,7 @@ class ApiDepth:
                 raise ValueError('Depth API response exceeds its size limit')
             if depth and status in (204, 503):
                 self._depth_receipt = None
-                raise NoDepthImage(self.camera)
+                raise NoDepthImage(self.camera, http_status=status)
             if status != 200:
                 raise error.HTTPError(url,status,'Depth API read failed',{},None)
             if self.monotonic_freshness and depth:
@@ -154,28 +238,64 @@ class ApiDepth:
                 if not math.isfinite(source_age) or source_age < 0 or not 0 <= elapsed:
                     raise StaleDepth('Invalid private source age')
                 self._depth_receipt = (headers, source_age + elapsed, time.monotonic())
+            timing['status'] = 'ok'
         except NoDepthImage:
             raise  # The complete empty response can reuse its connection.
         except Exception:
             connection.close()
             raise
+        finally:
+            timing['duration_s'] = time.perf_counter()-timing_started
+            self.last_read_timing = timing
+            spans = getattr(self, '_capture_spans', None)
+            if spans is not None:
+                spans.append(timing)
         return data
+
+    def _select_transport(self, report):
+        if self.private_depth:
+            return
+        from .rgbd_native import FORMAT, SUFFIX
+        depth = report['cameras'][self.camera].get('depth') or {}
+        advertised = depth.get('native_bundle_url')
+        expected = self.route + '/cameras/' + self.camera + SUFFIX
+        native = depth.get('native_format') == FORMAT and advertised == expected
+        self.depth_suffix = '/cameras/' + self.camera + (SUFFIX if native else '.rgbd.npz')
+        self.depth_path = self.route + self.depth_suffix
+        self.depth_url = self.origin + self.depth_path
 
     def capture(self, *, cancelled=lambda: False, report=None, stopped=False,
                 wait_for_image=False, on_event=lambda *args: None):
+        started = time.perf_counter()
+        spans = self._capture_spans = []
+        try:
+            snapshot = self._capture(cancelled=cancelled, report=report, stopped=stopped,
+                wait_for_image=wait_for_image, on_event=on_event, spans=spans)
+            snapshot.timing = dict(spans=spans)
+            return snapshot
+        finally:
+            self.last_capture_timing = dict(duration_s=time.perf_counter()-started, spans=spans)
+            self._capture_spans = None
+
+    def _capture(self, *, cancelled, report, stopped, wait_for_image, on_event, spans):
         # Retry observation reads only, never motion. Cloud depth has brief gaps.
         deadline = time.monotonic() + 8
         waiting = False
+        from .latency_spans import timed_span
         while True:
-            if cancelled():
-                raise RuntimeError('Depth capture cancelled')
-            try:
-                calibration = report if report is not None else json.loads(self.read('/calibration', 256_000))
-                data = self.read(self.depth_suffix)
-                receipt = self._depth_receipt if self.monotonic_freshness else None
-                snapshot = self.decode(data, calibration, receipt=receipt, stopped=stopped)
+            with timed_span(spans, 'capture_cancel_check'):
                 if cancelled():
                     raise RuntimeError('Depth capture cancelled')
+            try:
+                calibration = report if report is not None else json.loads(self.read('/calibration', 256_000))
+                self._select_transport(calibration)
+                data = self.read(self.depth_suffix)
+                receipt = self._depth_receipt if self.monotonic_freshness else None
+                with timed_span(spans, 'decode_bundle', bytes=len(data)):
+                    snapshot = self.decode(data, calibration, receipt=receipt, stopped=stopped)
+                with timed_span(spans, 'capture_cancel_check'):
+                    if cancelled():
+                        raise RuntimeError('Depth capture cancelled')
                 if waiting:
                     depth_image_event(on_event, self.camera, recovered=True)
                 return snapshot
@@ -198,7 +318,8 @@ class ApiDepth:
             except (TimeoutError, ConnectionError):
                 if time.monotonic() >= deadline:
                     raise RuntimeError('API depth transfer failed; no motion proposed') from None
-            time.sleep(.1)
+            with timed_span(spans, 'capture_retry_wait'):
+                time.sleep(.1)
 
     def decode(self, data, report, *, receipt=None, stopped=False):
         if len(data) > MAX_BYTES:
@@ -211,80 +332,32 @@ class ApiDepth:
             raise ValueError('Failed calibration requires explicit operator selection')
         matrix(camera['K'], (3, 3), 'K')
         matrix(camera['distortion'], (5,), 'distortion')
-        if camera['distortion_model'] != 'opencv_brown_conrady':
+        distortion_model = camera['distortion_model']
+        if distortion_model not in ('realsense_factory', 'opencv_brown_conrady'):
             raise ValueError('Unsupported depth camera distortion')
+        if distortion_model == 'realsense_factory':
+            profile = camera.get('depth_intrinsics')
+            validate_factory_profile(profile, camera['image_size'])
+            expected_k = [[profile['fx'], 0, profile['ppx']],
+                          [0, profile['fy'], profile['ppy']], [0, 0, 1]]
+            if camera['K'] != expected_k or camera['distortion'] != profile['coeffs']:
+                raise ValueError('Factory RGB intrinsics differ from aligned depth')
         if min(camera['K'][0][0], camera['K'][1][1]) <= 0:
             raise ValueError('Invalid camera focal length')
         if self.camera == 'top':
+            if (not isinstance(camera.get('T_base_camera'), dict)
+                    or set(camera['T_base_camera']) != {'left', 'right'}):
+                raise ValueError('Top depth requires both arm-base transforms')
             for transform in camera['T_base_camera'].values():
                 rigid(transform)
         else:
+            if 'T_grasp_camera' not in camera:
+                raise ValueError('Wrist depth requires a camera mounting transform')
             rigid(camera['T_grasp_camera'])
-        with zipfile.ZipFile(io.BytesIO(data)) as z:
-            entries = z.infolist()
-            names = set(z.namelist())
-            compact = names == {'rgb_jpeg.npy', 'depth_bytes.npy', 'metadata.npy'}
-            millimeters = names == {'rgb_jpeg.npy', 'depth_mm.npy', 'metadata.npy'}
-            if (len(entries) != 3 or
-                    (names != {'rgb.npy', 'depth_m.npy', 'metadata.npy'}
-                     and not ((compact or millimeters) and self.private_depth))
-                    or sum(x.file_size for x in entries) > MAX_BYTES):
-                raise ValueError('Invalid RGB-D archive')
-            arrays = {}
-            for entry in entries:
-                raw = z.read(entry)
-                stream = io.BytesIO(raw)
-                version = np.lib.format.read_magic(stream)
-                if version not in ((1, 0), (2, 0)):
-                    raise ValueError('Unsupported NPY header')
-                reader = (np.lib.format.read_array_header_1_0 if version == (1, 0)
-                          else np.lib.format.read_array_header_2_0)
-                shape, _, dtype = reader(stream)
-                if (dtype.hasobject or not dtype.itemsize or any(n < 0 for n in shape)
-                        or math.prod(shape) * dtype.itemsize != len(raw) - stream.tell()):
-                    raise ValueError('Invalid bounded NPY payload')
-                arrays[entry.filename] = np.load(io.BytesIO(raw), allow_pickle=False)
-        meta = arrays['metadata.npy']
-        if meta.shape != () or meta.dtype.kind != 'U' or meta.nbytes > 65536:
-            raise ValueError('Invalid depth metadata')
-        meta = json.loads(meta.item())
-        w, h = camera['image_size']
-        if type(w) is not int or type(h) is not int or min(w,h) <= 0 or w*h*4 > MAX_BYTES:
-            raise ValueError('Invalid bounded depth image dimensions')
-        if compact or millimeters:
-            # docs/compact-depth-contract.md: lossless float byte planes,
-            # JPEG color from the same frameset, with unchanged pixel geometry.
-            format_name = 'rgbd-mm-npz-v1' if millimeters else 'rgbd-compact-npz-v1'
-            dtype_name = '<u2' if millimeters else '<f4'
-            if (not isinstance(meta,dict) or meta.get('transport_format') != format_name
-                    or meta.get('rgb_encoding') != 'jpeg' or meta.get('depth_dtype') != dtype_name):
-                raise ValueError('Invalid compact depth contract')
-            jpeg = arrays['rgb_jpeg.npy']
-            if jpeg.dtype != np.uint8 or jpeg.ndim != 1 or not 4 <= jpeg.size <= 4_000_000:
-                raise ValueError('Invalid compact RGB-D dimensions/dtype')
-            if millimeters:
-                mm = arrays['depth_mm.npy']
-                if (mm.dtype != np.dtype('<u2') or mm.shape != (h,w)
-                        or meta.get('wire_depth_units') != 'millimeters'
-                        or meta.get('depth_quantization_m') != .001
-                        or meta.get('depth_max_error_m') != .0005):
-                    raise ValueError('Invalid millimeter depth contract')
-                depth = mm.astype('float32') / np.float32(1000)
-            else:
-                planes = arrays['depth_bytes.npy']
-                if planes.dtype != np.uint8 or planes.shape != (4,h,w):
-                    raise ValueError('Invalid compact RGB-D dimensions/dtype')
-                depth = planes.transpose(1,2,0).copy().reshape(-1).view('<f4').reshape(h,w)
-            with Image.open(io.BytesIO(jpeg.tobytes())) as color:
-                if color.format != 'JPEG' or color.size != (w,h):
-                    raise ValueError('Compact RGB image differs from calibration')
-                rgb = np.asarray(color.convert('RGB')).copy()
-        else:
-            rgb, depth = arrays['rgb.npy'], arrays['depth_m.npy']
-        if not millimeters and any(k in meta for k in ('depth_quantization_m','depth_max_error_m')):
-            raise ValueError('Unrecognized depth quantization')
-        if rgb.shape != (h, w, 3) or rgb.dtype != np.uint8 or depth.shape != (h, w) or depth.dtype != np.float32:
-            raise ValueError('Depth dimensions/dtype differ from calibration')
+        expected_identity = dict(schema_version=1, robot_id=self.robot_id, camera=self.camera,
+            calibration_id=report["calibration_id"], depth_units="meters",
+            depth_aligned_to="color", depth_semantics="optical_z")
+        rgb, depth, meta = _decode_arrays(data, camera, self.private_depth, expected_identity)
         expected = dict(schema_version=1, robot_id=self.robot_id, camera=self.camera,
                         calibration_id=report['calibration_id'], depth_units='meters',
                         depth_aligned_to='color', depth_semantics='optical_z',
@@ -328,9 +401,18 @@ class StaleDepth(ValueError):
 
 
 class NoDepthImage(StaleDepth):
-    def __init__(self, camera=None):
+    def __init__(self, camera=None, *, age_s=None, max_age_s=None, http_status=None):
         super().__init__('No image')
         self.camera = camera
+        self.age_s, self.max_age_s, self.http_status = age_s, max_age_s, http_status
+
+    def detail(self):
+        camera = self.camera if self.camera in ('top', 'left', 'right') else 'camera'
+        if self.age_s is not None and self.max_age_s is not None:
+            return f'{camera} RGB-D frame age {self.age_s:.2f}s exceeds the {self.max_age_s:g}s freshness limit'
+        if self.http_status is not None:
+            return f'{camera} RGB-D API returned no fresh frame (HTTP {self.http_status})'
+        return f'{camera} RGB-D frame is missing or too old'
 
 
 class DepthSnapshot:
@@ -338,6 +420,13 @@ class DepthSnapshot:
         self.rgb, self.depth, self.metadata = rgb, depth, metadata
         self.calibration, self.bundle = calibration, bundle
         self.age_upper_s, self.received_monotonic = age_upper_s, time.monotonic()
+
+    def recording_bundle(self):
+        """Keep existing NPZ receipts readable regardless of network encoding."""
+        from .rgbd_native import FORMAT, legacy_bundle
+        if self.metadata.get('transport_format') == FORMAT:
+            return legacy_bundle(self.rgb, self.depth, self.metadata)
+        return self.bundle
 
     def age(self):
         return (time.time() - self.metadata['captured_at'] if self.age_upper_s is None

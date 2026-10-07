@@ -4,8 +4,8 @@ const fs=require('node:fs'),path=require('node:path'),vm=require('node:vm');
 const source=fs.readFileSync(path.join(__dirname,'../static/hosted.js'),'utf8');
 const body=source.split('  function providerChanged() {')[1].split("  $('provider').addEventListener('change'")[0];
 test('online choice changes key issuer and model; no-AI removes key requirement',()=>{
- const nodes=new Map();const $=id=>{if(!nodes.has(id))nodes.set(id,{value:'',hidden:false,close(){}});return nodes.get(id)};
- const change=vm.runInNewContext('(function(){'+body+')',{$,setupProvider:null,window:{},updateRunLabel(){},updateSavedKey(){},claudeModel:'claude-opus-5-5'});
+ const nodes=new Map();const $=id=>{if(!nodes.has(id))nodes.set(id,{value:'',hidden:false,dataset:{},options:[],selectedOptions:[],close(){}});return nodes.get(id)};
+ const change=vm.runInNewContext('(function(){'+body+')',{$,selectedRobot:'fixture',aspireRetryLimit:Number,localStorage:{getItem(){return null;}},aspireRunAvailable:false,configuredProviders:{},setupProvider:null,window:{},updateRunLabel(){},updateSavedKey(){},claudeModel:'claude-opus-5-5'});
  $('provider').value='anthropic';change();
  assert.equal($('apiKeyLabel').textContent,'Claude API key');
  assert.equal($('apiKeyCreditProvider').textContent,'Anthropic');

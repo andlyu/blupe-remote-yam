@@ -30,6 +30,11 @@
         <details id="runSettings"><summary>Settings</summary>
         <label for="provider">Model</label>
         <select id="provider"><option value="openai" selected>ChatGPT</option><option value="anthropic">Claude</option><option value="local_raise_lower">No AI — just wiggle arms</option><option value="astra" hidden disabled>Astra · bring your key</option></select>
+        <div id="aspireRetrySettings" hidden>
+          <label for="automaticRetryLimit">Automatic recovery retry limit</label>
+          <input id="automaticRetryLimit" type="number" min="0" max="3" step="1" value="1" aria-describedby="automaticRetryHelp">
+          <p id="automaticRetryHelp" class="help">0 disables automatic retries; 1–3 bounds live recovery attempts. Saved in this browser for the next submission. Current runs keep their recorded limit. Changing this setting does not rerun old tasks.</p>
+        </div>
         <div id="effortField" hidden>
           <label for="reasoningEffort">Thinking effort</label>
           <select id="reasoningEffort" aria-describedby="effortHelp"><option value="low">Low — fastest</option><option value="medium">Medium — balanced</option><option value="high">High — more reasoning</option></select>

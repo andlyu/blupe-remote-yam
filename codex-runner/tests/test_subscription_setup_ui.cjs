@@ -15,7 +15,7 @@ function fixture(ready) {
     prompt:'Place apple on plate', runnerName:'Tester', runDuration:'3'})) $(id).value = value;
   const setup = {provider:'claude', label:'Opus (Claude)', ready:false,
     state:'upgrade_required', message:'Update Claude Code', setup_prompt:'Set up or update Opus for this playground.'};
-  const context = vm.createContext({$, window:{}, navigator:{clipboard:{async writeText() {}}},
+  const context = vm.createContext({$, aspireRunAvailable:false, requestAnimationFrame:fn=>queueMicrotask(fn), selectedModelName(){return 'Claude';},renderCurrentConversation(){},openAspireTaskPanel(){}, window:{}, navigator:{clipboard:{async writeText() {}}},
     message() {}, buttons() {}, updateSavedKey() {}, guideRunAttention() {},
     async api(path) {
       requests.push(path);
@@ -23,6 +23,8 @@ function fixture(ready) {
       if (!ready) throw Object.assign(new Error('Setup required'), {subscriptionSetup:setup});
       return {saved_key_providers:[]};
     }});
+  const guardStart=source.indexOf('function createRunLaunchGuard(');
+  vm.runInContext(source.slice(guardStart,source.indexOf("(() => {\n  'use strict';",guardStart))+'\nconst runLaunchGuard=createRunLaunchGuard();',context);
   vm.runInContext('let setupProvider=null, submitting=false, active=false, ended=false, contactRequested=false;' + setupSource +
     "$('runForm').addEventListener('submit', async event => {" + submitSource, context);
   return {nodes, handlers, requests, context};

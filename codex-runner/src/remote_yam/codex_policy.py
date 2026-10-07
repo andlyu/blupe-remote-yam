@@ -86,6 +86,7 @@ class FirstCallProgress:
 DEFAULT_MODEL = 'gpt-6-astra'
 MIN_VERSION = (0, 154, 0)
 PINNED_VERSION = '0.154.0'
+MAX_CODEX_INPUT_CHARS = 1_048_576
 RUNTIME_ROOT = Path(__file__).resolve().parents[2] / '.codex-runtime'
 INSTALL_HELP = 'Run ./run.sh --provider codex to install the compatible local Codex runtime (Node.js/npm required).'
 LOGIN_HELP = 'Run ./run.sh --codex-login --provider codex in the launch terminal.'
@@ -224,6 +225,8 @@ def decision_response(value, names=NAMES):
 def codex_failure(raw):
     """Actionable categories without reflecting raw account/server diagnostics."""
     text = raw.lower()
+    if b'input_too_large' in text or b'input exceeds the maximum length' in text:
+        return 'Codex request exceeds the CLI input limit. Compact repeated coding context before retrying; no motion sent.'
     if any(term in text for term in (b'permission denied', b'operation not permitted', b'read-only file system')):
         return STORAGE_HELP
     if b'newer version of codex' in text:
@@ -291,6 +294,7 @@ class CodexAdapter(RoboCurveResponsesAdapter):
 
     def public_config(self):
         return {**super().public_config(), 'api_key_configured': False,
+                **({'launch_route':self.launch_route} if getattr(self,'launch_route',None) else {}),
                 'authentication': 'chatgpt', 'transport': 'codex_exec',
                 'codex_connected': True, 'reasoning_effort': self.reasoning_effort}
 
@@ -344,20 +348,25 @@ class CodexAdapter(RoboCurveResponsesAdapter):
                     '-c', 'features.multi_agent=false', '-c', 'features.apps=false',
                     '-c', 'features.hooks=false']
         first_call = self._thread_id is None and getattr(self, '_calls', 0) <= 1
-        command += ['-c', 'model_reasoning_summary=' + ('"auto"' if first_call else '"none"')]
+        stream_progress = first_call or getattr(self, '_stream_all_summaries', False)
+        command += ['-c', 'model_reasoning_summary=' + ('"auto"' if stream_progress else '"none"')]
         for path in images:
             command += ['--image', str(path)]
         command += ['-']
         try:
+            prompt='\n'.join(lines)
             executor = getattr(self, '_decision_executor', None)
+            if executor is None and len(prompt)>MAX_CODEX_INPUT_CHARS:
+                raise RuntimeError('Codex request exceeds the CLI input limit ('+str(len(prompt))+
+                    ' characters; maximum '+str(MAX_CODEX_INPUT_CHARS)+'). Compact repeated coding context before retrying; no motion sent.')
             if executor is None:
-                events = self._execute(command, '\n'.join(lines), root)
+                events = self._execute(command, prompt, root)
             else:
-                events = executor(schema=json.loads(schema.read_text()), prompt='\n'.join(lines),
+                events = executor(schema=json.loads(schema.read_text()), prompt=prompt,
                                   images=tuple(path.read_bytes() for path in images),
                                   thread_id=self._thread_id, model=self.model,
                                   cancelled=self.cancelled,
-                                  progress=FirstCallProgress(getattr(self, '_interaction', None) if first_call else None))
+                                  progress=FirstCallProgress(getattr(self, '_interaction', None) if stream_progress else None))
         finally:
             for path in images:
                 path.unlink(missing_ok=True)
@@ -365,6 +374,7 @@ class CodexAdapter(RoboCurveResponsesAdapter):
             raise RuntimeError('Codex inference cancelled; no motion sent')
         thread_id, final = self._thread_id, None
         completed = False
+        stream_errors = []
         for event in events:
             kind = event.get('type')
             if kind == 'thread.started':
@@ -376,12 +386,20 @@ class CodexAdapter(RoboCurveResponsesAdapter):
                 if thread_id is not None and candidate != thread_id:
                     raise RuntimeError('Codex resumed the wrong conversation')
                 thread_id = candidate
-            elif kind in ('error', 'turn.failed'):
+            elif kind == 'turn.failed':
                 raise RuntimeError(codex_failure(json.dumps(event).encode()))
+            elif kind == 'error':
+                # Stream notifications can precede a completed recovery. Keep
+                # them pending; only a later completed turn with a validated
+                # final response can resolve them. Never recover a failed turn.
+                stream_errors.append(codex_failure(json.dumps(event).encode()))
+                completed = False
             elif kind == 'turn.completed':
                 completed = True
             elif kind == 'item.completed' and event.get('item', {}).get('type') == 'agent_message':
                 final = event['item'].get('text')
+        if stream_errors and not completed:
+            raise RuntimeError(stream_errors[-1])
         if not completed or not thread_id or not isinstance(final, str):
             raise RuntimeError('Codex did not complete a structured decision; no motion sent')
         try:
@@ -389,6 +407,11 @@ class CodexAdapter(RoboCurveResponsesAdapter):
         except (ValueError, TypeError):
             raise RuntimeError('Codex returned malformed JSON; no motion sent') from None
         self._thread_id = thread_id
+        if stream_errors:
+            interaction = getattr(self, '_interaction', None)
+            if callable(interaction):
+                interaction('tool_result', 'Codex stream recovered and completed its response.',
+                            recovered_stream_error_count=len(stream_errors))
         # Skip the synthetic function call that RoboCurve adds after this return.
         self._sent_items = len(history) + 1 if getattr(self, "_incremental_history", True) else 0
         return result
@@ -404,7 +427,8 @@ class CodexAdapter(RoboCurveResponsesAdapter):
                                        cwd=root, env=codex_environment(), start_new_session=True)
             deadline = time.monotonic() + self._timeout_s
             first_call = self._thread_id is None and getattr(self, '_calls', 0) <= 1
-            progress = FirstCallProgress(getattr(self, '_interaction', None) if first_call else None)
+            stream_progress = first_call or getattr(self, '_stream_all_summaries', False)
+            progress = FirstCallProgress(getattr(self, '_interaction', None) if stream_progress else None)
             try:
                 while process.poll() is None:
                     if self.cancelled():
@@ -417,7 +441,20 @@ class CodexAdapter(RoboCurveResponsesAdapter):
                 if process.returncode:
                     stdout.seek(0)
                     stderr.seek(0)
-                    raise RuntimeError(codex_failure(stdout.read(1_000_000) + stderr.read(1_000_000)))
+                    output = stdout.read(1_000_000)
+                    diagnostic = {'process_returncode':process.returncode}
+                    try:
+                        kinds = [json.loads(line).get('type') for line in output.splitlines() if line.strip()]
+                        diagnostic.update(completed_turn_count=kinds.count('turn.completed'),
+                            failed_turn_count=kinds.count('turn.failed'),stream_error_count=kinds.count('error'))
+                    except (ValueError, AttributeError):
+                        diagnostic['events_parseable'] = False
+                    interaction = getattr(self, '_interaction', None)
+                    if callable(interaction):
+                        interaction('tool_result','Codex process failed before response acceptance.',
+                                    diagnostic=diagnostic)
+                    raise RuntimeError(codex_failure(output + stderr.read(1_000_000))+
+                                       ' CLI exit code: '+str(process.returncode)+'.')
                 stdout.seek(0)
                 raw = stdout.read(8_000_001)
                 if len(raw) > 8_000_000:

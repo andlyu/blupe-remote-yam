@@ -4,11 +4,18 @@ const vm = require('node:vm');
 const assert = require('node:assert/strict');
 const test = require('node:test');
 const source = fs.readFileSync(path.join(__dirname, '../static/hosted.js'), 'utf8');
+function launchContext(properties) {
+  const context = vm.createContext(properties);
+  const begin=source.indexOf('function createRunLaunchGuard(');
+  const end=source.indexOf("(() => {\n  'use strict';",begin);
+  vm.runInContext(source.slice(begin,end)+'\nconst runLaunchGuard=createRunLaunchGuard();',context);
+  return context;
+}
 
 test('a late unauthorized response cannot disable a newly connected robot session', async () => {
   let deliver;
   const response = new Promise(resolve => {deliver=resolve;});
-  const c = vm.createContext({robotGeneration:1, csrf:'', selectedRobot:'so101', ended:false,
+  const c = launchContext({robotGeneration:1, csrf:'', selectedRobot:'so101', ended:false,
     buttons(){}, $:()=>({value:''}), fetch:async()=>response});
   const start = source.indexOf('  async function api(');
   vm.runInContext(source.slice(start, source.indexOf('  function buttons()', start)), c);
@@ -21,7 +28,7 @@ test('a late unauthorized response cannot disable a newly connected robot sessio
 
 test('polling waits for session creation and resumes after switching away from an ended session', async () => {
   let calls=0, scheduled=0;
-  const c = vm.createContext({csrf:'', ended:false, lastHistory:Date.now(),
+  const c = launchContext({csrf:'', ended:false, lastHistory:Date.now(),
     $:()=>({textContent:''}), api:async()=>{calls++;return {};},
     render(){}, message(){}, renderRobotStatus(){},
     setTimeout(){scheduled++;}, history:async()=>{}});
@@ -37,7 +44,7 @@ test('polling waits for session creation and resumes after switching away from a
 
 test('chat authentication failure does not revoke valid robot controls', async () => {
   let disabled=0;
-  const c=vm.createContext({robotGeneration:1,csrf:'valid-session',selectedRobot:'so101',ended:false,
+  const c=launchContext({robotGeneration:1,csrf:'valid-session',selectedRobot:'so101',ended:false,
     buttons(){disabled++;},$:()=>({value:''}),fetch:async()=>({ok:false,status:401,json:async()=>({error:'Chat unavailable'})})});
   const start=source.indexOf('  async function api(');
   vm.runInContext(source.slice(start,source.indexOf('  function buttons()',start)),c);

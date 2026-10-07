@@ -1,6 +1,8 @@
 import asyncio
 import json
 import shutil
+from pathlib import Path
+import tempfile
 import unittest
 from types import SimpleNamespace
 from unittest.mock import patch
@@ -12,6 +14,15 @@ from remote_yam.session import MockSessionAPI
 
 
 class LauncherTests(unittest.TestCase):
+    def test_aspire_flag_selects_station_without_starting_a_run(self):
+        from run import main
+        with patch('sys.argv', ['run.py','--aspire-config','/tmp/station.json']), \
+                patch.dict('os.environ',{},clear=False), patch('local_playground.serve') as serve:
+            main()
+            import os
+            self.assertEqual(os.environ['YAM_ASPIRE_CONFIG'],str(Path('/tmp/station.json').resolve()))
+            self.assertEqual(serve.call_args.args[0].aspire_config,'/tmp/station.json')
+
     def test_normal_startup_does_not_install_or_require_a_provider(self):
         from run import main
         with patch('sys.argv', ['run.py']), patch('local_playground.serve') as serve, \
@@ -55,6 +66,38 @@ class LauncherTests(unittest.TestCase):
 
 
 class LocalPlaygroundTests(unittest.IsolatedAsyncioTestCase):
+    async def test_lineage_prompt_preview_uses_actual_launch_binding_without_admission(self):
+        from test_aspire_launch_routing import saved_library,TASK
+        import hashlib
+        with tempfile.TemporaryDirectory() as directory:
+            root=Path(directory);library=saved_library(root)
+            self.app.aspire_station_config=dict(robot_id='fixture',skill_directory=str(root/'skills'),
+                executable_skills=dict(enabled=True,manifest=str(library.path)))
+            expected=self.app.resolve_api_depth_launch(TASK)
+            code,data=await self.call('/api/aspire-lineage',query={'prompt':TASK})
+            self.assertEqual(code,200);binding=data['next_run_binding']
+            self.assertEqual(binding['route'],expected['route'])
+            self.assertEqual(binding['route']['source_sha256'],hashlib.sha256(expected['program']['response']['source'].encode()).hexdigest())
+            self.assertFalse(binding['queue_session_created']);self.assertEqual(binding['physical_motion_calls'],0)
+            self.assertEqual(self.providers,[]);self.assertFalse(self.app.visitors)
+
+    async def test_lineage_catalog_is_read_only_and_artifacts_are_allowlisted(self):
+        with tempfile.TemporaryDirectory() as directory:
+            skills=Path(directory)/'outputs/aspire-skills/robohouse';skills.mkdir(parents=True)
+            self.app.aspire_station_config=dict(robot_id='fixture',skill_directory=str(skills))
+            code,data=await self.call('/api/aspire-lineage')
+            self.assertEqual(code,200)
+            self.assertEqual(data['episodes'],[])
+            self.assertEqual(data['robot_id'],'fixture')
+            self.assertEqual(self.providers,[])
+            self.assertFalse(self.app.visitors)
+            code,_=await self.call('/api/aspire-lineage',{})
+            self.assertEqual(code,403)
+            code,_=await self.call('/api/aspire-lineage/artifacts/'+'0'*64)
+            self.assertEqual(code,404)
+            code,_=await self.call('/api/aspire-lineage/artifacts/../../private.json')
+            self.assertEqual(code,404)
+
     async def asyncSetUp(self):
         probe = patch('remote_yam.subscription_setup.probe_subscription', return_value='test-model')
         self.probe = probe.start()
@@ -98,6 +141,104 @@ class LocalPlaygroundTests(unittest.IsolatedAsyncioTestCase):
         self.addCleanup(shutil.rmtree, app.root, True)
         self.assertTrue(callable(app.api_depth_provider_factory))
         self.assertFalse(app.use_api_depth)
+
+    def test_aspire_station_routes_codex_and_leaves_other_robots_unchanged(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            config=Path(temporary)/'station.json'
+            config.write_text(json.dumps(dict(robot_id='robohouse',origin='https://station.example')))
+            with patch.dict('os.environ',{'YAM_ASPIRE_CONFIG':str(config)}), \
+                    patch('remote_yam.aspire_codex_policy.configured_aspire_policy') as configured:
+                app=LocalPlayground(public_origin='http://127.0.0.1:8792',robot_id='robohouse',
+                    session_api='https://api.example',camera_origin='https://api.example',
+                    development=True,local_codex=True,api_factory=MockSessionAPI)
+                self.addCleanup(shutil.rmtree,app.root,True)
+                self.assertTrue(app.use_api_depth)
+                configured.assert_not_called()
+                app.api_depth_provider_factory('codex','','gpt-6-astra',temporary)
+                self.assertEqual(configured.call_args.kwargs['robot_id'],'robohouse')
+                with self.assertRaises(RequestError):app.api_depth_provider_factory('claude','','model',temporary)
+                other=LocalPlayground(public_origin='http://127.0.0.1:8793',robot_id='yam-1',
+                    session_api='https://api.example',camera_origin='https://api.example',
+                    development=True,local_codex=True,api_factory=MockSessionAPI)
+                self.addCleanup(shutil.rmtree,other.root,True)
+                self.assertFalse(other.use_api_depth)
+
+    async def test_station_session_reports_selected_segmenter_without_loading_or_exposing_key(self):
+        self.app.aspire_station_config={'segmentation_backend':'runpod_sam3',
+            'runpod_sam3':{'endpoint_id':'fixture-endpoint','api_key_file':'/fixture/private-key'}}
+        with patch.dict('os.environ',{},clear=True), \
+                patch('remote_yam.runpod_sam3.RunpodSam3Client.from_env') as factory:
+            setup, headers=await self.app.session_extension({},None)
+        factory.assert_not_called()
+        self.assertEqual(setup,{'segmentation':{'backend':'runpod_sam3','model':'facebook/sam3'}})
+        self.assertEqual(headers,[])
+        self.assertNotIn('private-key',json.dumps(setup))
+        self.app.aspire_station_config=None
+        self.assertEqual(await self.app.session_extension({},None),({},[]))
+
+    async def test_station_session_reports_skill_workflow_without_loading_or_running_provider(self):
+        self.app.aspire_station_config={'segmentation_backend':'runpod_sam3',
+            'skill_learning':{'enabled':True,'root':'/fixture/topic-library'}}
+        with patch('remote_yam.aspire_codex_policy.configured_aspire_policy') as factory, \
+                patch('remote_yam.runpod_sam3.RunpodSam3Client.from_env') as vision:
+            setup,_=await self.app.session_extension({},None)
+        factory.assert_not_called();vision.assert_not_called()
+        self.assertEqual(setup['skill_learning']['coordinator'],'codex_subscription_before_next_task')
+        self.app.aspire_station_config['skill_learning']['review_timing']='after_run'
+        setup,_=await self.app.session_extension({},None)
+        self.assertEqual(setup['skill_learning']['coordinator'],'codex_subscription_after_run')
+        self.assertEqual(setup['skill_learning']['review_timing'],'after_run')
+        self.assertNotIn('topic-library',json.dumps(setup))
+
+    async def test_explicit_web_route_uses_actual_normal_astra_and_preserves_constraints(self):
+        from remote_yam.codex_policy import CodexAdapter
+        self.app.aspire_station_config={'executable_skills':{'enabled':False}}
+        from remote_yam.aspire_executable_skills import select_aspire_launch
+        self.app.resolve_api_depth_launch=lambda task:select_aspire_launch(self.app.aspire_station_config,task,execution_environment='web')
+        self.app.api_depth_provider_factory=unittest.mock.Mock(side_effect=AssertionError('No ASPIRE construction'))
+        self.app.provider_factory=None
+        _, session=await self.call('/api/session',{})
+        self.csrf=session['csrf']
+        prompt='Move the green block onto the green towel with the right arm. Do not execute.'
+        with patch('remote_yam.codex_policy.codex_binary',return_value='/fixture/codex'), \
+                patch('remote_yam.aspire_codex_policy.configured_aspire_policy') as aspire, \
+                patch('remote_yam.aspire_codex_policy.AspireCodexPolicy._generate') as generate:
+            code, response=await self.call('/api/run',{'provider':'codex','model':'gpt-6-astra',
+                'prompt':prompt,'use_api_depth':True,'reasoning_effort':'high','response_speed':'standard'})
+        self.assertEqual(code,200)
+        visitor=next(iter(self.app.visitors.values()))
+        provider=visitor.controller._provider
+        self.assertIs(type(provider),CodexAdapter)
+        self.addCleanup(provider._workspace.cleanup)
+        self.assertEqual(visitor.controller._prompt,prompt)
+        self.assertEqual(provider.public_config()['launch_route']['actual_policy'],'astra')
+        self.assertNotIn('task_progress',provider.public_config())
+        self.assertNotIn('ASPIRE',provider.public_config().get('display_name','Astra'))
+        self.assertIn('Running Astra instead',response['launch_route']['message'])
+        self.assertEqual(response['launch_route']['prompt'],prompt)
+        self.assertFalse(response['launch_route']['code_generation_requested'])
+        self.assertEqual(visitor.controller.status()['run_configuration']['launch_route'],response['launch_route'])
+        aspire.assert_not_called();generate.assert_not_called()
+        self.app.api_depth_provider_factory.assert_not_called()
+
+    async def test_matched_prompt_binds_source_before_constructing_aspire(self):
+        from test_aspire_launch_routing import saved_library,TASK
+        with tempfile.TemporaryDirectory() as temporary:
+            library=saved_library(Path(temporary))
+            self.app.aspire_station_config={'executable_skills':{'enabled':True,'manifest':str(library.path)}}
+            provider=ScriptedAdapter([])
+            self.app.api_depth_provider_factory=unittest.mock.Mock(return_value=provider)
+            _,session=await self.call('/api/session',{});self.csrf=session['csrf']
+            code,response=await self.call('/api/run',{'provider':'codex','model':'gpt-6-astra',
+                'prompt':TASK,'use_api_depth':True})
+            self.assertEqual(code,200)
+            kwargs=self.app.api_depth_provider_factory.call_args.kwargs
+            self.assertEqual(kwargs['task'],TASK)
+            self.assertEqual(kwargs['selected_executable'],library.select(TASK))
+            self.assertEqual(response['launch_route']['actual_policy'],'aspire')
+            self.assertIn('Program found',response['launch_route']['message'])
+            self.assertEqual(response['launch_route']['source_sha256'],library.select(TASK)['provenance']['bound_source_sha256'])
+            self.assertEqual(self.providers,[])
 
     async def test_depth_option_selects_depth_provider_and_unchecking_selects_rgb(self):
         depth_calls = []
@@ -144,14 +285,27 @@ class LocalPlaygroundTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(state['status'], 'idle')
             self.assertEqual(self.providers, [])
 
-    async def call(self, path, payload=None):
+    async def test_aspire_high_standard_payload_reaches_runner_configuration(self):
+        provider = ScriptedAdapter([])
+        with patch.object(self.app, 'api_depth_provider_factory', return_value=provider):
+            _, session = await self.call('/api/session', {})
+            self.csrf = session['csrf']
+            code, _ = await self.call('/api/run', {
+                'provider': 'codex', 'model': 'gpt-6-astra', 'prompt': 'Move block',
+                'reasoning_effort': 'high', 'response_speed': 'standard', 'use_api_depth': True})
+        self.assertEqual(code, 200)
+        self.assertEqual(provider.reasoning_effort, 'high')
+        self.assertEqual(provider.response_speed, 'standard')
+
+    async def call(self, path, payload=None, query=None):
+        from urllib.parse import urlencode
         messages = []
         async def receive():
             return {'type':'http.request', 'body':json.dumps(payload or {}).encode()}
         async def send(message):
             messages.append(message)
         await self.app({'type':'http', 'method':'POST' if payload is not None else 'GET',
-            'path':path, 'query_string':b'', 'headers':[(k.encode(),v.encode()) for k,v in {
+            'path':path, 'query_string':urlencode(query or {}).encode(), 'headers':[(k.encode(),v.encode()) for k,v in {
                 'host':'127.0.0.1:8791', 'origin':'http://127.0.0.1:8791',
                 'content-type':'application/json', 'cookie':self.cookie,
                 'x-yam-runner-token':self.csrf}.items()]},receive,send)

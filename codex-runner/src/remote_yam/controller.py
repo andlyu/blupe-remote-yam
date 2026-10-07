@@ -50,6 +50,7 @@ class RunnerController:
         self._events: SessionEventStream | None = None
         self._provider: ProviderAdapter | None = None
         self._prompt = ""
+        self._attempt_id: str | None = None
         self._session_id: str | None = None
         self._episode_id: str | None = None
         self._lease_id: str | None = None
@@ -105,6 +106,7 @@ class RunnerController:
                 raise ValueError("Prompt is required")
             if not prepared:
                 self._stop_event.clear()
+                self._attempt_id = uuid.uuid4().hex
             self._error = None
             self._safety_error = None
         admission = getattr(provider, 'validate_session_admission', None)
@@ -228,6 +230,7 @@ class RunnerController:
                 self._close_events()
                 self._stop_event.clear()
                 self._provider=provider;self._prompt=prompt
+                self._attempt_id=uuid.uuid4().hex
                 self._session_id=None;self._episode_id=None;self._lease_id=None
                 self._run_started_at=None;self._run_ended_at=None
                 self._run_duration_s=run_duration_s
@@ -297,6 +300,7 @@ class RunnerController:
 
     def stop(self, reason: str = "user_requested") -> dict[str, Any]:
         with self._lock:
+            self._last_stop_reason=reason
             self._stop_event.set()
             session_id = self._session_id
             if session_id is None or self._is_terminal(self._status):
@@ -379,6 +383,7 @@ class RunnerController:
                 "run_started_at": getattr(self, "_run_started_at", None),
                 "run_ended_at": getattr(self, "_run_ended_at", None),
                 "status": self._status,
+                "attempt_id": self._attempt_id,
                 "hardware_control_enabled": self._hardware_control_enabled,
                 "execution_blocked_reason": self._execution_blocked_reason,
                 "session_id": self._session_id,
@@ -530,6 +535,8 @@ class RunnerController:
         payload: Any = response.get("observation") or response.get("payload") or response
         if not isinstance(payload, Mapping):
             raise ValueError("Robot observation response must contain an object")
+        if payload.get("jetson_id") not in (None, self._robot_id):
+            raise ValueError("Robot observation belongs to a different robot")
         observation = self._public_observation(payload)
         parse_observation(observation, self._joint_counts)
         with self._lock:
@@ -801,6 +808,10 @@ class RunnerController:
             raise RuntimeError("Fresh station safety context is required before inference")
         if station.get("source") == "hardware":
             station = self._reconcile_hardware_feedback(payload, station, require_home=step_id == 0)
+        station_robot = station.get("jetson_id")
+        if provider_observation.get("jetson_id") not in (None, station_robot):
+            raise RuntimeError("Leased observation robot identity differs from station")
+        provider_observation["jetson_id"] = station_robot
         provider_observation["source"] = station.get("source")
         provider_observation["mode"] = station.get("mode")
         provider_observation["safety"] = station.get("safety")
@@ -1557,6 +1568,7 @@ class RunnerController:
         if not images and isinstance(fallback_url, str) and fallback_url.startswith(("/", "https://", "http://", "data:image/")):
             images["camera"] = {"url": fallback_url}
         return {
+            "jetson_id": payload.get("jetson_id") if isinstance(payload.get("jetson_id"), str) else None,
             "episode_id": payload.get("episode_id"),
             "step_id": payload.get("step_id"),
             "observed_at": payload.get("observed_at"),
@@ -1581,6 +1593,7 @@ class RunnerController:
     def _run_loop(self, max_steps: int | None) -> None:
         with self._lock:
             provider = self._provider
+            self._last_stop_reason=None
         try:
             while not self._stop_event.is_set():
                 try:
@@ -1628,6 +1641,8 @@ class RunnerController:
             review = getattr(provider, 'review_after_session_stop', None)
             if callable(review):
                 try:
+                    provider.review_cancelled=lambda:(self._last_stop_reason!='policy_complete'
+                        or bool(self._error) or self._operator_requested or self._provider is not provider)
                     review()
                 except Exception as exc:
                     self._interactions.add('error', 'Post-session outcome review failed',

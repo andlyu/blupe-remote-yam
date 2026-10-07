@@ -11,7 +11,7 @@ from unittest.mock import patch
 
 from remote_yam.codex_check import CheckAdapter, check_observation
 from remote_yam.codex_policy import (CodexAdapter, DECISION_SCHEMA, codex_environment,
-                                    codex_status, decision_response)
+                                    codex_status, decision_response, MAX_CODEX_INPUT_CHARS, codex_failure)
 from remote_yam.controller import RunnerController
 from remote_yam.providers import PolicyComplete
 from remote_yam.session import MockSessionAPI
@@ -69,9 +69,25 @@ class CodexPolicyTests(unittest.TestCase):
                                      'CODEX_ACCESS_TOKEN':'secret4', 'YAM_LEASE':'secret5', 'HOME':'/tmp/home'}, clear=True):
             self.assertEqual(codex_environment(), {'HOME':'/tmp/home'})
 
+    def test_oversized_input_is_reported_before_cli_or_any_motion(self):
+        provider=self.provider()
+        provider._decision_instructions='x'*MAX_CODEX_INPUT_CHARS
+        with patch.object(provider,'_execute') as execute:
+            with self.assertRaisesRegex(RuntimeError,'exceeds the CLI input limit'):
+                provider.build_trajectory('test',check_observation(),0)
+        execute.assert_not_called()
+        self.assertIsNone(provider._pending)
+        self.assertFalse(list(Path(provider._workspace.name).glob('camera-*')))
+        self.assertIn('Compact repeated coding context',codex_failure(b'input_too_large'))
+
     def test_resume_uses_exact_thread_fresh_images_and_completed_feedback(self):
+        for effort in ('medium', 'ultra'):
+            with self.subTest(effort=effort):
+                self.assert_resume_uses_exact_thread_fresh_images_and_completed_feedback(effort)
+
+    def assert_resume_uses_exact_thread_fresh_images_and_completed_feedback(self, effort):
         provider = self.provider()
-        provider.reasoning_effort = 'medium'
+        provider.reasoning_effort = effort
         move = decision('move_to', note='Close the left gripper slightly.')
         move['targets']['left_gripper'] = .8
         captured = []
@@ -102,8 +118,8 @@ class CodexPolicyTests(unittest.TestCase):
         self.assertIn('model_reasoning_summary="auto"', captured[0][0])
         self.assertIn('model_reasoning_summary="none"', captured[1][0])
         for command, _, _ in captured:
-            self.assertIn('model_reasoning_effort="medium"', command)
-        self.assertEqual(provider.public_config()['reasoning_effort'], 'medium')
+            self.assertIn(f'model_reasoning_effort="{effort}"', command)
+        self.assertEqual(provider.public_config()['reasoning_effort'], effort)
         self.assertFalse(provider.public_config()['api_key_configured'])
 
     def test_invalid_decisions_never_reach_motion(self):
@@ -127,6 +143,37 @@ class CodexPolicyTests(unittest.TestCase):
                 with self.assertRaises(RuntimeError) as caught:
                     provider.build_trajectory('test', check_observation(), 0)
                 self.assertNotIn('private-secret', str(caught.exception))
+
+    def test_stream_error_before_completed_valid_response_is_recovered(self):
+        provider = self.provider()
+        seen = []
+        provider.interaction_sink = lambda kind, message, **details: seen.append((kind, message, details))
+        output = [{'type':'error','message':'private-account diagnostic'}] + events(decision())
+        with patch.object(provider, '_execute', return_value=output):
+            with self.assertRaises(PolicyComplete):
+                provider.build_trajectory('test', check_observation(), 0)
+        self.assertEqual(provider._thread_id, THREAD)
+        self.assertTrue(any(x[2].get('recovered_stream_error_count') == 1 for x in seen))
+        self.assertNotIn('private-account', json.dumps(seen))
+
+    def test_failed_or_late_stream_error_is_not_recovered(self):
+        for output in (events(decision())+[{'type':'error','message':'private-secret'}],
+                       [{'type':'error','message':'private-secret'}],
+                       [{'type':'turn.failed','error':{'message':'private-secret'}}]+events(decision())):
+            provider = self.provider()
+            with patch.object(provider, '_execute', return_value=output):
+                with self.assertRaises(RuntimeError) as caught:
+                    provider.build_trajectory('test', check_observation(), 0)
+            self.assertNotIn('private-secret', str(caught.exception))
+            self.assertIsNone(provider._pending)
+
+    def test_recovered_stream_still_rejects_invalid_final_decision(self):
+        provider = self.provider()
+        output = [{'type':'error','message':'temporary interruption'}]+events(decision(action='shell'))
+        with patch.object(provider, '_execute', return_value=output):
+            with self.assertRaisesRegex(RuntimeError, 'unknown action'):
+                provider.build_trajectory('test', check_observation(), 0)
+        self.assertIsNone(provider._pending)
 
     def test_local_bounds_rejections_are_returned_to_codex_without_packet(self):
         provider = self.provider()
@@ -197,6 +244,18 @@ class CodexPolicyTests(unittest.TestCase):
         provider._thread_id = THREAD
         provider._execute([sys.executable, '-c', f'print({json.dumps(summary)!r})'], '', Path(provider._workspace.name))
         self.assertEqual(seen, [])
+
+    def test_repair_opt_in_streams_resumed_call_summaries(self):
+        provider=self.provider();provider._thread_id=THREAD;provider._calls=2
+        provider._stream_all_summaries=True
+        seen=[];provider.interaction_sink=lambda kind,message,**details:seen.append((kind,message,details))
+        summary={'type':'item.updated','item':{'id':'r','type':'reasoning','text':'Revising the failed plan.'}}
+        provider._execute([sys.executable,'-c',f'print({json.dumps(summary)!r})'],'',Path(provider._workspace.name))
+        self.assertEqual(seen[0][1],'Revising the failed plan.')
+        parts=[{'type':'input_image','image_url':'data:image/png;base64,eA=='}]*3
+        with patch.object(provider,'_execute',return_value=events(decision())) as execute:
+            provider._post_json({'input':[{'role':'user','content':parts}]})
+        self.assertIn('model_reasoning_summary="auto"',execute.call_args.args[0])
 
     def test_process_timeout_and_cancel_kill_child(self):
         for cancel in (False, True):

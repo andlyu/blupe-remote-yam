@@ -99,6 +99,7 @@ class Visitor:
     born: float = field(default_factory=time.monotonic)
     touched: float = field(default_factory=time.monotonic)
     last_launch: float = -float("inf")
+    launch_requested_at: float | None = None
     chat_id: str = field(default_factory=lambda: secrets.token_hex(4))
     last_chat: float = -float("inf")
     last_stream_report: float = -float("inf")
@@ -235,6 +236,10 @@ class HostedRunner:
 
     def validate_launch(self, visitor, payload, paid):
         """Application admission rules, before shared robot/provider validation."""
+
+    def resolve_api_depth_launch(self, prompt):
+        """Optional text-only policy routing, before constructing a depth provider."""
+        return None
 
     def page(self):
         return (ROOT / "static/hosted.html").read_bytes()
@@ -573,7 +578,8 @@ class HostedRunner:
                 if running:
                     state['whats_running'].append({'runner_name': other.runner_name,
                         'task': other.runner_task, 'status': current['status']})
-                if other.runner_session_id and current.get('status') != 'queued':
+                if (other.runner_session_id or (other.runner_task and
+                        (current.get('provider') or {}).get('task_progress'))) and current.get('status') != 'queued':
                     candidates.append((running, other.last_launch, other, current))
             state['public_run'] = None
             if candidates:
@@ -584,19 +590,26 @@ class HostedRunner:
                 events = project_events((current.get('interactions') or {}).get('events', []),
                                         (current.get('interactions') or {}).get('run_id'))
                 state['public_run'] = {'run_id': (current.get('interactions') or {}).get('run_id'),
+                    'attempt_id': current.get('attempt_id'),
                     'runner_name': owner.runner_name, 'task': owner.runner_task,
+                    'launch_requested_at': owner.launch_requested_at,
                     'status': current['status'], 'events': events, 'error': public_run_error(current),
                     'step_timings': current.get('step_timings', []),
                     'run_metrics': current.get('run_metrics'),
                     'episode_id': current.get('episode_id'),
                     'model_name': model_display_name(current.get('provider')),
+                    **({'launch_route':current['provider']['launch_route']} if (current.get('provider') or {}).get('launch_route') else {}),
+                    **({'task_progress':current['provider']['task_progress']} if (current.get('provider') or {}).get('task_progress') else {}),
                     **{k: current.get(k) for k in ('run_duration_s', 'run_started_at', 'run_ended_at', 'run_elapsed_s')}}
             shared_run = (state.get('queue_snapshot') or {}).get('public_run')
             same_run = (shared_run and state['public_run'] and shared_run.get('run_id')
                         and shared_run['run_id'] == state['public_run'].get('episode_id'))
             newer_shared_run = (shared_run and state['public_run']
-                                and (shared_run.get('run_started_at') or 0) > (state['public_run'].get('run_started_at') or 0))
-            if shared_run and not same_run and (shared_run.get('status') in {'preparing', 'running'}
+                                and (shared_run.get('run_started_at') or 0) > (state['public_run'].get('run_started_at')
+                                    or state['public_run'].get('launch_requested_at') or 0))
+            local_preparation = (state['public_run'] and state['public_run'].get('status') == 'preparing'
+                                 and not state['public_run'].get('episode_id'))
+            if shared_run and not same_run and (shared_run.get('status') in {'preparing', 'running'} and not local_preparation
                                                or not state['public_run'] or newer_shared_run):
                 local_run = state['public_run']
                 # One station runs one policy: while this runner's run is live, the
@@ -760,8 +773,16 @@ class HostedRunner:
                 visitor.subscription_prompts[name] = setup['setup_prompt']
                 if not setup['ready']:
                     raise RequestError(409, f"{setup['label']} needs setup on this computer. " + setup['message'], setup=setup)
+            depth_route = self.resolve_api_depth_launch(prompt) if use_api_depth else None
+            launch_route = depth_route['route'] if depth_route else None
+            if launch_route and launch_route['actual_policy'] == 'astra':
+                use_api_depth = False
             if use_api_depth:
-                provider = self.api_depth_provider_factory(name, key, model, visitor.directory)
+                if depth_route:
+                    provider = self.api_depth_provider_factory(name, key, model, visitor.directory,
+                        task=prompt, selected_executable=depth_route['program'])
+                else:
+                    provider = self.api_depth_provider_factory(name, key, model, visitor.directory)
             elif name in self.extra_providers:
                 provider = self.extra_providers[name](model, visitor.directory)
             elif name == 'groot':
@@ -872,7 +893,10 @@ class HostedRunner:
                 provider.response_speed = response_speed
             if provider_transform is not None:
                 provider = provider_transform(provider)
+            if launch_route:
+                provider.launch_route = launch_route
             visitor.last_launch = time.monotonic()
+            visitor.launch_requested_at = time.time()
             visitor.launches += 1
             try:
                 visitor.controller._share_conversation = (self.share_conversation and share_conversation
@@ -887,6 +911,8 @@ class HostedRunner:
                 visitor.runner_name = runner_name.strip()
                 visitor.runner_session_id = visitor.controller.status().get('session_id')
                 visitor.controller._interactions.add('runner', 'Run submitted by ' + visitor.runner_name, runner_name=visitor.runner_name)
+                if launch_route:
+                    visitor.controller._interactions.add('runner', launch_route['message'], launch_route=launch_route)
             except Exception:
                 if hasattr(provider, "_api_key"):
                     provider._api_key = ""
@@ -905,7 +931,10 @@ class HostedRunner:
                     'contact_save_failed', {'error_type': type(exc).__name__}, visitor.runner_session_id)
             if not paid and name not in ({"local_raise_lower", "codex", "claude", "groot"} | set(self.extra_providers)):
                 visitor.saved_keys[name] = key
-            return {"ok": True, "saved_key_providers": sorted(visitor.saved_keys)}
+            current = visitor.controller.status()
+            return {"ok": True, "saved_key_providers": sorted(visitor.saved_keys),
+                    **({'launch_route':launch_route} if launch_route else {}),
+                    "attempt_id": current.get('attempt_id'), "status": current['status']}
 
     def control(self, visitor, path):
         self.remember_runner(visitor)

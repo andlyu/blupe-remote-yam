@@ -4,11 +4,18 @@ const vm = require('node:vm');
 const assert = require('node:assert/strict');
 const test = require('node:test');
 const source = fs.readFileSync(path.join(__dirname, '../static/hosted.js'), 'utf8');
+function launchContext(properties) {
+  const context = vm.createContext(properties);
+  const begin=source.indexOf('function createRunLaunchGuard(');
+  const end=source.indexOf("(() => {\n  'use strict';",begin);
+  vm.runInContext(source.slice(begin,end)+'\nconst runLaunchGuard=createRunLaunchGuard();',context);
+  return context;
+}
 const start = source.indexOf('  const ROBOT_STATUS =');
 const end = source.indexOf('  function render(state)', start);
 const elements = {station: {dataset: {}}, status: {}};
 const catalog = JSON.parse(fs.readFileSync(path.join(__dirname, '../config/robots.json'), 'utf8'));
-const context = vm.createContext({$: id => elements[id], robotCatalog: {robots: catalog}});
+const context = launchContext({$: id => elements[id], robotCatalog: {robots: catalog}});
 vm.runInContext(source.slice(start, end), context);
 const now = 1800000000;
 const robots = catalog.map(robot => robot.id);
@@ -131,7 +138,7 @@ test('status outage and recovery clear stale labels and errors; history failure 
   const nodes = {station:{dataset:{}}, status:{}, message:{textContent:''}, astraStreamState:{}};
   let response = new Error('Status temporarily unavailable');
   let historyFails = false;
-  const c = vm.createContext({
+  const c = launchContext({
     $: id => nodes[id], ended:false, csrf:'test-session', lastHistory:Date.now(), setTimeout(){},
     api:async()=>{if (response instanceof Error) throw response; return response;},
     message(text){nodes.message.textContent=text;},

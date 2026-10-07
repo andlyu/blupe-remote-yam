@@ -234,6 +234,76 @@ class HostedTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(visitor.runner_task, 'Raise and lower both arms for three cycles.')
         self.assertEqual(visitor.controller._prompt, visitor.runner_task)
 
+    async def test_aspire_preparation_is_public_before_a_robot_session_exists(self):
+        browser=await self.session()
+        _,owner=self.app.new_visitor()
+        owner.runner_task='Stack two blocks';owner.runner_name='Fixture'
+        self.assertIsNone(owner.runner_session_id)
+        current=owner.controller.status()
+        progress={'task':'Stack two blocks','updates':[{'happened':'Writing code','changed':'New behavior needed','next_action':'Test plan'}]}
+        with patch.object(owner.controller,'status',return_value={**current,'status':'preparing',
+                'attempt_id':'new-preparation','provider':{'task_progress':progress}}):
+            code,state,_=await self.call('/api/status',**browser)
+        self.assertEqual(code,200)
+        self.assertEqual(state['public_run']['task_progress'],progress)
+        self.assertEqual(state['public_run']['status'],'preparing')
+        self.assertEqual(state['public_run']['attempt_id'],'new-preparation')
+        self.assertIsNone(state['public_run']['episode_id'])
+        self.assertEqual(state['whats_running'][0]['task'],'Stack two blocks')
+
+    async def test_launch_returns_attempt_identity_used_by_own_and_public_status(self):
+        browser=await self.session()
+        code,accepted,_=await self.launch(browser)
+        self.assertEqual(code,200)
+        self.assertTrue(accepted['attempt_id'])
+        self.assertEqual(accepted['status'],'queued')
+        code,state,_=await self.call('/api/status',**browser)
+        self.assertEqual(state['attempt_id'],accepted['attempt_id'])
+        visitor=next(iter(self.app.visitors.values()))
+        visitor.controller._status='preparing'
+        code,state,_=await self.call('/api/status',**browser)
+        self.assertEqual(state['public_run']['attempt_id'],accepted['attempt_id'])
+
+    async def test_prior_active_shared_snapshot_cannot_replace_new_prequeue_attempt(self):
+        browser=await self.session();_,owner=self.app.new_visitor()
+        owner.runner_task='Same prompt';owner.launch_requested_at=200
+        self.app.queue={'schema_version':1,'type':'queue_snapshot','entries':[],'stations':[],
+            'public_run':{'run_id':'prior-episode','status':'running','task':'Same prompt',
+                'error':'Prior error','run_started_at':100}}
+        current=owner.controller.status()
+        with patch.object(owner.controller,'status',return_value={**current,'status':'preparing',
+                'attempt_id':'new-attempt','provider':{'task_progress':{'task':'Same prompt'}}}):
+            state=(await self.call('/api/status',**browser))[1]
+        self.assertEqual(state['public_run']['attempt_id'],'new-attempt')
+        self.assertIsNone(state['public_run']['error'])
+
+    async def test_old_stopped_shared_run_does_not_hide_new_preparation_or_failure(self):
+        browser=await self.session()
+        _,owner=self.app.new_visitor()
+        owner.runner_task='Stack two blocks.'
+        owner.runner_name='Fixture'
+        owner.launch_requested_at=200
+        progress={'task':owner.runner_task,'updates':[{'happened':'Writing code','changed':'New stacking code','next_action':'Test plan'}]}
+        self.app.queue={'schema_version':1,'type':'queue_snapshot','entries':[],'stations':[],
+            'public_run':{'task':'Old stopped task','status':'stopped','run_started_at':100}}
+        owner.controller.update_queue_snapshot(self.app.queue)
+        current=owner.controller.status()
+        for status in ('preparing','failed'):
+            with self.subTest(status=status), patch.object(owner.controller,'status',return_value={
+                    **current,'status':status,'provider':{'task_progress':progress}}):
+                code,state,_=await self.call('/api/status',**browser)
+            self.assertEqual(code,200)
+            self.assertEqual(state['public_run']['task'],owner.runner_task)
+            self.assertEqual(state['public_run']['status'],status)
+            self.assertEqual(state['public_run']['task_progress'],progress)
+            self.assertIsNone(state['public_run']['run_started_at'])
+        # A genuinely later station run still replaces an old local result.
+        self.app.queue['public_run']['run_started_at']=300
+        with patch.object(owner.controller,'status',return_value={
+                **current,'status':'failed','provider':{'task_progress':progress}}):
+            state=(await self.call('/api/status',**browser))[1]
+        self.assertEqual(state['public_run']['task'],'Old stopped task')
+
     async def test_named_run_is_visible_to_other_visitors(self):
         a, b = await self.session(), await self.session()
         payload = dict(provider='openai', model='test-model', api_key='test-visitor-key',
