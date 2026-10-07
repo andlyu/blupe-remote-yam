@@ -518,11 +518,8 @@ body.cameraExpanded{overflow:hidden}
 .watchInteraction #openLocalRun{width:auto;min-height:36px;padding:8px 12px;border-radius:9px;font-size:12px}
 .watchInteraction .promptRow:focus-within{border-color:#8b9f7d;box-shadow:0 0 0 2px #8b9f7d18}
 .watchBelow{min-width:0}
-.watchVisuals>#yourQueue{display:flex;flex-wrap:wrap;align-items:center;gap:6px 14px;margin:0;padding:8px 12px;font-size:12px}
-.watchVisuals>#yourQueue .queuePlace:not([hidden]){display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin:0;padding:0;border:0}
-.watchVisuals>#yourQueue .queuePlace h3{margin:0;font-size:12px;font-weight:500}
-.watchVisuals>#yourQueue .queuePlace>strong{display:inline;font-size:14px;line-height:1.3;letter-spacing:normal}
-.watchVisuals>#yourQueue #leaveQueue{margin:0 0 0 auto;padding:4px 8px;font-size:11px;line-height:1.3}
+.watchVisuals>#yourQueue{margin:0;padding:6px 10px;font-size:12px;line-height:1.5;background:#f1f5e8;border-color:#d8e1cb;box-shadow:none}
+.watchVisuals>#yourQueue .queuePlace,.watchVisuals>#yourQueue button{display:none}
 #aspireVisionStatus,.viewerCue[hidden]{display:none}
 .aspireTaskDetails{padding:0 14px 10px}
 .aspireTaskDetails .aspireChatEvidence{margin:0;padding:0;border:0}

@@ -1201,7 +1201,10 @@ function createRunLaunchGuard() {
     if (statusKey === 'fault') $('station').title += ' ' + faultNotice;
     const entries = queue?.entries || [];
     const waiting = entries.filter(item => !['running', 'preparing'].includes(item.status)).length;
-    $('queueSummary').textContent = queue ? `Queue · ${waiting} waiting` : 'Queue · unavailable';
+    const place = $('position').textContent;
+    const queueLabel = (queue ? `Queue · ${waiting} waiting` : 'Queue · unavailable') +
+      (place === 'Your turn' ? ' · Your turn' : ' · Your place: ' + place);
+    if ($('queueSummary').textContent !== queueLabel) $('queueSummary').textContent = queueLabel;
     $('leaveQueue').hidden = state.status !== 'queued';
     $('queue').replaceChildren(...(entries.length ? entries.map(item => {
       const li = document.createElement('li'); li.textContent = `#${item.position} · ${item.runner_name || 'Anonymous'} · ${item.status}${item.is_mine ? ' · YOU' : ''}`; return li;
