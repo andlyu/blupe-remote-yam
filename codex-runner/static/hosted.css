@@ -305,3 +305,130 @@ main > .coffeeSupport{grid-column:1 / -1;margin-top:4px;width:100%}
 #localRunMessage:empty{display:none}#localRunMessage{font-size:13px;margin-bottom:0}
 
 .localRunMode #codexSetup,.localRunMode #claudeSetup,.localRunMode #policyHelp{display:none}
+
+/* Video-first playground: compact header, prompt below, status over the feed. */
+main{padding-top:14px}
+.playgroundHeader{display:flex;align-items:center;justify-content:space-between;gap:12px 24px;flex-wrap:wrap}
+.playgroundHeader .intro{padding:0;max-width:none;min-width:0}
+.playgroundHeader h1{font-size:32px;line-height:1.1;letter-spacing:-.05em;margin:0}
+.playgroundHeader .eyebrow{margin:6px 0 0}
+.playgroundHeader .robotNavigation{margin:0;gap:8px}
+.playgroundHeader .robotNavigation select{padding:8px 10px;font-size:13px}
+.playgroundIntro{margin:8px 0 12px;font-size:12px;color:var(--muted)}
+.watchToolbar{display:flex;align-items:center;justify-content:space-between;gap:8px 16px;flex-wrap:wrap;margin-bottom:10px}
+.watchLayout{row-gap:10px}
+.watchLayout>.watchToolbar{grid-column:1/-1;margin-bottom:0}
+.watchToolbar .conversationModes{margin:0}
+.watchToolbar #videoDelayNotice{margin:0;font-size:11px}
+.videoPanel{position:relative;min-width:0;isolation:isolate}
+.watchLayout .videoPanel .cameras{max-width:none;margin:0}
+.videoOverlays{position:absolute;left:12px;right:12px;bottom:48px;z-index:3;display:flex;flex-direction:column;gap:6px;max-height:calc(100% - 64px);pointer-events:none}
+/* Keep the status stack between the two wrist views. */
+.videoPanel:has(>[data-layout="top-with-grippers"]) .videoOverlays{left:calc(min(16.8%,180px) + 24px);right:calc(min(16.8%,180px) + 24px)}
+.watchLayout .videoOverlays .astraStream{margin:0;padding:10px 12px;border:1px solid #ffffff38;border-radius:8px;background:rgb(15 28 23 / .72);color:#fff;box-shadow:0 2px 12px #0002;backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);pointer-events:auto;min-height:0}
+.watchLayout .videoOverlays .astraStream{height:auto;max-height:none;flex-shrink:1}
+.videoOverlays .runOutcome{margin:0 0 8px;padding:0;border:0;border-radius:0;background:none;box-shadow:none}
+.videoOverlays .runOutcome[data-tone="warning"]{background:none}
+.videoOverlays .runOutcomeHeading{gap:2px 10px}
+.videoOverlays .runOutcomeHeading strong{font-size:15px;color:#d5ffb1}
+.videoOverlays .runOutcome[data-tone="warning"] strong{color:#ffd28c}
+.videoOverlays .runOutcomeHeading span{font-size:10px;color:#e0e9e2}
+.watchLayout .videoOverlays #runOutcomeDetail{font-size:10px;line-height:1.4;color:#e0e9e2;margin:6px 0 0}
+.watchLayout .videoOverlays .astraStream .statusHeader{margin-bottom:4px}
+.watchLayout .videoOverlays .astraStream .statusHeader h2{font-size:10px;font-weight:650;letter-spacing:.08em;text-transform:uppercase;color:#dae6dc}
+.watchLayout .videoOverlays #astraStreamOutput{font-size:13px;line-height:1.45;color:#fff;max-height:4.35em;overflow:auto}
+.watchLayout .videoOverlays #astraStreamTime{color:#d2ddd5;margin-top:4px;font-size:10px}
+.videoPanel #liveViewer>.liveStopwatch{top:12px;bottom:auto;right:50%;transform:translateX(50%)}
+.watchVisuals>.runSetup>.panel{padding:14px 16px}
+.watchVisuals .runSetup #message:empty{display:none!important}
+.watchVisuals .runHeading{margin-bottom:10px}
+.watchVisuals .runHeading h2{font-size:18px}
+.watchVisuals .cameraStatusLine{font-size:11px}
+@media(max-width:740px){
+  main{padding-top:12px}
+  .playgroundHeader{gap:10px}
+  .playgroundHeader h1{font-size:28px}
+  .playgroundHeader .robotNavigation{justify-content:flex-start;flex-wrap:nowrap;width:100%}
+  .playgroundHeader .robotNavigation select{flex:1;min-width:0;width:0}
+  .playgroundIntro{margin:8px 0 10px;line-height:1.5}
+  .watchToolbar{gap:8px;order:3}
+  .watchToolbar #videoDelayNotice{order:-1;width:100%}
+  .watchToolbar .conversationModes{padding:3px}
+  .watchToolbar .conversationModes button{padding:7px 9px;font-size:12px}
+  .watchLayout{display:flex;flex-direction:column;gap:14px}
+  .watchVisuals{display:contents}
+  .watchVisuals>.videoPanel{order:0}
+  .watchVisuals>.cameraStatusLine{order:2}
+  .watchLayout>#liveConversationPanel{order:4}
+  .watchVisuals>.runSetup{order:1}
+  .watchLayout .videoPanel #liveViewer{position:relative;top:auto;padding:0;margin:0;z-index:auto}
+  .watchLayout .liveConversation{height:auto;min-height:0;max-height:60dvh;margin:0}
+  .videoPanel:has(>[data-layout="top-with-grippers"]) .videoOverlays{left:calc(18% + 12px);right:calc(18% + 12px)}
+  .videoOverlays{left:6px;right:6px;bottom:42px;gap:4px;max-height:calc(100% - 76px)}
+  .watchLayout .videoOverlays .astraStream{padding:6px 8px;border-radius:6px}
+  .videoOverlays .runOutcomeHeading strong{font-size:14px}
+  .videoOverlays .runOutcomeHeading span,.watchLayout .videoOverlays #runOutcomeDetail{font-size:9px}
+  .watchLayout .videoOverlays #astraStreamOutput{font-size:11px;line-height:1.35}
+  .watchLayout .videoOverlays #astraStreamOutput{max-height:2.7em}
+  .watchLayout .videoOverlays #astraStreamTime{font-size:9px}
+  .watchLayout .videoOverlays .astraStream .statusHeader h2{font-size:9px}
+  .watchVisuals>.runSetup>.panel{margin:0;padding:12px}
+}
+
+/* Full-window camera view works without the native Fullscreen API on phones. */
+body.cameraExpanded{overflow:hidden}
+.syncTile{cursor:zoom-in;touch-action:manipulation}
+.syncTile:fullscreen{cursor:zoom-out}
+.cameraDialog{position:fixed;inset:0;box-sizing:border-box;width:100%;height:100%;height:100dvh;max-width:none;max-height:none;margin:0;padding:0;border:0;border-radius:0;background:#101714;color:#fff;overflow:hidden;overscroll-behavior:contain}
+.cameraDialog[open]{display:flex;flex-direction:column;justify-content:center}
+.cameraDialog::backdrop{background:#101714}
+.cameraDialog .closeCamera{position:absolute;z-index:2;top:max(12px,env(safe-area-inset-top));right:max(12px,env(safe-area-inset-right));min-width:72px;min-height:44px;background:#263b30;color:#fff;border:1px solid #728477}
+.cameraDialog>.syncTile{width:100%;max-width:none;margin:0;border:0;border-radius:0;background:#101714;cursor:zoom-out}
+.cameraDialog .syncTilePicture{width:100%}
+.cameraDialog .syncTile canvas{width:100%;height:auto;max-height:calc(100dvh - 120px);aspect-ratio:16/9;object-fit:contain}
+.cameraDialog .syncTile>figcaption{display:flex;justify-content:space-between;padding:12px max(16px,env(safe-area-inset-right)) 12px max(16px,env(safe-area-inset-left));font-size:14px;color:#fff}
+.cameraDialog .syncTile>figcaption span{color:#c9d8ce}
+.cameraDialog .expandCamera{display:none}
+
+/* ASPIRE provenance disclosures share the playground's existing controls. */
+.aspireDisclosure { margin: 12px 0; border: 1px solid #cbd5e1; border-radius: 8px; background: #fff; padding: 12px 14px; min-width: 0; }
+.aspireDisclosure > summary { cursor: pointer; font-weight: 600; line-height: 1.5; overflow-wrap: anywhere; }
+.aspireDisclosure p { line-height: 1.55; margin: 10px 0; }
+.aspireDisclosure pre { max-height: 380px; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; font-size: 12px; padding: 12px; background: #f1f5f9; border-radius: 6px; }
+.aspireDisclosure a { display: block; margin: 8px 0; overflow-wrap: anywhere; }
+.aspireGroup { margin-top: 16px; padding-top: 12px; border-top: 1px solid #e2e8f0; }
+.aspireGroup h4 { margin: 0 0 10px; font-size: 14px; }
+.aspireSource { color: #475569; font-size: 12px; overflow-wrap: anywhere; }
+.aspireCaveat { color: #7c4a12; }
+.aspireFlow { color: #475569; font-size: 13px; }
+.aspireBadge { display: inline-block; padding: 3px 8px; margin: 8px 6px 4px 0; border-radius: 5px; color: #334155; background: #e2e8f0; font-size: 12px; }
+.aspireImages { display: grid; grid-template-columns: repeat(auto-fit,minmax(160px,1fr)); gap: 10px; }
+.aspireImages figure { margin: 0; }
+.aspireImages img, .aspireDisclosure video { width: 100%; border-radius: 6px; }
+.aspireImages figcaption { font-size: 12px; color: #475569; }
+#aspirePromptLineage { margin-top: 16px; }
+@media (prefers-color-scheme: dark) { .aspireDisclosure { background: #fff; color: #111827; } }
+/* ASPIRE task progress lives beside its submitted prompt. */
+.aspireTaskPanel { overflow-wrap: anywhere; }
+.taskFailureNotice{margin:12px 0;padding:12px;border:1px solid #d5a29c;border-left:4px solid #a72c24;border-radius:6px;background:#fff0ed;color:#85251f;overflow-wrap:anywhere}
+.taskFailureNotice>strong{font-size:16px}.taskFailureNotice p{margin:6px 0 0;font-size:13px;line-height:1.5;white-space:pre-wrap}.taskFailureNotice .help{color:inherit;font-size:12px}.taskFailureNotice .taskFailurePrompt{font-weight:600}.taskFailureNotice pre{max-height:220px;overflow:auto;white-space:pre-wrap;font-size:12px}
+.aspireTaskPicker { display: grid; gap: 6px; margin: 12px 0; font-size: 12px; }
+.aspireTaskPicker select { width: 100%; min-width: 0; font-size: 12px; }
+.aspireAuthorship { font-size: 16px; line-height: 1.35; font-weight: 700; color: #173d59; margin: 10px 0; }
+.aspireLogTitle { font-size: 13px; margin: 14px 0 0; }
+.aspireTaskLog { list-style: none; padding: 0; margin: 12px 0; }
+.aspireTaskLog li { padding: 10px 0 10px 12px; border-left: 2px solid #88acbd; margin: 0 0 10px; font-size: 12px; line-height: 1.45; }
+.aspireTaskLog p { margin: 4px 0 0; }
+.aspireTaskLog strong { font-weight: 650; }
+.aspireGroup h3 { font-size: 15px; margin: 0 0 8px; }
+.aspireTaskPanel .aspireDisclosure { margin: 8px 0; padding: 10px; }
+.aspireTaskPanel .aspireDisclosure pre { max-height: 320px; max-width: 100%; overflow: auto; font-size: 11px; white-space: pre; }
+.aspireTaskPanel .aspireBadge { font-size: 11px; }
+.aspireTaskPanel .aspireTaskLog { max-height: 270px; overflow-y: auto; overscroll-behavior: contain; padding-right: 6px; }
+
+/* Allow prompt-side ASPIRE evidence to scroll inside the camera-height panel. */
+.watchLayout .liveConversation:has(> .aspireTaskPanel:not([hidden])) { overflow-y: auto; scrollbar-gutter: stable; }
+.aspireTaskPanel .aspireTaskLog { overscroll-behavior-y: auto; }
+
+.publicRunError[data-tone="warning"]{color:#8a5300;background:#fff8eb;border-left-color:#8a5300}
+.aspireRepairTrace p { white-space: pre-wrap; overflow-wrap: anywhere; }

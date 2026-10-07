@@ -2,9 +2,10 @@
 from __future__ import annotations
 
 from concurrent.futures import ThreadPoolExecutor
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from email.parser import BytesHeaderParser
 import hashlib
+import math
 import ssl
 import time
 from typing import Any, Mapping
@@ -52,11 +53,15 @@ class CameraFrame:
     name: str
     jpeg: bytes
     received_at: float
+    view: dict[str, Any] | None = field(default=None, kw_only=True)
+    source_captured_at: float | None = field(default=None, kw_only=True)
 
     def summary(self) -> dict[str, Any]:
         return {
             "camera": self.name, "received_at": self.received_at,
             "bytes": len(self.jpeg), "sha256": hashlib.sha256(self.jpeg).hexdigest(),
+            **({"captured_at": self.source_captured_at} if self.source_captured_at is not None else {}),
+            **({"view": self.view} if self.view is not None else {}),
         }
 
 
@@ -184,7 +189,14 @@ class CameraFrameSource:
                     frame.extend(chunk)
                 if not frame.startswith(b"\xff\xd8") or not frame.endswith(b"\xff\xd9"):
                     raise ValueError("Camera frame is not a complete JPEG")
-                return CameraFrame(name, bytes(frame), time.time())
+                captured_at = None
+                try:
+                    value = float(headers.get("X-Captured-At", ""))
+                    if math.isfinite(value) and value > 0:
+                        captured_at = value
+                except (TypeError, ValueError):
+                    pass
+                return CameraFrame(name, bytes(frame), time.time(), source_captured_at=captured_at)
         except Exception as exc:
             http_status = exc.code if isinstance(exc, error.HTTPError) else None
             if isinstance(exc, error.HTTPError):

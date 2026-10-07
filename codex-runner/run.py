@@ -413,6 +413,7 @@ def main() -> None:
     parser.add_argument("--no-browser", action="store_true")
     parser.add_argument("--no-share-conversation", action="store_true", help="Keep model conversation local instead of publishing it to the public playground")
     parser.add_argument("--legacy-ui", action="store_true", help="Use the older developer monitor instead of the shared playground UI")
+    parser.add_argument("--aspire-config", help="Station configuration for Codex-generated ASPIRE programs")
     control = parser.add_mutually_exclusive_group()
     control.add_argument("--allow-hardware-control", dest="allow_hardware_control", action="store_true", default=True, help="Allow command submission (the default); execution safety checks still apply")
     control.add_argument("--read-only", dest="allow_hardware_control", action="store_false", help="Disable hardware command submission for monitoring only")
@@ -420,6 +421,10 @@ def main() -> None:
     parser.add_argument("--check-provider", action="store_true", help="Test OpenAI model access without connecting to the robot")
     parser.add_argument("--check-provider-sim", action="store_true", help="Test two Astra API calls through the gateway and simulated motors")
     args = parser.parse_args()
+    if args.aspire_config:
+        if args.legacy_ui:
+            parser.error('--aspire-config uses the shared playground UI')
+        os.environ['YAM_ASPIRE_CONFIG'] = str(pathlib.Path(args.aspire_config).expanduser().resolve())
     if args.provider == "codex" or args.codex_login:
         ensure_codex_runtime()
         setup = codex_status()

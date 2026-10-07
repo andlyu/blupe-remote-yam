@@ -38,8 +38,10 @@ def encode(value):
 
 
 class WorkerRun:
-    def __init__(self, provider):
-        self.provider = provider
+    def __init__(self, provider=None):
+        self.provider = None
+        self.creation_complete = threading.Event()
+        self.creation_error_type = None
         self.cancelled = threading.Event()
         self.closed = False
         self.last_seen = time.monotonic()
@@ -50,9 +52,64 @@ class WorkerRun:
         self.events = deque(maxlen=128)
         self.sequence = 0
         self.revision = 0
+        if provider is not None:
+            self._attach(provider)
+            self.creation_complete.set()
+
+    def _attach(self, provider):
         provider.cancelled = self.cancelled.is_set
         provider.refresh_observation = self.refresh_observation
         provider.interaction_sink = self.event
+        self.provider = provider
+
+    @staticmethod
+    def _dispose(provider):
+        try:
+            vision = getattr(provider, 'vision_session', None)
+            if vision:
+                vision.close()
+        finally:
+            close = getattr(provider, 'close_transport', None)
+            if callable(close):
+                close()
+
+    def create(self, factory, prompt):
+        # Reserve the run identifier before construction, then return immediately.
+        # CLI readiness and local model loading must not hold the HTTP/control lock.
+        def work():
+            provider = None
+            try:
+                if self.cancelled.is_set():
+                    return
+                provider = factory(prompt)
+                with self.lock:
+                    if not self.closed and not self.cancelled.is_set():
+                        self._attach(provider)
+                        provider = None
+            except Exception as exc:
+                # Never expose credentials, paths or arbitrary exception bodies.
+                with self.lock:
+                    self.creation_error_type = type(exc).__name__
+            finally:
+                if provider is not None:
+                    try:
+                        provider.cancelled = self.cancelled.is_set
+                        self._dispose(provider)
+                    except Exception as exc:
+                        with self.lock:
+                            self.creation_error_type = self.creation_error_type or type(exc).__name__
+                self.creation_complete.set()
+        threading.Thread(target=work, name='aspire-worker-create', daemon=True).start()
+
+    def _await_provider(self):
+        while not self.creation_complete.wait(.05):
+            if self.cancelled.is_set():
+                raise RuntimeError('ASPIRE provider creation cancelled')
+        if self.creation_error_type:
+            raise RuntimeError('ASPIRE provider creation failed')
+        if self.provider is None:
+            raise RuntimeError('ASPIRE provider creation cancelled')
+        return self.provider
 
     def event(self, kind, message, **details):
         # Existing provider summaries are public; credentials are never inputs.
@@ -65,9 +122,17 @@ class WorkerRun:
         with self.lock:
             self.last_seen = time.monotonic()
             self.revision += 1
-            config = self.provider.public_config()
+            creating = not self.creation_complete.is_set()
+            creation = dict(status='running' if creating else 'failed' if self.creation_error_type
+                else 'completed' if self.provider is not None else 'cancelled')
+            if self.creation_error_type:
+                creation['error_type'] = self.creation_error_type
+            config = self.provider.public_config() if self.provider is not None else dict(
+                provider='codex', model='gpt-6-astra', phase='creating_provider' if creating
+                    else 'provider_creation_failed' if self.creation_error_type else 'stopped')
             result = dict(revision=self.revision, config={k:v for k,v in config.items() if k in PUBLIC_FIELDS},
-                events=[e for e in self.events if e['sequence'] > after], busy=self.active is not None)
+                events=[e for e in self.events if e['sequence'] > after],
+                busy=self.active is not None or creating, creation=creation)
             if self.refresh:
                 result['refresh_id'] = self.refresh['id']
             return result
@@ -113,7 +178,10 @@ class WorkerRun:
             self.active = call_id
         def work():
             try:
-                callback = getattr(self.provider, method, None)
+                provider = self._await_provider()
+                if self.cancelled.is_set() and method not in ('review_after_session_stop','trajectory_failed'):
+                    raise RuntimeError('ASPIRE worker run stopped')
+                callback = getattr(provider, method, None)
                 if method == 'validate_session_admission':
                     if kwargs or len(args) != 1 or type(args[0]) is not bool:
                         raise ValueError('Invalid execution mode')
@@ -168,7 +236,11 @@ class AspireWorkerServer(ThreadingHTTPServer):
             with self.run_lock:
                 expired = [key for key, run in self.runs.items()
                     if time.monotonic()-run.last_seen > self.idle_timeout_s]
-                runs = [self.runs.pop(key) for key in expired]
+                # A closed constructor may still be unwinding. Retain its ID and
+                # capacity slot until late-provider cleanup finishes, so it cannot
+                # be recreated concurrently after expiry.
+                runs = [self.runs.pop(key) if self.runs[key].creation_complete.is_set()
+                    else self.runs[key] for key in expired]
             for run in runs:
                 run.close()
 
@@ -231,10 +303,12 @@ class WorkerHandler(BaseHTTPRequestHandler):
                     if run is None:
                         if len(self.server.runs) >= 32:
                             return self.reply(503, {'error':'Worker capacity reached'})
-                        # Factory selects the saved program before any capture.
-                        run = WorkerRun(self.server.factory(body['prompt']))
+                        # Selection/construction uses the existing polled call
+                        # lifetime, before capture, queue admission or execution.
+                        run = WorkerRun()
                         run.prompt = body['prompt']
                         self.server.runs[key] = run
+                        run.create(self.server.factory, body['prompt'])
                     elif run.prompt != body['prompt']:
                         raise ValueError('Worker run identifier changed')
             if run is None:
@@ -248,6 +322,8 @@ class WorkerHandler(BaseHTTPRequestHandler):
                     run.stop()
                 return self.reply(200, run.state(after))
             if len(parts)==3 and parts[2]=='observation' and self.command=='POST':
+                if not run.creation_complete.is_set() or run.provider is None:
+                    raise ValueError('ASPIRE provider is not ready for observations')
                 if set(body)!={'method','args'} or body['method'] not in (
                         'reconciled_observation','refresh_reconciled_observation'):
                     raise ValueError('Invalid observation hook')

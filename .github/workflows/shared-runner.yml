@@ -7,6 +7,11 @@ jobs:
       MUJOCO_GL: osmesa
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          repository: NVlabs/ASPIRE
+          ref: f4c8939aab0af9b97690c561bd80e282940f7886
+          path: external-aspire
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
@@ -14,6 +19,8 @@ jobs:
         with:
           node-version: '22'
       - run: sudo apt-get update && sudo apt-get install -y libosmesa6
-      - run: python -m pip install -r codex-runner/requirements.txt pytest
-      - run: PYTHONPATH=codex-runner/src:codex-runner python -m pytest codex-runner/tests -q
+      - run: python -m pip install -r codex-runner/requirements.txt pytest mink==1.1.1
+      - run: PYTHONPATH=codex-runner/src:codex-runner:external-aspire/aspire/real python -m pytest codex-runner/tests -q
+        env:
+          ASPIRE_TEST_CHECKOUT: ${{ github.workspace }}/external-aspire
       - run: node --test codex-runner/tests/*.cjs

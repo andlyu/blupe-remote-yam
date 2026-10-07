@@ -20,6 +20,9 @@ BUILD_HISTORY = build_history()
 def snapshot(provider, prompt, duration):
     config = provider.public_config()
     return {'model': config.get('model'), 'provider': config.get('provider'),
+            **({'automatic_retry_limit':config['automatic_retry_limit']} if 'automatic_retry_limit' in config else {}),
+            **({k:config[k] for k in ('execution_environment','code_revision_limit') if config.get(k) is not None}),
+            **({'launch_route':config['launch_route']} if config.get('launch_route') else {}),
             'reasoning': config.get('reasoning_effort'),
             'response_speed': config.get('response_speed'),
             'actual_response_speed': config.get('actual_response_speed'),

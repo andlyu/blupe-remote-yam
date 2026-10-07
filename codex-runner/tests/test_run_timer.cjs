@@ -17,8 +17,8 @@ assert.equal(elements.runTimer.textContent,'04:58');
 assert.equal(elements.runTimerDetail.textContent,'04:58 remaining');
 // Reopening the page or watching somebody else's run uses its server elapsed time.
 context.state = {status:'queued',run_elapsed_s:999,public_run:{status:'running',run_elapsed_s:61,run_duration_s:600}};
-const syncStart=source.indexOf('    const live = state.public_run;');
-vm.runInContext("{"+source.slice(syncStart,source.indexOf("    $('currentRunner')",syncStart))+"}",context);
+const syncCall=source.match(/syncStopwatch\(state\.public_run, state\.queue_snapshot\?\.generated_at\);/)[0];
+vm.runInContext("{"+syncCall+"}",context);
 assert.equal(elements.runTimer.textContent,'08:59');
 now += 6000; tick();
 assert.equal(elements.runTimerDetail.textContent,'Reconnecting · timer paused');
@@ -43,13 +43,13 @@ assert.equal(elements.ownRunTimer.textContent, '00:42');
 console.log('Shared countdown checks passed');
 // A local runner relayed through the API has timestamps, without run_elapsed_s.
 context.state = {queue_snapshot:{generated_at:1061},public_run:{run_id:'local-episode',status:'running',run_started_at:1000,run_duration_s:300}};
-vm.runInContext("{"+source.slice(syncStart,source.indexOf("    $('currentRunner')",syncStart))+"}",context);
+vm.runInContext("{"+syncCall+"}",context);
 assert.equal(elements.runTimer.textContent,'03:59');
 now += 2000; tick();
 assert.equal(elements.runTimer.textContent,'03:57');
 // Refreshing/reopening gets the current server time, independent of browser time.
 context.state.queue_snapshot.generated_at=1120;
-vm.runInContext("{"+source.slice(syncStart,source.indexOf("    $('currentRunner')",syncStart))+"}",context);
+vm.runInContext("{"+syncCall+"}",context);
 assert.equal(elements.runTimer.textContent,'03:00');
 // Older APIs omit the end timestamp: freeze at the last known server elapsed time.
 assert.equal(render({...context.state.public_run,status:'stopped'}),'03:00');
