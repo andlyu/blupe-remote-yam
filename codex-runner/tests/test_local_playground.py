@@ -370,7 +370,7 @@ class LocalPlaygroundTests(unittest.IsolatedAsyncioTestCase):
     async def test_shared_page_and_video_library_are_served(self):
         code,body=await self.call('/')
         self.assertEqual(code,200)
-        self.assertIn(b'Prompt the arms',body)
+        self.assertIn(b'aria-label="Task prompt"',body)
         self.assertIn(b'liveConversationPanel',body)
         self.assertNotIn(b'YOUR LOCAL',body)
         code,_=await self.call('/static/hls.light.min.js')

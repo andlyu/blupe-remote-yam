@@ -565,14 +565,14 @@ body.cameraExpanded{overflow:hidden}
 .aspireActivityLog .aspireActivityHeading{gap:5px 10px;margin-bottom:3px;min-height:18px;color:#758071}
 .aspireActivityLog .aspireActivityHeading>strong{font-size:10px;font-weight:550}
 .aspireActivityLog .aspireActivityHeading time{font-size:10px;margin-left:auto;color:#858b82}
-.aspireActivityLog .conversationIncoming .aspireActivityHeading::before{content:'';position:absolute;left:0;top:15px;width:14px;height:14px;background:#758071;mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20'%3E%3Cg fill='none' stroke='black' stroke-width='1.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='3' y='4' width='14' height='10' rx='2'/%3E%3Cpath d='M7 17h6M10 14v3M7 8h6M7 11h3'/%3E%3C/g%3E%3C/svg%3E") center/contain no-repeat}
-.aspireActivityLog [data-role='Astra'] .aspireActivityHeading::before,.aspireActivityLog [data-role='Codex'] .aspireActivityHeading::before{mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20'%3E%3Cg fill='none' stroke='black' stroke-width='1.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m10 2 2.2 5.8L18 10l-5.8 2.2L10 18l-2.2-5.8L2 10l5.8-2.2Z'/%3E%3C/g%3E%3C/svg%3E")}
+.aspireActivityLog .conversationIncoming .aspireActivityHeading::before{content:'▣';position:absolute;left:0;top:15px;width:14px;height:14px;color:#758071;font:14px/14px system-ui,sans-serif;text-align:center}
+.aspireActivityLog [data-role='Astra'] .aspireActivityHeading::before,.aspireActivityLog [data-role='Codex'] .aspireActivityHeading::before{content:'✧';font-size:18px}
 .aspireActivityLog .aspireActivityTitle{font-size:13px;line-height:1.55;font-weight:600}
 .aspireActivityLog .aspireActivityEntry p{font-size:13px;line-height:1.65;margin:4px 0 0}
 .aspireActivityLog .aspireActivityEntry .aspireActivityContext{font-size:10px;color:#858b82;margin-top:6px}
 .aspireActivityLog .aspireActivityEntry .aspireActivityNext{font-size:12px;color:#697364}
 .aspireActivityLog .aspireActivityEntry .aspireSource{font-size:10px;padding:0;background:transparent;border-radius:0;color:#697364}
-.aspireActivityLog .aspireActivityEntry[data-tone='error'] .aspireActivityHeading::before{background:#a72c24}
+.aspireActivityLog .aspireActivityEntry[data-tone='error'] .aspireActivityHeading::before{color:#a72c24}
 #aspireTaskAnswer.notice{padding:12px 0;margin:8px 0;border:0;border-top:1px solid #e4e6df;border-radius:0;background:transparent}
 @media(max-width:600px){.aspireActivityLog li.conversationTurn{width:100%;padding:10px 0 10px 23px}.aspireActivityLog li.conversationOutgoing{padding:12px}.aspireActivityLog .conversationIncoming .aspireActivityHeading::before{top:13px}}
 
@@ -608,3 +608,10 @@ body.cameraExpanded{overflow:hidden}
 .aspireMessageContent>.aspireActivityContext{order:3}
 .aspireActivityEntry>.aspireMessageToggle{order:4;align-self:flex-start;margin:5px 0 0;padding:5px 0;border:0;border-radius:3px;background:transparent;font-size:11px;font-weight:550;color:#626f5b;text-decoration:underline;text-underline-offset:3px}
 .aspireActivityEntry>.aspireMessageToggle:hover{background:transparent;color:var(--ink)}
+
+/* Keep scrolling messages inside the space between phases and the composer. */
+.watchInteraction #aspireTaskPanel{height:100%;min-height:0;display:flex;flex-direction:column}
+.watchInteraction #aspireTaskWork{min-height:0;flex:1;display:flex;flex-direction:column}
+.watchInteraction #aspireTaskWork>.aspirePhaseCard{position:relative;top:auto;flex:none}
+.watchInteraction #aspireTaskActivity{min-height:0;flex:1}
+.watchInteraction :is(#aspireTaskWork,#aspireTaskActivity)>.aspireActivityLog{flex:1;height:100%;min-height:0;max-height:none}
