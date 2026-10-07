@@ -281,8 +281,10 @@ main > .coffeeSupport{grid-column:1 / -1;margin-top:4px;width:100%}
 .conversationModes button{margin:0;padding:8px 14px;border:0;border-radius:7px;background:transparent;color:var(--muted);font-size:13px}
 .conversationModes button[aria-pressed="true"]{background:#e8efce;color:#25331c;box-shadow:0 1px 3px #17201416}
 .conversationModes button:focus-visible{outline:2px solid #536b35;outline-offset:2px}
-.runPrompt{flex-shrink:0;margin:8px 0 16px}.runPrompt summary{cursor:pointer;font-weight:600;font-size:14px}
-.watchLayout .runPrompt #sidePrompt{max-height:180px;white-space:pre-wrap;margin:10px 0 0}
+.runPrompt{flex-shrink:0;min-width:0;margin:0 0 8px;line-height:20px}.runPrompt summary{float:left;margin-right:8px;cursor:pointer;font-weight:600;font-size:12px}
+.watchLayout .runPrompt #sidePrompt{max-height:20px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:12px;line-height:20px;margin:0}
+/* The conversation carries its own updates and outcome; leave the space for messages. */
+#liveConversationPanel>.statusHeader:has(#sideConversationTitle){display:none}
 #liveConversationPanel[data-mode="reasoning"] .conversationIncoming{width:100%;max-width:none;margin:10px 0;background:#fffef9;border-radius:10px}
 #liveConversationPanel[data-mode="reasoning"] .astraResponse{font:14px/1.7 system-ui,sans-serif}
 
