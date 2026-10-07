@@ -3,7 +3,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs'), path = require('node:path'), vm = require('node:vm');
 const source = fs.readFileSync(path.join(__dirname, '../static/hosted.js'), 'utf8');
 const helperStart = source.indexOf('function aspireConfiguredRun(');
-const helperEnd = source.indexOf("(() => {\n  if (!['127.0.0.1'", helperStart);
+const helperEnd = source.indexOf('// ASPIRE task progress is shared;', helperStart);
 const helperSource = source.slice(helperStart, helperEnd);
 const providerBody = source.split('  function providerChanged() {')[1].split("  $('provider').addEventListener('change', () => { providerChanged()")[0];
 const submitBody = source.split("  $('runForm').addEventListener('submit', async event => {")[1].split("  for (const [id, path, text] of [")[0];

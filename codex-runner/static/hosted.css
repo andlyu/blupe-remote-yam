@@ -42,14 +42,14 @@ main.chatClosed{grid-template-columns:minmax(0,1fr)}.visitorChatHeading{display:
 
 /* Shared live and recorded conversation: outgoing right, Astra left. */
 :is(#liveConversationMessages,#sideConversationMessages),:is(#conversationMessages,#sampleConversationMessages){padding:8px 2px;scrollbar-gutter:stable}
-:is(#liveConversationMessages,#sideConversationMessages) li.conversationTurn,:is(#conversationMessages,#sampleConversationMessages) li.conversationTurn{box-sizing:border-box;width:88%;max-width:720px;margin-block:14px;padding:16px 18px;border:1px solid #dce0d4;border-radius:18px;box-shadow:0 2px 5px #17201405}
-:is(#liveConversationMessages,#sideConversationMessages) li.conversationOutgoing,:is(#conversationMessages,#sampleConversationMessages) li.conversationOutgoing{margin-left:auto;margin-right:0;background:#eef3de;border-bottom-right-radius:5px}
-:is(#liveConversationMessages,#sideConversationMessages) li.conversationIncoming,:is(#conversationMessages,#sampleConversationMessages) li.conversationIncoming{margin-left:0;margin-right:auto;background:#fffef9;border-bottom-left-radius:5px}
-:is(#liveConversationMessages,#sideConversationMessages) .astraResponse,:is(#conversationMessages,#sampleConversationMessages) .astraResponse{font:14px/1.7 system-ui,sans-serif}
-:is(#liveConversationMessages,#sideConversationMessages) .conversationHeading,:is(#conversationMessages,#sampleConversationMessages) .conversationHeading{margin-bottom:10px}
+:is(#liveConversationMessages,#sideConversationMessages) li.conversationTurn,:is(#conversationMessages,#sampleConversationMessages) li.conversationTurn,.aspireActivityLog li.conversationTurn{box-sizing:border-box;width:88%;max-width:720px;margin-block:14px;padding:16px 18px;border:1px solid #dce0d4;border-radius:18px;box-shadow:0 2px 5px #17201405}
+:is(#liveConversationMessages,#sideConversationMessages) li.conversationOutgoing,:is(#conversationMessages,#sampleConversationMessages) li.conversationOutgoing,.aspireActivityLog li.conversationOutgoing{margin-left:auto;margin-right:0;background:#eef3de;border-bottom-right-radius:5px}
+:is(#liveConversationMessages,#sideConversationMessages) li.conversationIncoming,:is(#conversationMessages,#sampleConversationMessages) li.conversationIncoming,.aspireActivityLog li.conversationIncoming{margin-left:0;margin-right:auto;background:#fffef9;border-bottom-left-radius:5px}
+:is(#liveConversationMessages,#sideConversationMessages) .astraResponse,:is(#conversationMessages,#sampleConversationMessages) .astraResponse,.aspireActivityLog .astraResponse{font:14px/1.7 system-ui,sans-serif}
+:is(#liveConversationMessages,#sideConversationMessages) .conversationHeading,:is(#conversationMessages,#sampleConversationMessages) .conversationHeading,.aspireActivityLog .conversationHeading{margin-bottom:10px}
 .conversationHeading time{font-size:10px;opacity:.75}
 .conversationTurn .systemPromptReference{display:inline-block;margin-bottom:8px;padding:3px 0;background:transparent;font-size:11px;text-decoration:underline;text-underline-offset:3px}
-@media(max-width:600px){:is(#liveConversationMessages,#sideConversationMessages) li.conversationTurn,:is(#conversationMessages,#sampleConversationMessages) li.conversationTurn{width:94%;padding:13px 14px}.conversationHeading time{font-size:10px}}
+@media(max-width:600px){:is(#liveConversationMessages,#sideConversationMessages) li.conversationTurn,:is(#conversationMessages,#sampleConversationMessages) li.conversationTurn,.aspireActivityLog li.conversationTurn{width:94%;padding:13px 14px}.conversationHeading time{font-size:10px}}
 /* Shared public recording list beside the live conversation. */
 .pastRuns { min-width: 0; align-self: start; }
 @media(min-width: 741px) { .layout { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); align-items: start; } }
@@ -74,6 +74,7 @@ main.chatClosed{grid-template-columns:minmax(0,1fr)}.visitorChatHeading{display:
 .queuePlace h3{font-size:14px;margin:0 0 8px}.queuePlace>strong{display:block;font-size:42px;line-height:1.15;letter-spacing:-.04em}.queuePlace p{font-size:13px;margin:10px 0 0}
 #yourQueue.yourTurnWaiting{border-color:#6e9633;box-shadow:0 0 0 4px #d1f65380}.yourTurnWaiting .queuePlace>strong{color:#42651c}
 #liveViewer.yourRunLive{border-radius:12px;outline:3px solid #6e9633;outline-offset:8px;box-shadow:0 0 0 12px #d1f65340}
+#liveConversationPanel.yourTaskReview{outline:3px solid #6e9633;outline-offset:4px;box-shadow:0 0 0 8px #d1f65340}
 .viewerCue{grid-column:1/-1;display:flex;flex-wrap:wrap;gap:6px 16px;align-items:center;padding:14px 16px;background:var(--lime);border-radius:8px}.viewerCue strong{font-size:20px}.viewerCue span{font-size:13px}
 @media(prefers-reduced-motion:reduce){#yourQueue,#liveViewer{transition:none}}
 
@@ -457,3 +458,153 @@ body.cameraExpanded{overflow:hidden}
 
 .publicRunError[data-tone="warning"]{color:#8a5300;background:#fff8eb;border-left-color:#8a5300}
 .aspireRepairTrace p { white-space: pre-wrap; overflow-wrap: anywhere; }
+
+
+
+/* ASPIRE chat: pinned phases, outgoing requests, incoming progress. */
+.aspirePhaseCard{position:sticky;top:-18px;z-index:3;display:grid;grid-template-columns:1fr auto;gap:6px 10px;padding:12px;margin:0 0 16px;border:1px solid #d8ded4;border-radius:12px;background:#fffef9;box-shadow:0 3px 12px #1720140a}
+.aspirePhaseLabel{grid-column:1/-1;font-size:9px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.aspirePhaseCard>strong{grid-column:1/-1;font-size:14px;line-height:1.4}
+.aspireWorkState{font-size:11px;font-weight:650;color:#356331;display:flex;align-items:center;gap:6px}
+.aspireWorkState::before{content:'';width:6px;height:6px;border-radius:50%;background:currentColor;flex:none}
+.aspirePhaseCard:is([data-state="waiting"],[data-state="connection"],[data-state="action"]) .aspireWorkState{color:#8a590c}
+.aspirePhaseCard:is([data-state="stopped"],[data-state="draft"]) .aspireWorkState{color:var(--muted)}
+.aspirePhaseTimer{font-size:10px;color:var(--muted);align-self:center;text-align:right}
+.aspirePhaseCard .aspirePhaseMeta,.aspirePhaseCard .aspirePhaseDetail{grid-column:1/-1;margin:2px 0 0;font-size:10px;line-height:1.5;color:var(--muted);overflow-wrap:anywhere}
+.aspirePhasePath{grid-column:1/-1;display:flex;align-items:center;justify-content:space-between;gap:3px;border-bottom:1px solid #e1e7da;padding:0 0 9px;margin:0 0 3px;font-size:11px}
+.aspirePhaseStep{padding:5px 4px;border-radius:5px;color:#77816e}
+.aspirePhaseStep[data-state="current"]{background:#e9efdf;color:#42643b;font-weight:700}
+.aspirePhaseStep[data-state="hold"]{background:#fbf0dc;color:#8a590c;font-weight:700}
+.aspirePhaseStep[data-state="stopped"]{color:#435a3c;font-weight:650}
+.aspirePhaseArrow{color:#aab69f}
+.aspirePhaseCard .aspireCurrentCode{grid-column:1/-1;margin:2px 0 0;color:#566d47;font:10px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace}
+#aspireTaskActivity,#aspireTaskWork{min-width:0}
+.aspireActivityLog{list-style:none;padding:0 3px 8px;margin:0;max-height:54vh;min-height:150px;overflow-y:auto;overscroll-behavior:contain;scrollbar-gutter:stable}
+.aspireActivityEntry{display:flex;flex-direction:column;gap:0;font-size:13px;line-height:1.65;overflow-wrap:anywhere}
+.aspireActivityEntry>*{order:2}
+.aspireActivityHeading{order:0;display:flex;justify-content:space-between;align-items:baseline;flex-wrap:wrap;gap:4px 12px;margin-bottom:8px;color:#526447}
+.aspireActivityHeading>strong{font-size:12px;font-weight:650}
+.aspireActivityHeading time{font-size:10px;color:var(--muted);white-space:nowrap}
+.aspireActivityEntry .aspireActivityContext{order:3;font-size:10px;color:var(--muted);margin:10px 0 0}
+.aspireActivityTitle{order:1;font-size:13px;line-height:1.5;display:block}
+.aspireActivityEntry p{white-space:pre-wrap;margin:6px 0 0}
+.aspireActivityEntry[data-role="You"] .aspireActivityTitle{display:none}
+.aspireActivityEntry[data-role="You"] p{font-size:14px;margin:0}
+.aspireActivityEntry .aspireActivityNext{font-size:12px;color:#526047}
+.aspireActivityEntry[data-tone="error"]{border-color:#d5a29c}
+.aspireActivityEntry[data-tone="error"] .aspireActivityTitle{color:#a72c24}
+.aspireActivityEntry[data-tone="warning"] .aspireActivityTitle{color:#8a590c}
+.aspireActivityEntry[data-tone="success"] .aspireActivityTitle{color:#356331}
+.aspireActivityEntry .aspireSource{font-size:10px;padding:7px;background:#f0f4e9;border-radius:5px;color:#566d47}
+#aspireTaskWork>.aspireAuthorship{font-size:11px;font-weight:500;color:var(--muted);margin:8px 0}
+#aspireTaskAnswer.notice{padding:12px 14px;margin:10px 0;border:1px solid #dce0d4;background:#fffef9;border-radius:16px 16px 16px 5px}
+#aspireTaskAnswer>strong{font-size:13px}#aspireTaskAnswer p{font-size:12px;line-height:1.6;margin:5px 0}
+.aspireChatEvidence{margin-top:20px;padding-top:8px;border-top:1px solid #e1e7da}
+#aspireRecordedTasks{margin-top:16px}
+@media(max-width:740px){.aspireActivityLog{max-height:48vh}.aspirePhaseCard{top:-18px}}
+
+/* Video and the complete chat/composer share one desktop row. */
+.watchInteraction{min-width:0;display:flex;flex-direction:column}
+.watchInteraction>#liveConversationPanel{flex:1;min-height:0;height:auto;contain:none;border-bottom:0;border-bottom-left-radius:0;border-bottom-right-radius:0}
+.watchInteraction>.runSetup{display:block;flex:none;margin:0;min-width:0}
+.watchInteraction .runSetup>.panel{margin:0;padding:10px 14px 12px;border-top:1px solid #e4e6df;border-top-left-radius:0;border-top-right-radius:0;background:#fffdf8}
+.watchInteraction .runHeading{margin-bottom:7px;align-items:center}
+.watchInteraction .runHeading h2{font-size:12px;font-weight:650;letter-spacing:0}
+.watchInteraction .runTimeControl{font-size:10px}
+.watchInteraction .runTimeControl input{padding:5px 7px;width:46px;font-size:11px}
+.watchInteraction .promptRow{flex-wrap:nowrap;align-items:stretch;padding:10px;border:1px solid #d4d8ce;border-radius:12px;background:#f5f6f0;gap:8px}
+.watchInteraction #prompt{flex:1 1 auto;min-width:0;min-height:48px;padding:0;border:0;border-radius:0;background:transparent;font-size:12px;line-height:1.5}
+.watchInteraction .runLaunchActions{width:auto;flex:0 0 auto;align-self:flex-end;justify-content:flex-end}
+.watchInteraction #openLocalRun{width:auto;min-height:36px;padding:8px 12px;border-radius:9px;font-size:12px}
+.watchInteraction .promptRow:focus-within{border-color:#8b9f7d;box-shadow:0 0 0 2px #8b9f7d18}
+.watchBelow{min-width:0}
+.watchVisuals>#yourQueue{margin:0;padding:10px 14px}
+.aspireTaskDetails{padding:0 14px 10px}
+.aspireTaskDetails .aspireChatEvidence{margin:0;padding:0;border:0}
+.aspireTaskDetails #aspireRecordedTasks{margin-top:8px}
+.aspireTaskDetails details{font-size:11px}
+@media(min-width:961px){
+  .watchLayout{grid-template-columns:minmax(0,1.5fr) minmax(320px,1fr);grid-template-areas:"toolbar toolbar" "video chat" "status details" "queue details";gap:10px 20px}
+  .watchLayout>.watchToolbar{grid-area:toolbar}
+  .watchLayout>.watchVisuals{display:contents}
+  .watchVisuals>.videoPanel{grid-area:video}
+  .watchVisuals>.cameraStatusLine{grid-area:status;align-self:start;min-width:0}
+  .watchVisuals>#yourQueue{grid-area:queue;align-self:start}
+  .watchInteraction{grid-area:chat;contain:size;height:100%}
+  .watchBelow{grid-area:details}
+  .watchLayout.conversationClosed{grid-template-columns:minmax(0,1fr);grid-template-areas:"toolbar" "video" "status" "queue" "chat" "details"}
+  .watchLayout.conversationClosed .watchInteraction{contain:none;height:auto}
+}
+.watchLayout.conversationClosed .runSetup>.panel{border-top-color:var(--line);border-top-left-radius:12px;border-top-right-radius:12px}
+@media(max-width:960px){
+  .watchLayout{display:flex;flex-direction:column;gap:14px}
+  .watchLayout>.watchVisuals{display:contents}
+  .watchVisuals>.videoPanel{order:0}
+  .watchVisuals>.cameraStatusLine{order:1}
+  .watchVisuals>#yourQueue{order:2}
+  .watchLayout>.watchToolbar{order:3}
+  .watchInteraction{order:4}
+  .watchInteraction>#liveConversationPanel{flex:none;min-height:260px;height:48dvh;max-height:480px}
+  .watchBelow{order:5}
+}
+
+/* A quiet chat stream: small actor icons, plain updates, pinned phase status. */
+.watchInteraction>#liveConversationPanel:has(.aspireTaskPanel:not([hidden])){padding:0 16px 14px;background:#fffdf8}
+.aspirePhaseCard{top:0;gap:5px 10px;margin:0 -16px 12px;padding:12px 16px 10px;border:0;border-bottom:1px solid #e4e6df;border-radius:0;background:#fffdf8;box-shadow:none}
+.aspirePhaseLabel{display:none}
+.aspirePhaseCard>strong{font-size:13px;font-weight:600}
+.aspirePhasePath{border:0;padding:0;margin:0 0 4px}
+.aspirePhaseInfo{grid-column:1/-1;margin:0;padding:0}
+.aspirePhaseInfo>summary{width:fit-content;cursor:pointer;font-size:10px;color:var(--muted);padding:3px 0}
+.aspirePhaseInfo[open]>summary{margin-bottom:5px}
+.aspirePhaseInfo>p{margin:5px 0!important}
+.aspireActivityLog{padding:0 2px 12px;scrollbar-width:thin}
+.aspireActivityLog li.conversationTurn{position:relative;width:100%;max-width:none;margin:0;padding:12px 0 12px 25px;border:0;border-radius:0;background:transparent;box-shadow:none}
+.aspireActivityLog li.conversationTurn+li.conversationTurn{margin-top:5px}
+.aspireActivityLog li.conversationOutgoing{margin:3px 0 15px;padding:12px 14px;background:#f1f3ea;border-radius:10px}
+.aspireActivityLog .aspireActivityHeading{gap:5px 10px;margin-bottom:3px;min-height:18px;color:#758071}
+.aspireActivityLog .aspireActivityHeading>strong{font-size:10px;font-weight:550}
+.aspireActivityLog .aspireActivityHeading time{font-size:10px;margin-left:auto;color:#858b82}
+.aspireActivityLog .conversationIncoming .aspireActivityHeading::before{content:'';position:absolute;left:0;top:15px;width:14px;height:14px;background:#758071;mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20'%3E%3Cg fill='none' stroke='black' stroke-width='1.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='3' y='4' width='14' height='10' rx='2'/%3E%3Cpath d='M7 17h6M10 14v3M7 8h6M7 11h3'/%3E%3C/g%3E%3C/svg%3E") center/contain no-repeat}
+.aspireActivityLog [data-role='Astra'] .aspireActivityHeading::before,.aspireActivityLog [data-role='Codex'] .aspireActivityHeading::before{mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20'%3E%3Cg fill='none' stroke='black' stroke-width='1.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m10 2 2.2 5.8L18 10l-5.8 2.2L10 18l-2.2-5.8L2 10l5.8-2.2Z'/%3E%3C/g%3E%3C/svg%3E")}
+.aspireActivityLog .aspireActivityTitle{font-size:13px;line-height:1.55;font-weight:600}
+.aspireActivityLog .aspireActivityEntry p{font-size:13px;line-height:1.65;margin:4px 0 0}
+.aspireActivityLog .aspireActivityEntry .aspireActivityContext{font-size:10px;color:#858b82;margin-top:6px}
+.aspireActivityLog .aspireActivityEntry .aspireActivityNext{font-size:12px;color:#697364}
+.aspireActivityLog .aspireActivityEntry .aspireSource{font-size:10px;padding:0;background:transparent;border-radius:0;color:#697364}
+.aspireActivityLog .aspireActivityEntry[data-tone='error'] .aspireActivityHeading::before{background:#a72c24}
+#aspireTaskAnswer.notice{padding:12px 0;margin:8px 0;border:0;border-top:1px solid #e4e6df;border-radius:0;background:transparent}
+@media(max-width:600px){.aspireActivityLog li.conversationTurn{width:100%;padding:10px 0 10px 23px}.aspireActivityLog li.conversationOutgoing{padding:12px}.aspireActivityLog .conversationIncoming .aspireActivityHeading::before{top:13px}}
+
+/* Smaller text and unframed updates, including the reasoning-mode overrides. */
+#liveConversationPanel .aspireActivityLog li.conversationIncoming{width:100%;max-width:none;margin:0;border:0;border-radius:0;background:transparent}
+#liveConversationPanel .aspireActivityLog .aspireActivityEntry p{font-size:12px;line-height:1.6}
+#liveConversationPanel .aspireActivityLog .aspireActivityTitle{font-size:12px}
+#liveConversationPanel .aspireActivityLog .aspireActivityContext,#liveConversationPanel .aspireActivityLog .aspireSource{font-size:9px}
+#liveConversationPanel .aspireActivityLog .aspireActivityNext{font-size:11px}
+.aspirePhaseCard{gap:3px 8px;padding-top:8px;padding-bottom:7px;margin-bottom:8px}
+.aspirePhaseCard>strong{font-size:12px}
+.aspirePhasePath{font-size:10px;margin-bottom:2px}
+.aspireWorkState{font-size:10px}
+.aspirePhaseTimer{font-size:9px}
+.aspirePhaseInfo>summary{font-size:9px}
+
+.watchInteraction>#liveConversationPanel{margin:0}
+.watchInteraction .runSetup #message:empty{display:none!important}
+
+/* Supplemental source, history and parked-scene evidence stay out of the chat layout. */
+.watchBelow{display:none}
+
+/* Duration is chosen in the existing Run popup. */
+#localRunDialog .runDurationControl{margin:0 0 18px;padding:12px 14px;border:1px solid #e1e5da;border-radius:10px;background:#f5f6f0;font-size:13px}
+#localRunDialog .runDurationControl label{margin-right:auto}
+#localRunDialog .runDurationControl #runDuration{width:68px;padding:8px;font-size:14px}
+#localRunDialog .runDurationControl span{font-size:13px}
+
+/* Long messages reveal their full text on demand. */
+.aspireActivityEntry>.aspireMessageContent{order:2;min-width:0;display:flex;flex-direction:column}
+.aspireMessageContent>*{order:2}
+.aspireMessageContent>.aspireActivityTitle{order:1}
+.aspireMessageContent>.aspireActivityContext{order:3}
+.aspireActivityEntry>.aspireMessageToggle{order:4;align-self:flex-start;margin:5px 0 0;padding:5px 0;border:0;border-radius:3px;background:transparent;font-size:11px;font-weight:550;color:#626f5b;text-decoration:underline;text-underline-offset:3px}
+.aspireActivityEntry>.aspireMessageToggle:hover{background:transparent;color:var(--ink)}
