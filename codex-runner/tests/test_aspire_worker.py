@@ -100,6 +100,21 @@ class WorkerTests(unittest.TestCase):
         self.addCleanup(value.close_transport)
         return value
 
+    def test_native_task_metadata_crosses_hosted_worker_snapshot(self):
+        original = self.native.public_config
+        progress = dict(task=TASK, updates=[dict(happened='Native plan passed.',
+            changed='Complete candidate checked.', next_action='Execute admitted plan.')],
+            lineage=dict(authorship=dict(generated_by_codex=True, mode='reuse')),
+            attempts=[dict(id='aspire-1', status='running')])
+        self.native.public_config = lambda: dict(original(), task_progress=progress)
+        client = self.policy()
+        client.prepare_before_session(TASK)
+        self.assertEqual(client.public_config()['task_progress'], progress)
+        progress['outcome'] = dict(status='UNVERIFIED', success=False, reason='After parking did not confirm.')
+        client._accept(client._request('/runs/'+client._run_id))
+        self.assertEqual(client.public_config()['task_progress']['outcome']['success'], False)
+        self.assertEqual(self.native.observations, [])
+
     def test_one_public_queue_lease_with_refresh_completion_and_review(self):
         client = self.policy()
         self.assertEqual(self.created, [])  # Health does not create a runtime.

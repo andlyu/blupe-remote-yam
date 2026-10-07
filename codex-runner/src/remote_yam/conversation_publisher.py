@@ -2,10 +2,12 @@
 import re
 import threading
 import time
+from .public_task_progress import progress_message, PREFIX
 
 
 class ConversationPublisher:
-    def __init__(self, api, session_id, model, prompt, *, secrets=(), interval=0.5):
+    def __init__(self, api, session_id, model, prompt, *, secrets=(), interval=0.5,
+                 task_progress=None, progress_source=None):
         self._send = api.publish_public_conversation
         self._session_id = session_id
         self._secrets = tuple(s for s in secrets if isinstance(s, str) and s)
@@ -14,10 +16,31 @@ class ConversationPublisher:
         self._condition = threading.Condition()
         self._version, self._sent = 1, 0
         self._closing = False
+        self._close_deadline = 0
+        self._final_progress_pending = False
         self._error = None
         self._interval = interval
+        self._progress_source = progress_source
+        self._progress_content = None
+        self._set_progress(task_progress)
         self._thread = threading.Thread(target=self._run, name='public-conversation', daemon=True)
         self._thread.start()
+
+    def _set_progress(self, progress):
+        content = progress_message(progress, self._text)
+        if not content or content == self._progress_content:
+            return
+        self._progress_content = content
+        self._messages = [m for m in self._messages if not
+            (m['role'] == 'tool' and m['content'].startswith(PREFIX))]
+        self._messages.insert(1, {'role': 'tool', 'content': content})
+        self._bound_messages()
+        self._version += 1
+
+    def _bound_messages(self):
+        while len(self._messages) > 64 or sum(len(m['content']) for m in self._messages) > 64000:
+            # Keep the task and current native snapshot when trimming history.
+            del self._messages[2 if self._progress_content else 1]
 
     def _text(self, value):
         text = str(value)
@@ -41,15 +64,20 @@ class ConversationPublisher:
                 return
             self._messages.append({'role': 'assistant' if kind == 'model_response' else 'user', 'content': content})
             # Retain the task and the newest complete messages within API limits.
-            while len(self._messages) > 64 or sum(len(m['content']) for m in self._messages) > 64000:
-                del self._messages[1]
+            self._bound_messages()
             self._version += 1
             self._condition.notify()
 
     def close(self):
         """Request a final flush without joining or delaying Stop."""
         with self._condition:
+            if not self._closing and self._progress_source:
+                # The local recovery manager writes its final retry resolution
+                # just after the controller worker exits. Briefly drain those
+                # receipt changes in this background thread, without holding Stop.
+                self._close_deadline = time.monotonic() + max(.1, self._interval * 4)
             self._closing = True
+            self._final_progress_pending = bool(self._progress_source)
             self._condition.notify()
 
     def status(self):
@@ -61,11 +89,36 @@ class ConversationPublisher:
         failures = 0
         try:
             while True:
+                # Provider status may read local receipts. Poll only on this
+                # uploader thread, never on the robot-control or Stop path.
+                if self._progress_source:
+                    with self._condition:
+                        final = self._closing
+                    try:
+                        progress = self._progress_source()
+                    except Exception:
+                        pass  # Status sharing must never fail a robot task.
+                    else:
+                        with self._condition:
+                            self._set_progress(progress)
+                    if final:
+                        with self._condition:
+                            self._final_progress_pending = False
                 with self._condition:
                     while self._sent == self._version and not self._closing:
-                        self._condition.wait()
+                        self._condition.wait(timeout=self._interval if self._progress_source else None)
+                        if self._progress_source:
+                            break
+                    if self._final_progress_pending:
+                        continue
                     if self._sent == self._version and self._closing:
+                        remaining = self._close_deadline - time.monotonic()
+                        if remaining > 0:
+                            self._condition.wait(timeout=min(self._interval, remaining))
+                            continue
                         return
+                    if self._sent == self._version:
+                        continue
                     version = self._version
                     payload = {'model': self._model, 'messages': [dict(m) for m in self._messages]}
                 try:
