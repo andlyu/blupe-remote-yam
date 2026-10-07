@@ -632,6 +632,7 @@ body.cameraExpanded{overflow:hidden}
   .watchToolbar .conversationModes{flex-shrink:0}
   .watchToolbar .conversationModes button{padding:6px 7px;font-size:11px}
   .watchLayout{grid-template-columns:minmax(0,1.3fr) minmax(0,1fr);gap:8px 12px}
+  .watchInteraction{min-height:400px}
   .watchInteraction>#liveConversationPanel{padding:12px;min-height:0;max-height:none}
   .watchInteraction .runSetup>.panel{padding:8px}
   .watchInteraction .promptRow{flex-wrap:wrap;padding:8px}
