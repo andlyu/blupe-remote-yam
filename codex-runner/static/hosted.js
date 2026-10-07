@@ -1188,7 +1188,9 @@ function createRunLaunchGuard() {
     else if (state.provider?.vision?.retry?.state === 'recovered' && /^(Waiting for next |No image)/.test($('message').textContent)) message('Camera feeds recovered. Continuing the run.');
     const queue = state.queue_snapshot;
     const sharedError = state.public_run?.error || state.robot_fault;
-    $('publicRunError').hidden = !sharedError || !!(failureInChat && !state.robot_fault && sharedError === taskFailure.reason);
+    const sameAttempt = live?.attempt_id && live.attempt_id === state.public_run?.attempt_id;
+    $('publicRunError').hidden = !sharedError || !!(failureInChat && !state.robot_fault &&
+      (sharedError === taskFailure.reason || (sameAttempt && sharedError === 'The run encountered a model or runner error.')));
     $('publicRunError').textContent = sharedError
       ? `${state.public_run?.error ? (state.public_run.runner_name || 'Anonymous') + (sharedError === 'Run reached time limit' ? ' — Failure: ' : ' — run error: ') : 'Robot error: '}${sharedError}` : '';
     const station = queue?.stations?.find(item => item.jetson_id === selectedRobot);
@@ -2136,12 +2138,14 @@ function aspireLiveTask(run,state) {
   run=aspireSharedRun(run);
   const route = state?.provider?.launch_route;
   if(route?.actual_policy === 'astra') return {...run,task:route.prompt,status:state.status,
-    attempt_id:state.attempt_id,launch_route:route,task_progress:null};
+    attempt_id:state.attempt_id,error:state.error ?? run?.error,launch_route:route,task_progress:null};
   const own = state?.provider?.task_progress;
   if(own) return {
     task:own.task || run?.task,status:state.status,task_progress:own,error:state.error,display_error:run?.display_error,
     run_id:state.interactions?.run_id,attempt_id:state.attempt_id,
     events:run?.events || state?.interactions?.events || []};
+  if(state?.error && state.attempt_id && state.attempt_id === run?.attempt_id)
+    run={...run,error:state.error};
   const preparing = (state?.whats_running || []).filter(item => item.status === 'preparing');
   if(preparing.length === 1 && !['preparing','running'].includes(run?.status)) {
     const current = preparing[0];
@@ -2714,9 +2718,13 @@ function aspireTaskWorking(run) {
   function refresh() {
     rememberBuiltFrom(work);if(evidence !== work) rememberBuiltFrom(evidence);
     robot = $('robotSelector')?.value || robot;
+    const failure = taskRunFailure(liveRun);
+    const currentFailure = !!(!draftPreview && selected === 'preview' && failure &&
+      (!localAspire || liveRun.task_progress || pendingAttempt ||
+        (liveState?.attempt_id && liveState.attempt_id === liveRun.attempt_id)));
     const fallback = !draftPreview && (liveRun?.launch_route || liveState?.provider?.launch_route)?.actual_policy === 'astra';
     const stationMatches = catalog ? robot === catalog.robot_id : !!liveRun?.task_progress;
-    const enabled = !!(!fallback && stationMatches && ($('provider')?.value === 'aspire' || liveRun?.task_progress || selected !== 'preview'));
+    const enabled = currentFailure || !!(!fallback && stationMatches && ($('provider')?.value === 'aspire' || liveRun?.task_progress || selected !== 'preview'));
     const reasoning = $('liveConversationPanel')?.dataset.mode === 'reasoning';
     if(panel.dataset.enabled !== String(enabled)) panel.dataset.enabled = String(enabled);
     setHidden(panel,!enabled || !reasoning);setHidden(selectorBox,!enabled || !reasoning);
@@ -2744,8 +2752,7 @@ function aspireTaskWorking(run) {
     const vision = aspireSam3Progress({...liveRun,task_progress:progress});
     const stage = aspireStageProgress({...liveRun,task_progress:progress});
     const workStatus=aspireWorkStatus({...liveRun,task_progress:progress},Date.now()/1000,lastPollAt);
-    const failure = taskRunFailure(liveRun);
-    const showCurrent = live || (!draftPreview && progress && selected === 'preview');
+    const showCurrent = live || currentFailure || (!draftPreview && progress && selected === 'preview');
     const failureKey=JSON.stringify(showCurrent ? failure : null);
     if(panel.dataset.failureKey !== failureKey) panel.dataset.failureKey=failureKey;
     if(selector.disabled !== !!live) selector.disabled=!!live;
