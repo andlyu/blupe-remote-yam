@@ -1593,7 +1593,12 @@ function createRunLaunchGuard() {
     // Preserve the stop listener when robot selection rebuilds the camera tiles.
     $('liveRunControls').replaceWith(runControls);
     $('videoDelayNotice').hidden = !videoStream;
-    $('liveViewer').dataset.layout = names.length === 1 ? 'single' : 'multi';
+    const roles = videoStream?.cameras || names;
+    const topWithGrippers = selectedRobot === 'robot-ba8413962083809c'
+      && roles.length === 3 && ['top', 'left', 'right'].every(role => roles.includes(role));
+    $('liveViewer').dataset.layout = topWithGrippers ? 'top-with-grippers' : names.length === 1 ? 'single' : 'multi';
+    const cameraLabel = role => topWithGrippers && role !== 'top'
+      ? `${role[0].toUpperCase() + role.slice(1)} wrist` : role[0].toUpperCase() + role.slice(1);
     if (camerasDisconnected) {
       $('liveViewer').querySelectorAll('figure, video, canvas').forEach(node => node.remove());
       $('videoDelayNotice').hidden = true;
@@ -1609,9 +1614,10 @@ function createRunLaunchGuard() {
       $('liveViewer').querySelectorAll('[data-sync-tile]').forEach(tile => {
         const role = roles[Number(tile.dataset.syncTile)], figure = tile.closest('figure');
         if (!role) { figure.remove(); return; }
+        figure.dataset.cameraRole = role;
         tile.dataset.cameraRole = role;
         tile.setAttribute('aria-label', role + ' robot camera');
-        figure.querySelector('figcaption').firstChild.textContent = role[0].toUpperCase() + role.slice(1) + ' ';
+        figure.querySelector('figcaption').firstChild.textContent = cameraLabel(role) + ' ';
         figure.querySelector('[data-expand-camera]').setAttribute('aria-label', 'Expand ' + role + ' camera');
         addModelBadge(tile.parentElement, role);
       });
@@ -1625,7 +1631,9 @@ function createRunLaunchGuard() {
     const generation = robotGeneration;
     for (const name of names) {
       const figure = document.createElement('figure'), image = document.createElement('img'), caption = document.createElement('figcaption');
-      image.alt = name + ' robot camera'; caption.textContent = name + ' · Connecting';
+      figure.dataset.cameraRole = name;
+      const label = topWithGrippers ? cameraLabel(name) : name;
+      image.alt = label + ' robot camera'; caption.textContent = label + ' · Connecting';
       const picture = document.createElement('div');
       picture.className = 'modelCameraPicture'; picture.append(image);
       addModelBadge(picture, name);
@@ -1643,10 +1651,10 @@ function createRunLaunchGuard() {
           await pending.decode();
           if (generation !== robotGeneration || epoch !== cameraEpoch || ended) return;
           image.src = pending.src;
-          caption.textContent = name + ' · Live';
+          caption.textContent = label + ' · Live';
         } catch {
           // Keep the last successful frame visible while reconnecting.
-          if (generation === robotGeneration && epoch === cameraEpoch) caption.textContent = name + (image.hasAttribute('src') ? ' · Reconnecting (last frame)' : ' · Connecting');
+          if (generation === robotGeneration && epoch === cameraEpoch) caption.textContent = label + (image.hasAttribute('src') ? ' · Reconnecting (last frame)' : ' · Connecting');
           delay = 1000;
         } finally {
           clearTimeout(timer); pending.onload = pending.onerror = null;
