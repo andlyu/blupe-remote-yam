@@ -37,7 +37,7 @@ class SessionEventStream(Protocol):
 class SessionAPI(Protocol):
     def get_queue_snapshot(self) -> dict[str, Any]: ...
     def get_robot_observation(self, jetson_id: str) -> dict[str, Any]: ...
-    def create_session(self, prompt: str, run_duration_s: int = 300) -> dict[str, Any]: ...
+    def create_session(self, prompt: str, run_duration_s: int = 300, *, runner_name: str = "", email: str = "") -> dict[str, Any]: ...
     def get_session(self, session_id: str) -> dict[str, Any]: ...
     def open_events(self, session_id: str) -> SessionEventStream: ...
     def submit_action(
@@ -133,7 +133,7 @@ class HttpSessionAPI:
     def get_queue_snapshot(self) -> dict[str, Any]:
         return self._request("GET", f"/v1/robots/{parse.quote(self.robot_id, safe='')}/queue")
 
-    def create_session(self, prompt: str, run_duration_s: int = 300) -> dict[str, Any]:
+    def create_session(self, prompt: str, run_duration_s: int = 300, *, runner_name: str = "", email: str = "") -> dict[str, Any]:
         if self._websocket_factory is None:
             try:
                 import websocket  # noqa: F401
@@ -141,7 +141,12 @@ class HttpSessionAPI:
                 raise RuntimeError(
                     "Control transport is not installed; relaunch with `./run.sh --session-api <base-url>`"
                 ) from exc
-        created = self._request("POST", "/v1/sessions", {"schema_version": 1, "robot_id": self.robot_id, "prompt": prompt, "run_duration_s": run_duration_s})
+        payload = {"schema_version": 1, "robot_id": self.robot_id, "prompt": prompt, "run_duration_s": run_duration_s}
+        if runner_name:
+            payload["runner_name"] = runner_name
+        if email:
+            payload["email"] = email
+        created = self._request("POST", "/v1/sessions", payload)
         session_id = str(created.get("session_id", ""))
         capability = created.get("session_capability")
         if not session_id or not isinstance(capability, str) or not capability:
@@ -433,11 +438,16 @@ class MockSessionAPI:
         self.trajectory_attempts: list[dict[str, Any]] = []
         self.trajectory_log: list[dict[str, Any]] = []
 
-    def create_session(self, prompt: str, run_duration_s: int = 300) -> dict[str, Any]:
+    def create_session(self, prompt: str, run_duration_s: int = 300, *, runner_name: str = "", email: str = "") -> dict[str, Any]:
         if not prompt.strip():
             raise ValueError("prompt must be non-empty")
         with self._lock:
-            self.create_requests.append({"schema_version": 1, "prompt": prompt, "run_duration_s": run_duration_s})
+            payload = {"schema_version": 1, "prompt": prompt, "run_duration_s": run_duration_s}
+            if runner_name:
+                payload["runner_name"] = runner_name
+            if email:
+                payload["email"] = email
+            self.create_requests.append(payload)
             session_id = f"sess_{uuid.uuid4().hex[:10]}"
             record: dict[str, Any] = {
                 "session_id": session_id,

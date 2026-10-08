@@ -375,7 +375,7 @@ class HostedTests(unittest.IsolatedAsyncioTestCase):
         self.app.social_database = self.app.root / 'socials.sqlite3'
         a, b = await self.session(), await self.session()
         payload = dict(provider='local_raise_lower', prompt='Raise arms', runner_name='Runner',
-                       x_handle=' @runner_x ', instagram_handle='@runner.insta')
+                       x_handle=' @runner_x ', instagram_handle='@runner.insta', email='runner@example.com')
         for invalid in ('https://example.com', '<script>', ['name']):
             self.assertEqual((await self.call('/api/run', method='POST', payload={**payload, 'x_handle':invalid}, **a))[0], 400)
         self.assertEqual((await self.call('/api/run', method='POST', payload=payload, **a))[0], 200)
@@ -384,6 +384,10 @@ class HostedTests(unittest.IsolatedAsyncioTestCase):
         public = json.dumps((await self.call('/api/status', **b))[1])
         self.assertNotIn('runner_x', public)
         self.assertNotIn('runner.insta', public)
+        self.assertNotIn('runner@example.com', public)
+        submitted = owner.controller._session_api.api.create_requests[-1]
+        self.assertEqual(submitted['runner_name'], 'Runner')
+        self.assertEqual(submitted['email'], 'runner@example.com')
         await asyncio.to_thread(owner.close)
         with sqlite3.connect(self.app.social_database) as db:
             self.assertEqual(db.execute('SELECT session_id, runner_name, x_handle, instagram_handle FROM run_socials').fetchone(),
