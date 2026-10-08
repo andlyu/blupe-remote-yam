@@ -556,11 +556,17 @@ function createRunLaunchGuard() {
     $('localRunDialog').close();
     $('localRunDialogBody').append($('runSettings'));
     $('runSettings').open = true;
+    updateAspireSetupGuidance();
     updateRunLabel();
+  }
+  function updateAspireSetupGuidance() {
+    const guidance = $('aspireSetupGuidance');
+    if (guidance) guidance.hidden = !['aspire', 'hosted_aspire'].includes($('provider').value);
   }
   $('openLocalRun').onclick = () => {
     if (active || submitting || ended || !csrf) return;
     $('runSettings').open = true;
+    updateAspireSetupGuidance();
     updateRunLabel();
     $('localRunMessage').textContent = '';
     $('localRunDialog').showModal();
@@ -689,7 +695,7 @@ function createRunLaunchGuard() {
     else if (!$('prompt').value.trim()) $('prompt').value = $('prompt').dataset?.defaultPrompt || 'place green block on plate';
     $('policyHelp').textContent = builtIn ? 'The built-in policy performs three raise/lower cycles. No model calls or API key are needed.' : 'The model observes the cameras, chooses a move, and waits for robot feedback before deciding again.';
   }
-  $('provider').addEventListener('change', () => { providerChanged(); applyModelName(lastLive); window.yamAnalytics?.selected($('provider').value, $('model').value.trim()); });
+  $('provider').addEventListener('change', () => { providerChanged(); updateAspireSetupGuidance(); applyModelName(lastLive); window.yamAnalytics?.selected($('provider').value, $('model').value.trim()); });
   $('automaticRetryLimit').addEventListener('change',()=>{
     try {const limit=aspireRetryLimit($('automaticRetryLimit').value);localStorage.setItem('yam-aspire-retry-limit:'+selectedRobot,String(limit));}
     catch(error) {if(error instanceof RangeError) message(error.message,true);}
@@ -2179,6 +2185,12 @@ function aspireElapsed(seconds) {
   const value=Math.max(0,Math.floor(seconds));
   return value < 60 ? value+'s' : Math.floor(value/60)+'m '+value%60+'s';
 }
+function aspireLocalSetupUrl(run = {}) {
+  const route = run.launch_route || {};
+  const aspire = ['aspire', 'hosted_aspire'].includes(run.provider) || /^ASPIRE\b/i.test(run.model_name || '') ||
+    route.requested_policy === 'aspire' || route.actual_policy === 'aspire' || !!run.task_progress?.lineage;
+  return aspire ? 'https://github.com/andlyu/blupe-remote-yam/blob/main/codex-runner/docs/aspire/README.md' : '';
+}
 function aspireActivityEntries(run = {}) {
   const progress=run.task_progress || {},messages=[];
   const attempts=progress.attempts || [];
@@ -2244,12 +2256,12 @@ function aspireActivityEntries(run = {}) {
           tone:status === 'FAILED' || status === 'PROGRAM_ERROR' || status === 'PLAN_FAILED' ? 'error' : ''});
     }
   }
-  const outcome=progress.outcome;
+  const outcome=progress.outcome,failure=taskRunFailure(run);
   if(outcome) add('parked-outcome','Runner',outcome.success === true ? 'Placement verified after parking' : 'After-parking result · '+outcome.status,
-    outcome.reason,{timestamp:outcome.checked_at,tone:outcome.success === true ? 'success' : 'warning'});
-  const failure=taskRunFailure(run);
+    outcome.reason,{timestamp:outcome.checked_at,tone:outcome.success === true ? 'success' : 'warning',
+      localSetup:!failure && outcome.success !== true && !['queued','preparing','running'].includes(run.status) ? aspireLocalSetupUrl(run) : ''});
   if(failure) add('task-failure','Runner',failure.label,failure.task || 'Submitted task',
-    {detail:failure.reason,next:'Review the error before starting another attempt.',tone:'error',timestamp:run.ended_at});
+    {detail:failure.reason,next:'Review the error before starting another attempt.',tone:'error',timestamp:run.ended_at,localSetup:aspireLocalSetupUrl(run)});
   // Unknown timestamps retain source order; never invent a recorded time.
   const prompt=messages.shift();
   const sorted=messages.map((message,index)=>({...message,order:index}));
@@ -2617,14 +2629,23 @@ function aspireTaskWorking(run) {
         const content=node('div','','aspireMessageContent'),more=node('button','Show more','aspireMessageToggle');
         content.id='aspire-message-content-'+(++activityContentId);
         more.type='button';more.setAttribute('aria-controls',content.id);
-        heading.append(author,time);content.append(context,title,body,detail,lesson,next,hash);li.append(heading,content,more);
-        row={li,author,time,context,title,body,detail,lesson,next,hash,content,more,expanded:false};
+        const localSetup=node('p','','aspireLocalSetup help');
+        heading.append(author,time);content.append(context,title,body,detail,lesson,next,hash);li.append(heading,content,more,localSetup);
+        row={li,author,time,context,title,body,detail,lesson,next,hash,content,more,localSetup,expanded:false};
         const messageRow=row;
         more.addEventListener('click',()=>{messageRow.expanded=!messageRow.expanded;renderActivityContent(messageRow);});
         view.rows.set(message.id,row);
       }
       if(view.ol.children[index] !== row.li) view.ol.insertBefore(row.li,view.ol.children[index] || null);
       const key=JSON.stringify(message);if(row.key === key) continue;row.key=key;
+      setHidden(row.localSetup,!message.localSetup);
+      if(message.localSetup) {
+        if(!row.readme) {
+          row.readme=node('a','You can run ASPIRE locally (README)');
+          row.readme.target='_blank';row.readme.rel='noopener noreferrer';row.localSetup.append(row.readme);
+        }
+        row.readme.href=message.localSetup;
+      }
       row.li.dataset.role=message.role;row.li.dataset.tone=message.tone || '';row.li.dataset.messageId=message.id;
       row.li.className='aspireActivityEntry conversationTurn '+(message.role === 'You' ? 'conversationOutgoing' : 'conversationIncoming');
       const timestamp=Number.isFinite(message.timestamp) ? new Date(message.timestamp*1000).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit',second:'2-digit',hourCycle:'h23'}) : '';

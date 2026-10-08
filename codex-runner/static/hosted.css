@@ -611,6 +611,7 @@ body.cameraExpanded{overflow:hidden}
 .aspireMessageContent>.aspireActivityTitle{order:1}
 .aspireMessageContent>.aspireActivityContext{order:3}
 .aspireActivityEntry>.aspireMessageToggle{order:4;align-self:flex-start;margin:5px 0 0;padding:5px 0;border:0;border-radius:3px;background:transparent;font-size:11px;font-weight:550;color:#626f5b;text-decoration:underline;text-underline-offset:3px}
+.aspireActivityEntry>.aspireLocalSetup{order:5;margin:6px 0 0;font-size:12px}
 .aspireActivityEntry>.aspireMessageToggle:hover{background:transparent;color:var(--ink)}
 
 /* Keep scrolling messages inside the space between phases and the composer. */
