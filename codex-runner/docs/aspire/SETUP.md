@@ -27,6 +27,10 @@ and [the gripper model adapter](../../src/remote_yam/aspire_gripper_model.py).
 Published tool poses already include the grasp-frame conversion. Applying it
 again or adding a second model offset changes the target incorrectly.
 
+The adapter updates arm bases and kinematics from the API calibration. Static
+station collision shapes still use nominal upstream geometry; a different
+physical table or box layout is not reconstructed by this integration.
+
 Model/mesh agreement is not measured physical contact calibration. Camera-to-arm
 calibration, object dimensions, and pad contact remain subject to their actual
 published quality and each skill's validation scope. Historical successful
