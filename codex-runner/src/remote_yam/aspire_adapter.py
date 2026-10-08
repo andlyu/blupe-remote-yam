@@ -569,7 +569,8 @@ class BlupeAspireAdapter:
         env = self.create_environment()
         geometry_file = cfg_select(cfg, 'robot.gripper_geometry_file', None)
         if geometry_file:
-            geometry = json.loads(Path(geometry_file).read_text())
+            from .aspire_gripper_model import load_gripper_profile
+            geometry = load_gripper_profile(geometry_file)
             if not isinstance(geometry, dict):
                 raise ValueError('Gripper geometry must be an object')
             env.selected_gripper_geometry = geometry

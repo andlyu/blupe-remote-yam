@@ -1,0 +1,39 @@
+{
+  "source": "installed_i2rt_linear_4310",
+  "gripper_type": "linear_4310",
+  "user_selected": true,
+  "validated": false,
+  "model_hashes_verified_against_station": true,
+  "physical_contact_calibration_measured": false,
+  "model_xml": "assets/linear_4310/linear_4310.xml",
+  "model_xml_sha256": "1ae64edff48e7a1d1de727d90c2a77a98aa519796b72233a26f2c1ab1bf66652",
+  "mesh_files": {
+    "gripper": {
+      "path": "assets/linear_4310/assets/gripper.stl",
+      "sha256": "d949c401186197d842ca8f9b23bfcbf24bed8461b421df06093c65e4ead21f5d"
+    },
+    "tip_left": {
+      "path": "assets/linear_4310/assets/tip_left.stl",
+      "sha256": "03d94f53d7b5e9e1871ea6f3925c68d7a2f894b08e0c575fa0b9ed4024684ff7"
+    },
+    "tip_right": {
+      "path": "assets/linear_4310/assets/tip_right.stl",
+      "sha256": "8f620aae9c15e00e2ea4e5bf5e9a49e7edb2d23128b8955cfacc0da8da45c72f"
+    }
+  },
+  "installed_package_version": "1.1.2",
+  "closing_axis": "API grasp Y; native planner grasp X after adapter rotation",
+  "jaw_travel_per_finger_m": 0.0475,
+  "normalized_mapping": "both installed positive slide joints = .0475*g, 0 closed / 1 open",
+  "tcp_to_grasp_site_m": [
+    0,
+    0,
+    -0.1347
+  ],
+  "additional_planner_offset_m": [
+    0,
+    0,
+    0
+  ],
+  "warning": "Hash-matched installed I2RT linear_4310 CAD, replacing mismatched ASPIRE fingers. Published API grasp pose remains unchanged. CAD contact surfaces are model evidence, not physically measured contact. Do not reuse old ASPIRE pad-midpoint translations."
+}

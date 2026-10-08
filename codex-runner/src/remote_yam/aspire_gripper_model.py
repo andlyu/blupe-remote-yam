@@ -5,6 +5,7 @@ joint bounds, collision acceptance, or the upstream checkout.
 """
 from copy import deepcopy
 import hashlib
+import json
 from pathlib import Path
 import xml.etree.ElementTree as ET
 
@@ -22,6 +23,20 @@ def transform(element):
     quat = np.fromstring(element.get('quat', '1 0 0 0'), sep=' ')
     matrix[:3, :3] = Rotation.from_quat(quat[[1, 2, 3, 0]]).as_matrix()
     return matrix
+
+
+def load_gripper_profile(filename):
+    """Resolve bundled or user profile assets relative to their profile file."""
+    filename=Path(filename).expanduser().resolve()
+    profile=json.loads(filename.read_text())
+    if not isinstance(profile,dict):
+        raise ValueError('Gripper geometry must be an object')
+    def asset(value):
+        path=Path(value).expanduser()
+        return str((filename.parent/path).resolve())
+    if profile.get('model_xml'): profile['model_xml']=asset(profile['model_xml'])
+    for mesh in profile.get('mesh_files',{}).values(): mesh['path']=asset(mesh['path'])
+    return profile
 
 
 def install_gripper(root, profile, api_to_planner):

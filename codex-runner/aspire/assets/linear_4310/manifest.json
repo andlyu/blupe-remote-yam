@@ -1,0 +1,43 @@
+{
+  "repository": "https://github.com/i2rt-robotics/i2rt",
+  "gripper_type": "linear_4310",
+  "files": [
+    {
+      "path": "LICENSE",
+      "url": "https://raw.githubusercontent.com/i2rt-robotics/i2rt/120c3c81400171174604e503943f8d1ebc891058/LICENSE",
+      "file": "LICENSE",
+      "git_blob": "89d5ec310495d20a13bf27a322801883902b1eee",
+      "sha256": "7cd0a0224a287ebd6c45703eb6623d264c7810f8958d65de8f99e87ccd9f4891",
+      "bytes": 1073
+    },
+    {
+      "path": "i2rt/robot_models/gripper/linear_4310/assets/gripper.stl",
+      "url": "https://raw.githubusercontent.com/i2rt-robotics/i2rt/120c3c81400171174604e503943f8d1ebc891058/i2rt/robot_models/gripper/linear_4310/assets/gripper.stl",
+      "file": "gripper.stl",
+      "git_blob": "4eb296bec95a128de5dc3d52c3750db7b01bb956",
+      "sha256": "d949c401186197d842ca8f9b23bfcbf24bed8461b421df06093c65e4ead21f5d",
+      "bytes": 400084
+    },
+    {
+      "path": "i2rt/robot_models/gripper/linear_4310/assets/tip_left.stl",
+      "url": "https://raw.githubusercontent.com/i2rt-robotics/i2rt/120c3c81400171174604e503943f8d1ebc891058/i2rt/robot_models/gripper/linear_4310/assets/tip_left.stl",
+      "file": "tip_left.stl",
+      "git_blob": "745e8b6f73b87c67918fefde86557b5c3548ebaa",
+      "sha256": "03d94f53d7b5e9e1871ea6f3925c68d7a2f894b08e0c575fa0b9ed4024684ff7",
+      "bytes": 400084
+    },
+    {
+      "path": "i2rt/robot_models/gripper/linear_4310/assets/tip_right.stl",
+      "url": "https://raw.githubusercontent.com/i2rt-robotics/i2rt/120c3c81400171174604e503943f8d1ebc891058/i2rt/robot_models/gripper/linear_4310/assets/tip_right.stl",
+      "file": "tip_right.stl",
+      "git_blob": "0ec1224df779136c1b5bfb53af1267f45e832f12",
+      "sha256": "8f620aae9c15e00e2ea4e5bf5e9a49e7edb2d23128b8955cfacc0da8da45c72f",
+      "bytes": 400084
+    }
+  ],
+  "upstream_commit": "120c3c81400171174604e503943f8d1ebc891058",
+  "installed_package_version": "1.1.2",
+  "xml_source": "Read-only copy from RoboHouse installed i2rt/robot_models/gripper/linear_4310/linear_4310.xml",
+  "xml_sha256": "1ae64edff48e7a1d1de727d90c2a77a98aa519796b72233a26f2c1ab1bf66652",
+  "mesh_hashes_match_installed_robot": true
+}

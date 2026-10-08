@@ -124,7 +124,8 @@ class AspireCodexPolicy(AspireApiPolicy):
                  skill_learning=None, skill_coordinator=None, executable_skills=None,
                  skill_review_timing='before_launch', selected_executable=None, recovery_factory=None,
                  repair_outcomes=False, repair_vision_factory=None, automatic_recovery=False,
-                 code_revision_loop=False, code_revision_limit=None,execution_environment=None):
+                 code_revision_loop=False, code_revision_limit=None,execution_environment=None,
+                 published_skills=None):
         if execution_environment not in (None,'local','web'):raise ValueError('Invalid ASPIRE execution environment')
         self.execution_environment=execution_environment
         if execution_environment is not None:
@@ -145,6 +146,7 @@ class AspireCodexPolicy(AspireApiPolicy):
                 'interface and do not define SAM 3 output geometry. Inspect the returned instance against '
                 "the actual RGB-D frame before deriving task geometry. Preserve the task's target identity "
                 'and occlusion evidence when adapting reused programs.\n')
+        self.published_skills=published_skills
         self.skill_directory=Path(skill_directory)
         self.skill_learning=skill_learning
         if skill_review_timing not in ('before_launch', 'after_run'):
@@ -909,6 +911,12 @@ class AspireCodexPolicy(AspireApiPolicy):
                 rank=len(terms & set((entry.get('task','')+' '+entry.get('lesson','')).lower().split()))
                 skills.append((rank,path.stat().st_mtime,dict(entry,source=source.read_text(),
                     source_path=str(source.resolve()))))
+        if self.published_skills:
+            known={item[2].get('source_sha256') for item in skills}
+            for entry in self.published_skills.programs(self.task):
+                if entry['source_sha256'] not in known:
+                    rank=len(terms & set((entry.get('task','')+' '+entry.get('lesson','')).lower().split()))
+                    skills.append((rank,0.,entry))
         # Equally relevant older programs otherwise fill all retrieval slots
         # and exclude the just-revised, natively validated program.
         return [item for _,_,item in sorted(skills,key=lambda row:(row[0],row[1]),reverse=True)[:3]]
@@ -1011,12 +1019,19 @@ class AspireCodexPolicy(AspireApiPolicy):
             self.skill_learning.require_reviewed(task)
 
     def _topic_knowledge(self):
-        if not self.skill_learning:return {'entries':[]}
-        if self.skill_review_timing=='after_run':
-            self._review_prior_skills(self.task)
-            return self._topic_snapshot
-        return self.skill_learning.retrieve(self.task,
-            context='SAM3 perception instance mask' if self.vision_session else '')
+        knowledge={'entries':[]}
+        if self.skill_learning:
+            if self.skill_review_timing=='after_run':
+                self._review_prior_skills(self.task)
+                knowledge=self._topic_snapshot
+            else:
+                knowledge=self.skill_learning.retrieve(self.task,
+                    context='SAM3 perception instance mask' if self.vision_session else '')
+        if self.published_skills:
+            from .aspire_published_skills import merge_topic_knowledge
+            knowledge=merge_topic_knowledge(knowledge,self.published_skills.retrieve(self.task,
+                context='SAM3 perception instance mask' if self.vision_session else ''))
+        return knowledge
 
     def _schedule_deferred_review(self):
         if (not self.skill_learning or self.skill_review_timing!='after_run'
@@ -1321,8 +1336,12 @@ def configured_aspire_policy(config, *, origin, robot_id, model, directory,
     from .runpod_sam3 import configured_vision_session
     from .aspire_skill_learning import configured_skill_library
     from .aspire_executable_skills import configured_executable_skills
+    from .aspire_published_skills import PublishedSkillLibrary
+    published=(PublishedSkillLibrary() if config.get('published_skills',True)
+        and config.get('coding_baseline')!='upstream' else None)
     vision_session=configured_vision_session(config)
-    spec=importlib.util.spec_from_file_location('aspire_station_launcher',config['harness_module'])
+    from .aspire_station import STATION
+    spec=importlib.util.spec_from_file_location('aspire_station_launcher',config.get('harness_module',str(STATION/'agent_harness.py')))
     module=importlib.util.module_from_spec(spec);spec.loader.exec_module(module)
     # Preserve local UI runs after its temporary visitor is cleaned up. This
     # also keeps reviewed images inside the existing lineage artifact boundary.
@@ -1334,6 +1353,7 @@ def configured_aspire_policy(config, *, origin, robot_id, model, directory,
         max_revisions=config.get('max_revisions',4),coding_timeout_s=config.get('coding_timeout_s',180),
         display_name=config.get('display_name',config.get('run_name','Codex + ASPIRE')), vision_session=vision_session,
         skill_learning=configured_skill_library(config),executable_skills=configured_executable_skills(config),
+        published_skills=published,
         selected_executable=selected_executable,recovery_factory=recovery_factory,
         repair_outcomes=True,repair_vision_factory=lambda:configured_vision_session(config),
         automatic_recovery=config.get('automatic_recovery') is True,

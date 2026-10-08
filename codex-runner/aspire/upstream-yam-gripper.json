@@ -1,0 +1,22 @@
+{
+  "source": "upstream_default",
+  "user_selected": true,
+  "validated": false,
+  "upstream_commit": "f4c8939aab0af9b97690c561bd80e282940f7886",
+  "target_frame": "grasp",
+  "closing_axis": "grasp_x",
+  "grasp_to_planner_offset_m": [0.0, 0.0, 0.0],
+  "open_width_m": 0.085,
+  "closed_width_m": 0.004,
+  "tcp_to_grasp_site_m": [0.0, 0.0, 0.1347],
+  "grip_pad_full_dimensions_m": [0.016, 0.002, 0.05],
+  "provenance": {
+    "grasp_to_planner_offset_m": "aspire/real/cap/config.py: GRIPPER_TCP_OFFSET_Z_M = 0.0; grasp_anygrasp.py adds this along local +Z to the planner-facing grasp pose",
+    "closing_axis": "aspire/real/cap/agent/tools/grasp_anygrasp.py: planner +X = opening axis, +Z = approach axis",
+    "open_width_m": "aspire/real/cap/saved_scripts/skill_library/simple_grasp_lift_loop.py: OPENFORGE_GRASP_LIFT_GRIPPER_OPEN_WIDTH_M default 0.085",
+    "closed_width_m": "aspire/real/cap/saved_scripts/skill_library/simple_grasp_lift_loop.py: OPENFORGE_GRASP_LIFT_GRIPPER_CLOSED_WIDTH_M default 0.004",
+    "tcp_to_grasp_site_m": "aspire/real/robot/models/station/station.xml: both grasp sites at local 0 0 0.1347; also station_physics.urdf",
+    "grip_pad_full_dimensions_m": "aspire/real/robot/models/station/station.xml: grip_pad half sizes 0.008 0.001 0.025"
+  },
+  "warning": "Selected upstream YAM defaults, not measured Robo-house contact geometry. User reports matching arms/grippers. The API already reports the grasp site: do not add/subtract the TCP-to-grasp-site distance again. Zero additional planner offset is an upstream convention, not a measured pad centroid. Pad dimensions and closed width are descriptive; this profile does not change motor gains, torque limits, planner frames or live admission."
+}

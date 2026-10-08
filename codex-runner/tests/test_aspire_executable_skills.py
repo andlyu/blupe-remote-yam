@@ -11,7 +11,7 @@ from remote_yam.aspire_executable_skills import ExecutableSkillLibrary, pick_pla
 
 
 ROOT = Path(os.environ.get('YAM_ASPIRE_TEST_STATION_ROOT', Path(__file__).resolve().parents[4]))
-MANIFEST = ROOT/'integrations/aspire/skills/pick_place.json'
+MANIFEST = Path(__file__).resolve().parents[1]/'skills/aspire/executable/pick_place.json'
 
 
 class RequestSelectionTests(unittest.TestCase):

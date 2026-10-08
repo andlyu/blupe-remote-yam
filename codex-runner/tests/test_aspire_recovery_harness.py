@@ -11,8 +11,7 @@ import pytest
 
 from test_aspire_recovery_flow import station, wait
 
-STATION=Path(os.environ.get('YAM_ASPIRE_TEST_STATION_ROOT', Path(__file__).resolve().parents[4]))/'integrations/aspire'
-pytestmark=pytest.mark.skipif(not (STATION/'agent_harness.py').is_file(),reason='Local Robo-house station integration unavailable')
+STATION=Path(__file__).resolve().parents[1]/'aspire'
 
 
 def module(name,file):

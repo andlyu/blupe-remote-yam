@@ -73,7 +73,8 @@ class LocalPlayground(HostedRunner):
         aspire_config_path = os.environ.get('YAM_ASPIRE_CONFIG')
         if aspire_config_path:
             from pathlib import Path
-            config = json.loads(Path(aspire_config_path).read_text())
+            from remote_yam.aspire_station import load_station_config
+            config = load_station_config(aspire_config_path)
             if config.get('robot_id') == robot_id:
                 self.use_api_depth = True
                 config['execution_environment']='local'
