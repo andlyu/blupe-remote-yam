@@ -1340,7 +1340,8 @@ def configured_aspire_policy(config, *, origin, robot_id, model, directory,
     published=(PublishedSkillLibrary() if config.get('published_skills',True)
         and config.get('coding_baseline')!='upstream' else None)
     vision_session=configured_vision_session(config)
-    spec=importlib.util.spec_from_file_location('aspire_station_launcher',config['harness_module'])
+    from .aspire_station import STATION
+    spec=importlib.util.spec_from_file_location('aspire_station_launcher',config.get('harness_module',str(STATION/'agent_harness.py')))
     module=importlib.util.module_from_spec(spec);spec.loader.exec_module(module)
     # Preserve local UI runs after its temporary visitor is cleaned up. This
     # also keeps reviewed images inside the existing lineage artifact boundary.

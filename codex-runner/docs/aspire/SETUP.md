@@ -64,3 +64,14 @@ it does not install camera drivers, own robot motors, or commission calibration.
 Keep new program and topic libraries in persistent writable storage outside
 disposable run outputs. Keep credentials in the existing subscription/runtime
 credential store. See the [ASPIRE quick start](README.md) for launching the local UI.
+
+## Bundled station runtime
+
+The [launcher](../../aspire/launch_observation.py) selects the
+[installed gripper profile](../../aspire/robohouse-linear4310.json). Its XML and
+meshes live beside the [I2RT license and source manifest](../../aspire/assets/linear_4310/manifest.json).
+Paths resolve relative to the profile, so another checkout needs no private
+asset directory. [Setup](../../setup_aspire.py) fetches the pinned NVIDIA source
+as a separate dependency and verifies the shared runtime without hardware.
+The source, Python environment, API origin, robot identity, and persistent
+learning paths are recorded in the generated local configuration.

@@ -2,7 +2,7 @@
 
 ASPIRE writes and reuses Python robot programs that execute through the YAM
 Session API. Use Codex locally to develop skills and programs, then run them
-through your configured station's local UI or API launcher.
+through the local UI or API launcher in this repository.
 
 For the arms, cameras, grippers, coordinate frames, and calibration sources,
 see [Robo-house hardware and station setup](SETUP.md).
@@ -48,40 +48,70 @@ and publish those changes deliberately; a hardware run does not push to GitHub.
 
 ## Launch the local UI
 
-You need Python 3, Node.js/npm, a Codex subscription with Astra access, and a
-configured ASPIRE station runtime. Its configuration supplies the pinned native
-ASPIRE checkout and Python environment, station harness, robot identity,
-perception setup, and persistent learning directories. The catalog is bundled;
-the native workstation and robot configuration are not installed by it.
-
-From the BluPe Remote YAM repository root:
+You need Python 3, Git, Node.js/npm, [uv](https://docs.astral.sh/uv/), and a
+Codex subscription with Astra access. From the BluPe Remote YAM repository root:
 
 ```sh
-./run-codex.sh --aspire-config /absolute/path/to/station-config.json
+./setup-aspire.sh
+./run-aspire.sh
 ```
+
+Setup fetches the clean pinned NVIDIA ASPIRE source, installs its API-backed
+Python runtime, verifies the planner and bundled gripper assets, and writes
+`~/.config/blupe/aspire.json`. Programs and learned topics are saved under
+`~/.local/share/blupe/aspire/skills/`, separately from run recordings. Setup
+does not access the robot. It preserves an existing configuration.
 
 Complete the browser login if requested, open the printed localhost address,
-select the configured robot and its local ASPIRE option, then enter the task.
-If the port is occupied, add `--port 8792` or another free port.
+select the local ASPIRE option, then enter the task. Subscription use needs no
+OpenAI API key. Add `--port 8792` to the launch command if the default is occupied.
+Use `./run-aspire.sh --config /path/to/station.json` for another configured station.
+The default is Robo-house with Astra perception; RunPod SAM3 is optional and
+requires your own endpoint and credentials.
 
-To use the bundled executable in a station configuration without copying it:
+## Code structure
 
-```json
-{
-  "published_skills": true,
-  "executable_skills": { "enabled": true }
-}
+```text
+setup-aspire.sh / run-aspire.sh  Setup and local UI entry points
+codex-runner/aspire/            Native launcher, scene capture, program contract
+  assets/linear_4310/           Licensed installed gripper model and meshes
+codex-runner/src/remote_yam/    API bridge, planning, coding, learning, retrieval
+codex-runner/skills/aspire/     Published programs, patterns, executable, provenance
+codex-runner/docs/aspire/       Quick start and station hardware setup
 ```
 
-These fields supplement your existing station configuration. An explicit
-`executable_skills.manifest` continues to select that station's own executable.
-Setting `published_skills` to `false` disables bundled coding context; the
-explicit upstream-baseline mode also excludes accumulated learning.
+## Run from Codex through the API
 
-To inspect the shared library without contacting a robot:
+Use the same runner without the UI. First generate and validate a program from
+a fresh scene; it can reuse the shared catalog or your local skills:
+
+```sh
+~/.local/share/blupe/aspire/venv/bin/python codex-runner/aspire/run_prompt.py \
+  --prompt 'Pick up the green block and place it on the blue poker chip.' \
+  --plan-only --output /path/to/new-plan-run
+```
+
+To use code you wrote in Codex, supply `--program-response /path/to/response.json`.
+The response must follow the [program contract](../../aspire/CODE-GENERATION.md)
+and the runner's [program response schema](../../src/remote_yam/aspire_codex_policy.py),
+including actual Python source and declared perception queries.
+
+Execute a passing plan through the normal queue with the same prompt,
+`--execute --feedback /path/to/new-plan-run/receipt.json`, and a new output
+directory. Execution measures the live scene and replans; the saved receipt
+does not replay old trajectories. Review the receipt, recorded videos, and
+post-parking outcome, then iterate with feedback. `--config` selects a different
+station configuration.
+
+Check setup without contacting hardware with `./setup-aspire.sh --check`.
+To inspect the published library without installing the native runtime:
 
 ```sh
 cd codex-runner
-PYTHONPATH=src python3 -m remote_yam.aspire_published_skills \
-  --query 'Pick up the green block and place it on the blue poker chip.'
+PYTHONPATH=src python3 -m remote_yam.aspire_published_skills --query 'pick and place'
 ```
+
+The bundled executable is enabled by default. An explicit
+`executable_skills.manifest` selects your own executable; `published_skills: false`
+disables bundled coding context. Explicit upstream-baseline runs exclude
+accumulated learning.
