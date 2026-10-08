@@ -32,17 +32,20 @@ class LoggedSessionAPI:
     def __init__(self, api, journal):
         self.api, self.journal = api, journal
         self.submission_id = None
+        self.queue_identity = {}
 
     def __getattr__(self, name):
         return getattr(self.api, name)
 
     def __setattr__(self, name, value):
-        if name in {"api", "journal", "submission_id"}:
+        if name in {"api", "journal", "submission_id", "queue_identity"}:
             object.__setattr__(self, name, value)
         else:
             setattr(self.api, name, value)
 
     def setup(self, payload, paid=False):
+        # Forward only private contact fields, never provider credentials.
+        self.queue_identity = {k: payload[k] for k in ("runner_name", "email") if k in payload}
         self.submission_id = uuid.uuid4().hex
         self.journal.record(self.submission_id, 'submitted',
                             {'source': 'website', 'paid': paid,
@@ -57,7 +60,7 @@ class LoggedSessionAPI:
     def create_session(self, prompt, run_duration_s=300):
         self.note('queue_request', {'prompt': prompt, 'run_duration_s': run_duration_s})
         try:
-            result = self.api.create_session(prompt, run_duration_s=run_duration_s)
+            result = self.api.create_session(prompt, run_duration_s=run_duration_s, **self.queue_identity)
         except Exception as exc:
             self.note('queue_request_failed', {'error_type': type(exc).__name__})
             raise
