@@ -984,3 +984,30 @@ test('public stage timer advances across successive shared snapshots',async()=>{
     if(first)assert.equal(stage,first);first=stage;
   }
 });
+
+test('ASPIRE failures offer the local README while preserving the concrete error',async()=>{
+ const f=await disclosureFixture({hostname:'playground.blupe.io'});
+ const error='Native planning failed: right_tip_outside_workspace';
+ const run={attempt_id:'readme-failure',task:'Place the block',status:'failed',model_name:'ASPIRE · Codex/Astra',error};
+ f.api.live(run,{});
+ const links=f.work.descendants().filter(node=>node.tagName==='A' && !node.parentElement.hidden && node.textContent==='You can run ASPIRE locally (README)');
+ assert.equal(links.length,1);assert.equal(links[0].parentElement.hidden,false);
+ assert.equal(links[0].href,'https://github.com/andlyu/blupe-remote-yam/blob/main/codex-runner/docs/aspire/README.md');
+ assert.equal(links[0].target,'_blank');assert.equal(links[0].rel,'noopener noreferrer');
+ assert.match(f.allText(f.work),/Native planning failed: right_tip_outside_workspace/);
+ f.api.live({...run,status:'completed',error:null,task_progress:{outcome:{success:true,status:'SUCCESS'}}},{});
+ assert(!f.work.descendants().some(node=>node.tagName==='A' && !node.parentElement.hidden && node.textContent==='You can run ASPIRE locally (README)'));
+});
+
+test('local README guidance is scoped to ASPIRE failures and final unverified outcomes',()=>{
+ const error={status:'failed',error:'Missing target',task:'Task'};
+ const failures=[{...error,model_name:'ASPIRE · Codex/Astra'},{...error,provider:'hosted_aspire'},
+   {...error,model_name:'Astra',launch_route:{requested_policy:'aspire',actual_policy:'astra'}}];
+ for(const run of failures) assert(context.aspireActivityEntries(run).find(row=>row.id==='task-failure').localSetup);
+ const general=context.aspireActivityEntries({...error,model_name:'Astra'}).find(row=>row.id==='task-failure');
+ assert.equal(general.localSetup,'');assert.equal(general.detail,'Missing target');
+ const run={model_name:'ASPIRE',status:'stopped',task_progress:{outcome:{status:'UNVERIFIED',success:false,reason:'Block not detected'}}};
+ assert(context.aspireActivityEntries(run).find(row=>row.id==='parked-outcome').localSetup);
+ for(const status of ['preparing','queued','running']) assert.equal(context.aspireActivityEntries({...run,status}).find(row=>row.id==='parked-outcome').localSetup,'');
+ assert.equal(context.aspireActivityEntries({...run,task_progress:{outcome:{status:'SUCCESS',success:true}}}).find(row=>row.id==='parked-outcome').localSetup,'');
+});
