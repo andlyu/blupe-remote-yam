@@ -30,6 +30,24 @@ An inverse-kinematics layer converts Cartesian paths into joint waypoints at
 10 Hz. Unreachable targets are rejected before motion. Joint pacing can slow
 a path. Prefer steps that get you to the goal; don't waste time."""
 
+def bounds_text(names, low, high):
+    return ', '.join(f'{name}: [{float(lo)}, {float(hi)}]'
+                     for name, lo, hi in zip(names, low, high))
+
+
+def tools_for_bounds(names, low, high):
+    """Advertise exactly the bounds enforced by this geometry instance."""
+    import copy
+    tools = copy.deepcopy(TOOLS)
+    tools[0]['description'] = (tools[0]['description'].split('Per-dimension bounds:')[0]
+                               + 'Per-dimension bounds: ' + bounds_text(names, low, high) + '.')
+    targets = tools[0]['parameters']['properties']['targets']
+    targets.update(additionalProperties=False, minProperties=1,
+                   properties={name: dict(type='number', minimum=float(lo), maximum=float(hi))
+                               for name, lo, hi in zip(names, low, high)})
+    return tools
+
+
 TOOLS = [{'type': 'function',
   'name': 'move_to',
   'description': 'Move to absolute Cartesian end-effector targets (meters for positions, radians for '

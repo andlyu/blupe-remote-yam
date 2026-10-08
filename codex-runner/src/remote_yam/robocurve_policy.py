@@ -63,6 +63,9 @@ class RoboCurveResponsesAdapter(ResponsesAdapter):
         self._geometry = self._make_geometry()
         from .robocurve_prompts import DEFAULT_PROMPT_VERSION, prompt_text
         self._system_prompt = prompt_text(DEFAULT_PROMPT_VERSION)
+        self._behavior_prompt = self._system_prompt
+        self._workspace_profile = None
+        self._workspace_report_robot_id = None
         self._tools = TOOLS
         self._names = NAMES
         self._camera_names = ('top', 'left', 'right')
@@ -86,12 +89,71 @@ class RoboCurveResponsesAdapter(ResponsesAdapter):
         from .robocurve_prompts import prompt_text
         if self._history:
             raise ValueError('Select the prompt before starting a conversation')
-        self._system_prompt = prompt_text(version)
+        self._behavior_prompt = prompt_text(version)
+        self._refresh_workspace_contract()
+
+    def configure_robot_workspace(self, robot_id, *, report=None):
+        """Bind the selected station before queue admission or model calls.
+
+        The saved profile is also used by RGB-only subscription/API transports.
+        Other robot embodiments keep their own contracts. Unknown YAM stations
+        retain the legacy bounds rather than inheriting another station's box.
+        """
+        if not isinstance(self._geometry, RoboCurveTrajectory):
+            return
+        if self._history or self._calls:
+            raise ValueError('Select the robot workspace before starting a conversation')
+        if self._workspace_report_robot_id not in (None, robot_id):
+            raise ValueError('Selected robot differs from the bound workspace calibration')
+        if report is not None and report.get('robot_id') != robot_id:
+            raise ValueError('Workspace calibration robot mismatch')
+        from .controller_workspace import workspace_for_robot
+        from .robocurve_trajectory import LOW, HIGH
+        profile = workspace_for_robot(robot_id)
+        if profile is not None and report is not None:
+            profile.validate_report(report)
+        # Hosted applications may append startup instructions before admission.
+        # Preserve those instructions when binding the first station profile.
+        if self._workspace_profile is None:
+            self._behavior_prompt = self._system_prompt
+        self._geometry.low, self._geometry.high = LOW.copy(), HIGH.copy()
+        if profile is not None:
+            profile.configure_geometry(self._geometry)
+        self._workspace_profile = profile
+        if report is not None:
+            self._workspace_report_robot_id = robot_id
+        self._refresh_workspace_contract()
+
+    def _refresh_workspace_contract(self):
+        self._system_prompt = self._behavior_prompt
+        if self._workspace_profile is None:
+            if isinstance(self._geometry, RoboCurveTrajectory):
+                self._tools = TOOLS
+            return
+        from .robocurve_contract import bounds_text, tools_for_bounds
+        low, high = self._geometry.low, self._geometry.high
+        self._tools = tools_for_bounds(NAMES, low, high)
+        self._system_prompt += (
+            '\n\nActive controller workspace for ' + self._workspace_profile.robot_id
+            + ' (saved profile ' + self._workspace_profile.profile + '):\n'
+            + 'Absolute per-arm base-frame bounds: ' + bounds_text(NAMES, low, high) + '.\n'
+            + 'The nominal 0.76 m shoulder reach above describes link geometry, not an allowed target '
+            'or guaranteed mechanical reachability. Use these workspace bounds and move_to limits. '
+            'Out-of-bounds named targets are rejected locally; do not rely on clamping. '
+            'The controller independently checks joint limits, swept poses, table clearance and '
+            'collisions; IK and joint pacing also still apply. This saved profile is not live '
+            'configuration verification.')
 
     def public_config(self):
         from .robocurve_prompts import prompt_identity
+        identity = prompt_identity(self._system_prompt)
+        if self._workspace_profile is not None:
+            # Keep the behavioral version while hashing the complete effective prompt.
+            identity['prompt_version'] = prompt_identity(self._behavior_prompt)['prompt_version']
         return {**super().public_config(), 'policy': 'robocurve_no_demo',
-                **prompt_identity(self._system_prompt),
+                **identity,
+                **({'controller_workspace': self._workspace_profile.summary()}
+                   if self._workspace_profile is not None else {}),
                 'response_speed': self.response_speed,
                 'actual_response_speed': self.actual_response_speed,
                 'model_calls': self._calls, 'history_items': len(self._history),

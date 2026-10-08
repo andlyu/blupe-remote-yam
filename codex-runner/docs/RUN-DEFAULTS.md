@@ -5,8 +5,12 @@ The shared playground and hosted deployment use these defaults:
 - **With Haste** system prompt, selected in code by
   `src/remote_yam/robocurve_prompts.py`. Original RoboCurve is preserved there
   as `original-robocurve`; no prompt selector is added to the UI.
-- Cartesian target bounds: X 0.15–0.48 m, Y −0.50–+0.50 m, Z 0.03–0.40 m,
-  in each arm's base frame.
+- Cartesian target bounds use the selected station's saved controller workspace
+  for `yam-1` and Robo-house (`robot-ba8413962083809c`). Both have maximum X
+  0.746831991 m; Y and Z bounds differ by station and arm. See
+  [controller workspace](CONTROLLER-WORKSPACE.md) for the full per-arm bounds
+  and saved-profile caveats. Unknown stations and unbound direct adapters retain
+  X 0.15–0.48 m, Y −0.50–+0.50 m, Z 0.03–0.40 m.
 - **4× motion pacing** (`TRAJECTORY_SPEED = 4.0`). The existing 0.35 rad/s
   joint ceiling, gripper timing, reachability, gateway and settling checks
   remain. These can slow a particular path, so 4× is not a guaranteed
@@ -32,12 +36,14 @@ request; `actual_response_speed` reports the returned API/Claude speed when
 available. It remains null when the transport does not report it, including
 Codex. A requested tier is not proof that the provider delivered that tier.
 
-The exact With Haste SHA-256 is
+The audited With Haste behavioral text SHA-256 is
 `724dba416a8a722f5a52dfe5f125a34e8eed5c4ebb4d7e5e74aed5a56559d559`.
-The Original RoboCurve SHA-256 is
+The Original RoboCurve behavioral text SHA-256 is
 `cc3f1dade16066840ec62f5709286468f0b217f985290748a2abc6b9403e559e`.
-Run configuration saves the prompt version, system text/hash, requested inference
-speed, and trajectory pacing separately.
+Known YAM stations append their active workspace to that behavioral text. Run
+configuration saves the behavioral prompt version, complete effective system
+text/hash, controller workspace profile, requested inference speed, and trajectory
+pacing separately. Saved profiles do not verify the live controller configuration.
 
 References checked September 28, 2026:
 - https://developers.openai.com/api/docs/guides/fast-mode

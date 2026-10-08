@@ -340,8 +340,10 @@ it does not offer Stripe-funded Claude inference.
 
 ## Run defaults
 
-YAM uses With Haste, ±50 cm sideways limits, 4× motion pacing, and Fast inference.
-See [run defaults](docs/RUN-DEFAULTS.md) for provider settings and motion limits.
+YAM uses With Haste, the selected station's saved controller workspace, 4× motion
+pacing, and Fast inference. See [run defaults](docs/RUN-DEFAULTS.md) for provider
+settings and [controller workspace](docs/CONTROLLER-WORKSPACE.md) for per-arm
+bounds, source profiles, and calibration caveats.
 
 ## Astra RGB-D API example
 

@@ -37,6 +37,10 @@ Command submission is enabled by default. Robot readiness, command validation,
 and gateway execution checks still apply. If the default port is occupied, use
 `./run-playground.sh --port 8792`.
 
+YAM Cartesian targets use the selected station's saved
+[controller workspace](codex-runner/docs/CONTROLLER-WORKSPACE.md), including its
+per-arm bounds and calibration caveats.
+
 For API RGB-D observations and bounded Astra depth queries, see the
 [Astra RGB-D example](codex-runner/docs/astra-depth-example.md). The local YAM
 Astra setup includes **Use depth from the API**, unchecked by default.

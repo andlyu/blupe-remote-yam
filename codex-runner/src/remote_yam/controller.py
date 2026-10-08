@@ -109,6 +109,9 @@ class RunnerController:
                 self._attempt_id = uuid.uuid4().hex
             self._error = None
             self._safety_error = None
+        configure_workspace = getattr(provider, 'configure_robot_workspace', None)
+        if callable(configure_workspace):
+            configure_workspace(self._robot_id)
         admission = getattr(provider, 'validate_session_admission', None)
         if callable(admission):
             admission(self._session_api)
