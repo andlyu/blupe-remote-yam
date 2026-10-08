@@ -75,3 +75,19 @@ asset directory. [Setup](../../setup_aspire.py) fetches the pinned NVIDIA source
 as a separate dependency and verifies the shared runtime without hardware.
 The source, Python environment, API origin, robot identity, and persistent
 learning paths are recorded in the generated local configuration.
+
+## Local configuration and storage
+
+Setup fetches the clean pinned NVIDIA ASPIRE source, installs its API-backed
+Python runtime, verifies the planner and bundled gripper assets, and writes
+`~/.config/blupe/aspire.json`. Programs and learned topics are saved under
+`~/.local/share/blupe/aspire/skills/`, separately from run recordings. Setup
+does not access the robot. It preserves an existing configuration.
+
+Complete the browser login if requested, open the printed localhost address,
+select the local ASPIRE option, then enter the task. Subscription use needs no
+OpenAI API key. Add `--port 8792` to the launch command if the default is occupied.
+Use `./run-aspire.sh --config /path/to/station.json` for another configured station.
+The default is Robo-house with Astra perception; RunPod SAM3 is optional and
+requires your own endpoint and credentials.
+

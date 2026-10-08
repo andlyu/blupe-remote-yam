@@ -56,18 +56,7 @@ Codex subscription with Astra access. From the BluPe Remote YAM repository root:
 ./run-aspire.sh
 ```
 
-Setup fetches the clean pinned NVIDIA ASPIRE source, installs its API-backed
-Python runtime, verifies the planner and bundled gripper assets, and writes
-`~/.config/blupe/aspire.json`. Programs and learned topics are saved under
-`~/.local/share/blupe/aspire/skills/`, separately from run recordings. Setup
-does not access the robot. It preserves an existing configuration.
-
-Complete the browser login if requested, open the printed localhost address,
-select the local ASPIRE option, then enter the task. Subscription use needs no
-OpenAI API key. Add `--port 8792` to the launch command if the default is occupied.
-Use `./run-aspire.sh --config /path/to/station.json` for another configured station.
-The default is Robo-house with Astra perception; RunPod SAM3 is optional and
-requires your own endpoint and credentials.
+Run setup once, and sign in through your browser only if Codex isn’t already signed in.
 
 ## Code structure
 
@@ -79,39 +68,3 @@ codex-runner/src/remote_yam/    API bridge, planning, coding, learning, retrieva
 codex-runner/skills/aspire/     Published programs, patterns, executable, provenance
 codex-runner/docs/aspire/       Quick start and station hardware setup
 ```
-
-## Run from Codex through the API
-
-Use the same runner without the UI. First generate and validate a program from
-a fresh scene; it can reuse the shared catalog or your local skills:
-
-```sh
-~/.local/share/blupe/aspire/venv/bin/python codex-runner/aspire/run_prompt.py \
-  --prompt 'Pick up the green block and place it on the blue poker chip.' \
-  --plan-only --output /path/to/new-plan-run
-```
-
-To use code you wrote in Codex, supply `--program-response /path/to/response.json`.
-The response must follow the [program contract](../../aspire/CODE-GENERATION.md)
-and the runner's [program response schema](../../src/remote_yam/aspire_codex_policy.py),
-including actual Python source and declared perception queries.
-
-Execute a passing plan through the normal queue with the same prompt,
-`--execute --feedback /path/to/new-plan-run/receipt.json`, and a new output
-directory. Execution measures the live scene and replans; the saved receipt
-does not replay old trajectories. Review the receipt, recorded videos, and
-post-parking outcome, then iterate with feedback. `--config` selects a different
-station configuration.
-
-Check setup without contacting hardware with `./setup-aspire.sh --check`.
-To inspect the published library without installing the native runtime:
-
-```sh
-cd codex-runner
-PYTHONPATH=src python3 -m remote_yam.aspire_published_skills --query 'pick and place'
-```
-
-The bundled executable is enabled by default. An explicit
-`executable_skills.manifest` selects your own executable; `published_skills: false`
-disables bundled coding context. Explicit upstream-baseline runs exclude
-accumulated learning.
