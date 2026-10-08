@@ -90,4 +90,3 @@ OpenAI API key. Add `--port 8792` to the launch command if the default is occupi
 Use `./run-aspire.sh --config /path/to/station.json` for another configured station.
 The default is Robo-house with Astra perception; RunPod SAM3 is optional and
 requires your own endpoint and credentials.
-

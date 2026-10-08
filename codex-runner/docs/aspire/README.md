@@ -19,7 +19,7 @@ see [Robo-house hardware and station setup](SETUP.md).
    input-bound pick-and-place executable. Configured ASPIRE coding runs retrieve
    these alongside locally learned skills.
 3. **Execute the program.** Use your configured station's local UI to run the
-   task and watch it live, or launch through its API runner from Codex and review
+   task and watch it live, or launch through the [API runner](API.md) from Codex and review
    the recordings afterward. The UI selects registered programs or invokes its
    coding loop; a Python file written separately is not automatically registered.
    Both routes use the existing runner/controller, fresh measurements, and
