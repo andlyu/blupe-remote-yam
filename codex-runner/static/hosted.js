@@ -1753,7 +1753,7 @@ function createRunLaunchGuard() {
       }
       robotCatalog.robots.sort((a,b) => Number(b.connected === true) - Number(a.connected === true));
       if (!window.yamApplication?.defaultRobot && !new URLSearchParams(location.search).get('robot_id')) {
-        selectedRobot = robotCatalog.robots.find(robot => robot.id === 'yam-1')?.id
+        selectedRobot = robotCatalog.robots.find(robot => robot.id === 'yam-1' && robot.connected === true)?.id
           || robotCatalog.robots.find(robot => robot.connected === true)?.id || selectedRobot;
       }
       selector.replaceChildren(...robotCatalog.robots.map(robot =>
