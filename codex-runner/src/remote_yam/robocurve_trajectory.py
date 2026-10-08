@@ -17,9 +17,11 @@ HIGH = np.tile([.48, .50, .4, math.pi, 0, 0, 1], 2)
 TRAJECTORY_SPEED = 4.0
 # Retain the gateway's 0.35 rad/s joint ceiling at 10 Hz.
 MAX_JOINT_STEP_RAD = min(.01 * TRAJECTORY_SPEED, .035)
-STEP = .01 * TRAJECTORY_SPEED * (HIGH - LOW)
-STEP[[1, 8]] = .005 * TRAJECTORY_SPEED  # workspace width does not set sideways speed
-STEP[[6, 13]] = .1  # retain one-second full gripper stroke
+# Physical increments are independent of the selected controller envelope.
+# Preserve the existing 10 Hz pacing: 13.2 mm X, 20 mm Y, 14.8 mm Z per step.
+STEP = np.tile([.01 * TRAJECTORY_SPEED * (.48 - .15), .005 * TRAJECTORY_SPEED,
+                .01 * TRAJECTORY_SPEED * (.4 - .03), .01 * TRAJECTORY_SPEED * (2 * math.pi),
+                0, 0, .1], 2)
 BASES = (np.array([0., .35, 0.]), np.array([0., -.35, 0.]))
 
 
@@ -43,6 +45,7 @@ class RoboCurveTrajectory:
     def __init__(self, *, base_spacing_m=None):
         self.ik = BimanualRelativeIK(base_spacing_m=base_spacing_m)
         self.bases = tuple(np.array([0., sign*self.ik.base_spacing_m/2, 0.]) for sign in (1, -1))
+        self.low, self.high = LOW.copy(), HIGH.copy()
         self.start_rotations = None
 
     def observe(self, observation):
@@ -80,14 +83,14 @@ class RoboCurveTrajectory:
             i = NAMES.index(name)
             if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value):
                 raise InvalidMove(f'{name} must be a finite number', 'invalid_target_type')
-            if not LOW[i] <= value <= HIGH[i]:
-                raise InvalidMove(f'{name} must be in [{LOW[i]:.6g}, {HIGH[i]:.6g}]', 'target_out_of_bounds')
+            if not self.low[i] <= value <= self.high[i]:
+                raise InvalidMove(f'{name} must be in [{self.low[i]}, {self.high[i]}]', 'target_out_of_bounds')
             goal[i] = value
             named.append(i)
         # Pin the endpoint, not every intermediate sample. Measured tracking
         # error on a fixed pitch/roll axis must converge gradually; clipping each
         # sample makes an instantaneous correction that subdivision cannot shrink.
-        goal = np.clip(goal, LOW, HIGH)
+        goal = np.clip(goal, self.low, self.high)
         ratio = max((abs(goal[i]-start[i])/STEP[i] for i in named if STEP[i] > 0), default=0)
         ratio /= 1 - 1e-6  # RoboCurve's numerical headroom
         remaining = max(0, MAX_COMMANDS-first_step_id)

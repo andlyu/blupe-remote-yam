@@ -114,6 +114,8 @@ class CodexDepthAdapter(CodexAdapter):
         spacing = report.get('base_geometry', {}).get('spacing_m')
         self._depth_base_spacing = spacing
         self._geometry = self._make_geometry()
+        if report.get('robot_id'):
+            self.configure_robot_workspace(report['robot_id'], report=report)
 
     def public_config(self):
         return {**super().public_config(), 'policy':'astra_api_depth_example',
@@ -165,6 +167,8 @@ class CodexDepthAdapter(CodexAdapter):
         stopped = depth_robot_stopped(observation)
         snapshot = self.depth_api.capture(cancelled=self.cancelled, stopped=stopped)
         self._snapshot = snapshot
+        if getattr(self, '_workspace_profile', None) is not None:
+            self._workspace_profile.validate_report(snapshot.calibration)
         content = message['content']
         # Replace the independent top JPEG with RGB from the exact depth frameset.
         top_rgb = {'type':'input_image','detail':'high',
@@ -197,6 +201,9 @@ class CodexDepthAdapter(CodexAdapter):
         self._expected_camera_count = 6
         message = super()._observation_message(prompt, observation, first_step_id)
         snapshots = self._camera_source.snapshots
+        if getattr(self, '_workspace_profile', None) is not None:
+            for snapshot in snapshots.values():
+                self._workspace_profile.validate_report(snapshot.calibration)
         spacing = snapshots['top'].calibration.get('base_geometry', {}).get('spacing_m')
         if spacing is not None and self._geometry.ik.base_spacing_m != spacing:
             raise ValueError('Depth calibration base spacing differs from runner geometry')
