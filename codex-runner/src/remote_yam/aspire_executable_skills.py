@@ -134,7 +134,8 @@ def configured_executable_skills(config):
     if config.get('coding_baseline') == 'upstream':
         return None
     value = config.get('executable_skills') or {}
-    return ExecutableSkillLibrary(value['manifest'],
+    from .aspire_published_skills import DEFAULT_ROOT
+    return ExecutableSkillLibrary(value.get('manifest') or DEFAULT_ROOT/'executable/pick_place.json',
         repairs=Path(config['skill_directory'])/'.repaired-programs' if config.get('skill_directory') else None) if value.get('enabled') else None
 
 

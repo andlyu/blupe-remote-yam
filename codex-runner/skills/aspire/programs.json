@@ -1,0 +1,657 @@
+{
+  "programs": [
+    {
+      "aspire_commit": "f4c8939aab0af9b97690c561bd80e282940f7886",
+      "evidence": {
+        "availability": "Private deployed development record; not bundled run evidence.",
+        "original_record_sha256": "1ef0f6c918f2a688681ea483726a3fda8ec1efca1d61e070442addb1f98c2c8a"
+      },
+      "lesson": "V11 completed every packet but missed the cuboid. Nominal collision-pad centroids are not physical contact calibration. Earlier site-centered pickup supports revising the API grasp target; new planning and postparking evidence must establish the outcome.",
+      "model": "gpt-6-astra",
+      "model_weights_changed": false,
+      "reuse_scope": "Historical Robo-house task code; inspect and adapt to current scene. PHYSICAL_SUCCESS is a scoped past result, not generic validation.",
+      "source": "sources/0a084c30d41343991d563cc1921f1eede0e68b44b1c395205d69d788f936306a.py",
+      "source_sha256": "0a084c30d41343991d563cc1921f1eede0e68b44b1c395205d69d788f936306a",
+      "summary": "Revises the missed pickup to use fresh top-center API grasp-site XY and shallow insertion, without nominal pad-offset compensation. Fully plans short-span pickup, stacking, open-jaw withdrawal and both arm returns.",
+      "task": "Stack the green block on the red block.",
+      "validation": "FULL_PLAN_ONLY",
+      "validation_history": []
+    },
+    {
+      "aspire_commit": "f4c8939aab0af9b97690c561bd80e282940f7886",
+      "compatibility": {
+        "fresh_scene_and_full_planning_required": true,
+        "gripper": "installed I2RT linear_4310",
+        "native_opening_axis": "X",
+        "tool_frame": "aspire_grasp"
+      },
+      "evidence": {
+        "availability": "Private deployed development record; not bundled run evidence.",
+        "original_record_sha256": "c99a78d446917508f75b119fe65350dbb2c8609b221752a91faabec4b876b49f"
+      },
+      "lesson": "Native tool poses already include the adapter conversion. A passing motion plan does not validate an incorrectly modeled grasp or establish physical placement success.",
+      "model": "gpt-6-astra",
+      "model_weights_changed": false,
+      "registration_reason": "Human requests accumulated skills as the starting point; make confirmed blue-chip skill discoverable by default retrieval.",
+      "reuse_scope": "Historical Robo-house task code; inspect and adapt to current scene. PHYSICAL_SUCCESS is a scoped past result, not generic validation.",
+      "source": "sources/128efdcab65279cfbf8bc8e24d5d8c3f8c72709c15a19d5c7b3b910056a2fd67.py",
+      "source_sha256": "128efdcab65279cfbf8bc8e24d5d8c3f8c72709c15a19d5c7b3b910056a2fd67",
+      "summary": "Corrects the confirmed double frame conversion: native poses directly transform CAD contacts, and tilt preserves native X. Retains measured support, object-relative placement, full native planning, and final perception checks.",
+      "task": "Pick up the green block and place it on the blue poker chip.",
+      "validation": "PHYSICAL_SUCCESS",
+      "validation_history": []
+    },
+    {
+      "aspire_commit": "f4c8939aab0af9b97690c561bd80e282940f7886",
+      "evidence": {
+        "availability": "Private deployed development record; not bundled run evidence.",
+        "original_record_sha256": "2d843662734cff5c0799567318b09092ff0c77837d380a7428efcabceba0738b"
+      },
+      "lesson": "Whole-instance SAM3 masks are not face masks. A broad free-plane fit can select block sides even when native planning passes. Preserve the measured support normal for a flat supported block and transfer only validated intrinsic object dimensions; measure pose and all world heights afresh. Derive current XY center/yaw from the whole instance footprint; a partial upper-depth layer determines height and must not bias the grasp toward an edge. Actual SAM3 run placed the green block on the green towel and retained it after parking. Do not treat prior 23.6mm thickness as physically calibrated; final supported-height metric did not validate. See physical-success lesson and preserved original receipt.",
+      "model": "gpt-6-astra",
+      "model_weights_changed": false,
+      "reuse_scope": "Historical Robo-house task code; inspect and adapt to current scene. PHYSICAL_SUCCESS is a scoped past result, not generic validation.",
+      "source": "sources/1fdab78d4ebab084b457b71b97f5b3c049171c0e7d053862063d04823c01b659.py",
+      "source_sha256": "1fdab78d4ebab084b457b71b97f5b3c049171c0e7d053862063d04823c01b659",
+      "summary": "Retains the Astra-generated SAM3 adaptation and native motion; corrects mixed-face slope using the fresh measured support normal and upper-depth layer. Uses provenance-labelled same-object dimensions.",
+      "task": "Pick up the green block and place it on the green towel.",
+      "validation": "PHYSICAL_SUCCESS",
+      "validation_history": []
+    },
+    {
+      "aspire_commit": "f4c8939aab0af9b97690c561bd80e282940f7886",
+      "evidence": {
+        "availability": "Private deployed development record; not bundled run evidence.",
+        "original_record_sha256": "0d9cfc634d18b81dcf7cfa5c5d574ab2fdc0f42330a791f76f7e2989707b9b5e"
+      },
+      "lesson": "A missing task_result.json and truncated CAPTURING_SCENE traceback do not identify a grasp or planner defect. Preserve native errors and obtain the complete harness traceback before attributing a cause; no physical success occurred.",
+      "model": "gpt-6-astra",
+      "model_weights_changed": false,
+      "reuse_scope": "Historical Robo-house task code; inspect and adapt to current scene. PHYSICAL_SUCCESS is a scoped past result, not generic validation.",
+      "source": "sources/20d78d5123b69fc106355ced98e238f985cc49bc5184844a48a191185f984bda.py",
+      "source_sha256": "20d78d5123b69fc106355ced98e238f985cc49bc5184844a48a191185f984bda",
+      "summary": "Retains the face-preserving stacking strategy and rebuilds all six paths from fresh measurements. Latest feedback reports a scene-capture harness error with zero motion, not a diagnosed planning failure.",
+      "task": "Stack the green block on the red block.",
+      "validation": "FULL_PLAN_ONLY",
+      "validation_history": []
+    },
+    {
+      "aspire_commit": "f4c8939aab0af9b97690c561bd80e282940f7886",
+      "evidence": {
+        "availability": "Private deployed development record; not bundled run evidence.",
+        "original_record_sha256": "e2094ff75c746cc5def9ca4e68941db5e0f16b26e9da9e190a3d36fa37fab894"
+      },
+      "lesson": "Fresh RGB-D, dimensions and complete native paths are mandatory. Contact-height and intrinsic-dimension metrology remain unresolved.",
+      "model": "gpt-6-astra",
+      "model_weights_changed": false,
+      "reuse_scope": "Historical Robo-house task code; inspect and adapt to current scene. PHYSICAL_SUCCESS is a scoped past result, not generic validation.",
+      "source": "sources/278b273e56cd842acf9eec5aa8dbce57ff1485f483ef74285cb878e97057d6ce.py",
+      "source_sha256": "278b273e56cd842acf9eec5aa8dbce57ff1485f483ef74285cb878e97057d6ce",
+      "summary": "Reuse pick_place_block; bind source, destination and support/occupancy inputs.",
+      "task": "Place the green block on the green chip.",
+      "validation": "FULL_PLAN_ONLY",
+      "validation_history": [
+        {
+          "validation": "FULL_PLAN_ONLY"
+        }
+      ]
+    },
+    {
+      "aspire_commit": "f4c8939aab0af9b97690c561bd80e282940f7886",
+      "evidence": {
+        "availability": "Private deployed development record; not bundled run evidence.",
+        "original_record_sha256": "0cd0c07fbf24be7cbb6336e4c88c9cbed6b98ad261cf666cde811597d2140b7e"
+      },
+      "lesson": "Fresh RGB-D, dimensions and complete native paths are mandatory. Contact-height and intrinsic-dimension metrology remain unresolved.",
+      "model": "gpt-6-astra",
+      "model_weights_changed": false,
+      "reuse_scope": "Historical Robo-house task code; inspect and adapt to current scene. PHYSICAL_SUCCESS is a scoped past result, not generic validation.",
+      "source": "sources/281a3900211577e423b6734f44103e25de29dbe73233c9e0443a187f5b695161.py",
+      "source_sha256": "281a3900211577e423b6734f44103e25de29dbe73233c9e0443a187f5b695161",
+      "summary": "Reuse pick_place_block; bind source, destination and support/occupancy inputs.",
+      "task": "Place black block on blue chip",
+      "validation": "FULL_PLAN_ONLY",
+      "validation_history": [
+        {
+          "validation": "FULL_PLAN_ONLY"
+        }
+      ]
+    },
+    {
+      "aspire_commit": "f4c8939aab0af9b97690c561bd80e282940f7886",
+      "evidence": {
+        "availability": "Private deployed development record; not bundled run evidence.",
+        "original_record_sha256": "9e330831792e71291851dfc8f197349727e46407f58582a890f673ecaba535a7"
+      },
+      "lesson": "Fresh RGB-D, dimensions and complete native paths are mandatory. Contact-height and intrinsic-dimension metrology remain unresolved.",
+      "model": "gpt-6-astra",
+      "model_weights_changed": false,
+      "reuse_scope": "Historical Robo-house task code; inspect and adapt to current scene. PHYSICAL_SUCCESS is a scoped past result, not generic validation.",
+      "source": "sources/29e6477594bb10e5878382d37d6dc8aef080aaba1c626f750d33e6cb9eda14cd.py",
+      "source_sha256": "29e6477594bb10e5878382d37d6dc8aef080aaba1c626f750d33e6cb9eda14cd",
+      "summary": "Reuse pick_place_block; bind source, destination and support/occupancy inputs.",
+      "task": "Place the red block on the red chip.",
+      "validation": "FULL_PLAN_ONLY",
+      "validation_history": []
+    },
+    {
+      "aspire_commit": "f4c8939aab0af9b97690c561bd80e282940f7886",
+      "evidence": {
+        "availability": "Private deployed development record; not bundled run evidence.",
+        "original_record_sha256": "418b7cf1533b5da5f343b885c9e21a792a72ae2675fc9b852927b62fda0cc2f9"
+      },
+      "lesson": "All 20 prior candidates failed before pickup. The closest native solution saturated right joint 6 at -2.0944 radians. Explore nearby contact headings and approach paths before changing transport; no physical success is established.",
+      "model": "gpt-6-astra",
+      "model_weights_changed": false,
+      "reuse_scope": "Historical Robo-house task code; inspect and adapt to current scene. PHYSICAL_SUCCESS is a scoped past result, not generic validation.",
+      "source": "sources/2b185c4687f7da7f583c482170aecc719c7a11f1e4297427fca56ef3c6e2187d.py",
+      "source_sha256": "2b185c4687f7da7f583c482170aecc719c7a11f1e4297427fca56ef3c6e2187d",
+      "summary": "Revises pickup near the wrist-limited native solution using small oblique short-span grasps. Retains measured pad contact, complete planning, finite support and postparking evaluation.",
+      "task": "Stack the green block on the red block.",
+      "validation": "FULL_PLAN_ONLY",
+      "validation_history": []
+    },
+    {
+      "aspire_commit": "f4c8939aab0af9b97690c561bd80e282940f7886",
+      "evidence": {
+        "availability": "Private deployed development record; not bundled run evidence.",
+        "original_record_sha256": "6ce3c6328c24cbd7a154937f85928410a47ce6780ca57b6ebd27778824a19bee"
+      },
+      "lesson": "Placement and vertical withdrawal passed native planning. The next target failed because it combined home position with placement orientation. Replan the return with compatible orientations and open-jaw states; no physical motion has occurred.",
+      "model": "gpt-6-astra",
+      "model_weights_changed": false,
+      "reuse_scope": "Historical Robo-house task code; inspect and adapt to current scene. PHYSICAL_SUCCESS is a scoped past result, not generic validation.",
+      "source": "sources/32df48af9324fc94d117c83a9e07290f1cb491e078811f992bdeda8bcd8d6db1.py",
+      "source_sha256": "32df48af9324fc94d117c83a9e07290f1cb491e078811f992bdeda8bcd8d6db1",
+      "summary": "Repairs the empty-hand return: withdraw vertically, reverse the transport waypoints with open jaws, then return using the measured start position and orientation. Retains full planning and postparking evaluation.",
+      "task": "Stack the green block on the red block.",
+      "validation": "FULL_PLAN_ONLY",
+      "validation_history": []
+    },
+    {
+      "aspire_commit": "f4c8939aab0af9b97690c561bd80e282940f7886",
+      "evidence": {
+        "availability": "Private deployed development record; not bundled run evidence.",
+        "original_record_sha256": "ee4caa8e7f80665225b2b82e375ce50a71410fc857d64b7eb8605d11461d11e0"
+      },
+      "lesson": "Fresh RGB-D, dimensions and complete native paths are mandatory. Contact-height and intrinsic-dimension metrology remain unresolved.",
+      "model": "gpt-6-astra",
+      "model_weights_changed": false,
+      "reuse_scope": "Historical Robo-house task code; inspect and adapt to current scene. PHYSICAL_SUCCESS is a scoped past result, not generic validation.",
+      "source": "sources/45b671ac1cecdc074ff8680c54080440ee344b5482a5589d0094eb3b28adc8a3.py",
+      "source_sha256": "45b671ac1cecdc074ff8680c54080440ee344b5482a5589d0094eb3b28adc8a3",
+      "summary": "Reuse pick_place_block; bind source, destination and support/occupancy inputs.",
+      "task": "Place the red block on the blue chip.",
+      "validation": "FULL_PLAN_ONLY",
+      "validation_history": [
+        {
+          "validation": "FULL_PLAN_ONLY"
+        },
+        {
+          "validation": "FULL_PLAN_ONLY"
+        }
+      ]
+    },
+    {
+      "aspire_commit": "f4c8939aab0af9b97690c561bd80e282940f7886",
+      "evidence": {
+        "availability": "Private deployed development record; not bundled run evidence.",
+        "original_record_sha256": "4285057cea0d4635ba92be9638966919e09d43e5364c640639250149c7f1b294"
+      },
+      "lesson": "Fresh RGB-D, dimensions and complete native paths are mandatory. Contact-height and intrinsic-dimension metrology remain unresolved.",
+      "model": "gpt-6-astra",
+      "model_weights_changed": false,
+      "reuse_scope": "Historical Robo-house task code; inspect and adapt to current scene. PHYSICAL_SUCCESS is a scoped past result, not generic validation.",
+      "source": "sources/4c96d0ca13810d90dc80c3fe63eb30f70bd19d39c44ed18d6983e85329c0eec5.py",
+      "source_sha256": "4c96d0ca13810d90dc80c3fe63eb30f70bd19d39c44ed18d6983e85329c0eec5",
+      "summary": "Reuse pick_place_block; bind source, destination and support/occupancy inputs.",
+      "task": "Move the red block onto a clear patch of the green towel.",
+      "validation": "PHYSICAL_SUCCESS",
+      "validation_history": []
+    },
+    {
+      "aspire_commit": "f4c8939aab0af9b97690c561bd80e282940f7886",
+      "evidence": {
+        "availability": "Private deployed development record; not bundled run evidence.",
+        "original_record_sha256": "2d6e8fb97b04440edf36f4c1a3292fbff150838c1d8957c931c4f81e1823d815"
+      },
+      "lesson": "Changed segmentation on identical RGB-D altered the fitted grasp rotation. Preserve the measured contact construction, recheck source feasibility, and distinguish source, terminal and complete-plan evidence.",
+      "model": "gpt-6-astra",
+      "model_weights_changed": false,
+      "reuse_scope": "Historical Robo-house task code; inspect and adapt to current scene. PHYSICAL_SUCCESS is a scoped past result, not generic validation.",
+      "source": "sources/539ee98ecce8944ca414da8f505852ef3fe529529ae7bec4a35e914d9ce8bc96.py",
+      "source_sha256": "539ee98ecce8944ca414da8f505852ef3fe529529ae7bec4a35e914d9ce8bc96",
+      "summary": "Revises source tilt and approach sequencing after the new wrist-limit failure. Tests supported terminal poses before transport and records all diagnostic scopes alongside complete plans.",
+      "task": "Stack the green block on the red block.",
+      "validation": "FULL_PLAN_ONLY",
+      "validation_history": []
+    },
+    {
+      "aspire_commit": "f4c8939aab0af9b97690c561bd80e282940f7886",
+      "evidence": {
+        "availability": "Private deployed development record; not bundled run evidence.",
+        "original_record_sha256": "e5dec5721e849bcf65df245e138f6361454767e8364eabb4988b879992e74c1e"
+      },
+      "lesson": "Fresh RGB-D, dimensions and complete native paths are mandatory. Contact-height and intrinsic-dimension metrology remain unresolved.",
+      "model": "gpt-6-astra",
+      "model_weights_changed": false,
+      "reuse_scope": "Historical Robo-house task code; inspect and adapt to current scene. PHYSICAL_SUCCESS is a scoped past result, not generic validation.",
+      "source": "sources/68d9ec1e032d2a21a7d8b62abae25f624873bf92626eb5fbb7f6fc7905107cb2.py",
+      "source_sha256": "68d9ec1e032d2a21a7d8b62abae25f624873bf92626eb5fbb7f6fc7905107cb2",
+      "summary": "Reuse pick_place_block; bind source, destination and support/occupancy inputs.",
+      "task": "Place the green block on red chip.",
+      "validation": "FULL_PLAN_ONLY",
+      "validation_history": [
+        {
+          "validation": "FULL_PLAN_ONLY"
+        }
+      ]
+    },
+    {
+      "aspire_commit": "f4c8939aab0af9b97690c561bd80e282940f7886",
+      "evidence": {
+        "availability": "Private deployed development record; not bundled run evidence.",
+        "original_record_sha256": "d65928a68421b91b167e4e038da61973085b9d98542626cacd0fe11d32a2f2e5"
+      },
+      "lesson": "Agreement with a saved target does not establish correct placement when fresh target identity disagrees. Missing or occluded chip evidence remains unknown; native planning success is not physical success.",
+      "model": "gpt-6-astra",
+      "model_weights_changed": false,
+      "reuse_scope": "Historical Robo-house task code; inspect and adapt to current scene. PHYSICAL_SUCCESS is a scoped past result, not generic validation.",
+      "source": "sources/6d678de280cc546a0030b798295cb2d36ff91ea08e01385a9b3539df68d142c8.py",
+      "source_sha256": "6d678de280cc546a0030b798295cb2d36ff91ea08e01385a9b3539df68d142c8",
+      "summary": "Parked evidence shows the block separate from the visible blue chip; passing checks used a mismatched saved target. The program remeasures the blue chip, retains verification thresholds, and submits the complete corrective sequence to native planning. Not executed here.",
+      "task": "Place black block on blue chip",
+      "validation": "FULL_PLAN_ONLY",
+      "validation_history": [
+        {
+          "validation": "FULL_PLAN_ONLY"
+        },
+        {
+          "validation": "FULL_PLAN_ONLY"
+        },
+        {
+          "validation": "FULL_PLAN_ONLY"
+        }
+      ]
+    },
+    {
+      "aspire_commit": "f4c8939aab0af9b97690c561bd80e282940f7886",
+      "evidence": {
+        "availability": "Private deployed development record; not bundled run evidence.",
+        "original_record_sha256": "8908417335ad39f61831998a0f3af54d5442dc5c62b61771163ac5e616552d1c"
+      },
+      "lesson": "Native diagnostics identified 1.8\u20132.1 mm finger/table overlap at the source-grasp goal. Change grasp depth or orientation; destination yaw cannot repair this source collision. No physical motion or stacking success has occurred.",
+      "model": "gpt-6-astra",
+      "model_weights_changed": false,
+      "reuse_scope": "Historical Robo-house task code; inspect and adapt to current scene. PHYSICAL_SUCCESS is a scoped past result, not generic validation.",
+      "source": "sources/6f878e1ad48787ff716afa993d083fce9f35bf723d3c0e979788c6136bdb2619.py",
+      "source_sha256": "6f878e1ad48787ff716afa993d083fce9f35bf723d3c0e979788c6136bdb2619",
+      "summary": "Raises the grasp within the measured green block to address diagnosed finger/table collisions, then previews complete stacking sequences with alternative tilts, arms and placement yaw.",
+      "task": "Stack the green block on the red block.",
+      "validation": "FULL_PLAN_ONLY",
+      "validation_history": []
+    },
+    {
+      "aspire_commit": "f4c8939aab0af9b97690c561bd80e282940f7886",
+      "evidence": {
+        "availability": "Private deployed development record; not bundled run evidence.",
+        "original_record_sha256": "c32b6fe924eff4a8b33e88421ae45a37f385520217be1d873a1f1e4550a5e965"
+      },
+      "lesson": "Reuse successful native grasp/transport routines across objects, but measure the new object dimensions and support from current RGB-D. SAM3 instance masks include sides; use measured local support normal for the upward depth layer. Visible fabric and measured occupied footprints choose free towel space. Prior successful pickup does not calibrate an object thickness or guarantee a metric final-contact check.",
+      "model": "gpt-6-astra",
+      "model_weights_changed": false,
+      "reuse_scope": "Historical Robo-house task code; inspect and adapt to current scene. PHYSICAL_SUCCESS is a scoped past result, not generic validation.",
+      "source": "sources/89eb95ad9fbc357e5233c3b22b688ca8940ae72a1905fe2f18ca55b963784f50.py",
+      "source_sha256": "89eb95ad9fbc357e5233c3b22b688ca8940ae72a1905fe2f18ca55b963784f50",
+      "summary": "Reuses the physically completed towel skill with fresh black-block dimensions/top/table support depth and a free towel patch that excludes the measured green-block footprint. Native grasp/frame/CAD/motion routines are retained.",
+      "task": "Pick up the black block and place it on the green towel.",
+      "validation": "FULL_PLAN_ONLY",
+      "validation_history": []
+    },
+    {
+      "aspire_commit": "f4c8939aab0af9b97690c561bd80e282940f7886",
+      "evidence": {
+        "availability": "Private deployed development record; not bundled run evidence.",
+        "original_record_sha256": "74a905a1c8dfb8a0101dc81208aa53affcd69d2d7ce13c4a54b34091d186c62d"
+      },
+      "lesson": "The previous attempt stopped during placement before release. The minimum-dimension heuristic rolled an initially flat block; measured dimensions alone do not justify changing its supporting face. Preserve that face and vary yaw. The timeout\u2019s physical cause remains unconfirmed; retain controller checks.",
+      "model": "gpt-6-astra",
+      "model_weights_changed": false,
+      "reuse_scope": "Historical Robo-house task code; inspect and adapt to current scene. PHYSICAL_SUCCESS is a scoped past result, not generic validation.",
+      "source": "sources/8b6138cb4b2c0592774eb8a36dfbf767527e139074d26053682dbc1a0095326b.py",
+      "source_sha256": "8b6138cb4b2c0592774eb8a36dfbf767527e139074d26053682dbc1a0095326b",
+      "summary": "Revises placement to preserve the green block\u2019s initial supporting face, removing the unjustified 90\u00b0 roll. Measures complete top footprints and previews all six paths. Physical execution remains subject to actual operator reset readiness.",
+      "task": "Stack the green block on the red block.",
+      "validation": "FULL_PLAN_ONLY",
+      "validation_history": []
+    },
+    {
+      "aspire_commit": "f4c8939aab0af9b97690c561bd80e282940f7886",
+      "evidence": {
+        "availability": "Private deployed development record; not bundled run evidence.",
+        "original_record_sha256": "3b1505862d3b1b10425ac61732b6645f2101f0a0a8ac4dc2b72b5c2338d1e7df"
+      },
+      "lesson": "Fresh RGB-D, dimensions and complete native paths are mandatory. Contact-height and intrinsic-dimension metrology remain unresolved.",
+      "model": "gpt-6-astra",
+      "model_weights_changed": false,
+      "reuse_scope": "Historical Robo-house task code; inspect and adapt to current scene. PHYSICAL_SUCCESS is a scoped past result, not generic validation.",
+      "source": "sources/8f24f292b2e6654c90834464b8531e1adae8b0769679bedf1feba518a9b1e977.py",
+      "source_sha256": "8f24f292b2e6654c90834464b8531e1adae8b0769679bedf1feba518a9b1e977",
+      "summary": "Reuse pick_place_block; bind source, destination and support/occupancy inputs.",
+      "task": "move black block onto green chip",
+      "validation": "FULL_PLAN_ONLY",
+      "validation_history": [
+        {
+          "validation": "FULL_PLAN_ONLY"
+        },
+        {
+          "validation": "FULL_PLAN_ONLY"
+        },
+        {
+          "validation": "FULL_PLAN_ONLY"
+        }
+      ]
+    },
+    {
+      "aspire_commit": "f4c8939aab0af9b97690c561bd80e282940f7886",
+      "evidence": {
+        "availability": "Private deployed development record; not bundled run evidence.",
+        "original_record_sha256": "cacb0c3e7741aac3c1b5a45f16d4b764682b3f0187a2a2acbc49f5b0b1b221e9"
+      },
+      "lesson": "The latest failure occurred during batch mask rasterization, before planning or task motion. Edge-connected occlusions require concave outer contours or separate visible polygons, not holes touching the outer contour.",
+      "model": "gpt-6-astra",
+      "model_weights_changed": false,
+      "reuse_scope": "Historical Robo-house task code; inspect and adapt to current scene. PHYSICAL_SUCCESS is a scoped past result, not generic validation.",
+      "source": "sources/a67cfee4ba25a6e12ef6355687c161d74a4a1891cec05842528321a65a47ca88.py",
+      "source_sha256": "a67cfee4ba25a6e12ef6355687c161d74a4a1891cec05842528321a65a47ca88",
+      "summary": "Revises segmentation queries to request hole-free visible polygons, addressing the contour error. Retains the previously planned towel geometry, native-frame grasp, complete planning, and final perception checks.",
+      "task": "Pick up the green block and place it on the green towel.",
+      "validation": "FULL_PLAN_ONLY",
+      "validation_history": []
+    },
+    {
+      "aspire_commit": "f4c8939aab0af9b97690c561bd80e282940f7886",
+      "evidence": {
+        "availability": "Private deployed development record; not bundled run evidence.",
+        "original_record_sha256": "ba2adb053ec321786b4153ba2e3446d4eccf4f4ccb78aa383b74e91e2b9aa7cd"
+      },
+      "lesson": "The retreat goal was valid; its open-jaw start collided with the table by up to 14 mm. Retreat offsets cannot repair that release configuration. Change the grasp-to-object orientation while preserving measured support height and native validation. No physical motion occurred.",
+      "model": "gpt-6-astra",
+      "model_weights_changed": false,
+      "reuse_scope": "Historical Robo-house task code; inspect and adapt to current scene. PHYSICAL_SUCCESS is a scoped past result, not generic validation.",
+      "source": "sources/a771df870c1e22172a566213722a82e779d79c7eb4ab6e5591852384476cbe63.py",
+      "source_sha256": "a771df870c1e22172a566213722a82e779d79c7eb4ab6e5591852384476cbe63",
+      "summary": "Changes the grasp axis to address the diagnosed open-jaw collision at release. Prefers lateral jaw opening during flat placement and replans all six paths.",
+      "task": "Stack the green block on the red block.",
+      "validation": "FULL_PLAN_ONLY",
+      "validation_history": []
+    },
+    {
+      "aspire_commit": "f4c8939aab0af9b97690c561bd80e282940f7886",
+      "evidence": {
+        "availability": "Private deployed development record; not bundled run evidence.",
+        "original_record_sha256": "8dfdfb3e43efe6783329e8539aaf8ea855721aefd8491a9e8d670a89b18d5874"
+      },
+      "lesson": "Fresh RGB-D, dimensions and complete native paths are mandatory. Contact-height and intrinsic-dimension metrology remain unresolved.",
+      "model": "gpt-6-astra",
+      "model_weights_changed": false,
+      "reuse_scope": "Historical Robo-house task code; inspect and adapt to current scene. PHYSICAL_SUCCESS is a scoped past result, not generic validation.",
+      "source": "sources/a886538285c1b41e9c91e778515d13d97e5518042e198e837375e7af6335a7e2.py",
+      "source_sha256": "a886538285c1b41e9c91e778515d13d97e5518042e198e837375e7af6335a7e2",
+      "summary": "Reuse pick_place_block; bind source, destination and support/occupancy inputs.",
+      "task": "Place the black block on red chip.",
+      "validation": "FULL_PLAN_ONLY",
+      "validation_history": [
+        {
+          "validation": "FULL_PLAN_ONLY"
+        }
+      ]
+    },
+    {
+      "aspire_commit": "f4c8939aab0af9b97690c561bd80e282940f7886",
+      "evidence": {
+        "availability": "Private deployed development record; not bundled run evidence.",
+        "original_record_sha256": "d6b5b2783e3972668f55c7d6d52b9f26953b0fc1dfa1acd97e7628a3383d053c"
+      },
+      "lesson": "The prior attempt failed before planning; its exact geometric cause is unconfirmed. A narrow visible chip crescent should not independently determine an extrapolated support slope. Measure its elevation relative to the local table and log the resulting block thickness.",
+      "model": "gpt-6-astra",
+      "model_weights_changed": false,
+      "reuse_scope": "Historical Robo-house task code; inspect and adapt to current scene. PHYSICAL_SUCCESS is a scoped past result, not generic validation.",
+      "source": "sources/ab9309f4c51ecd8bb4b9b5b9199e34513106f545cd1097f0df4c955801aaa324.py",
+      "source_sha256": "ab9309f4c51ecd8bb4b9b5b9199e34513106f545cd1097f0df4c955801aaa324",
+      "summary": "Revises block measurement using an explicit top-face mask and local support evidence. Retains the validated native-frame grasp, plans placement on the towel, and checks fresh post-release perception.",
+      "task": "Pick up the green block and place it on the green towel.",
+      "validation": "FULL_PLAN_ONLY",
+      "validation_history": []
+    },
+    {
+      "aspire_commit": "f4c8939aab0af9b97690c561bd80e282940f7886",
+      "evidence": {
+        "availability": "Private deployed development record; not bundled run evidence.",
+        "original_record_sha256": "e967dc6aa75c2bdf3eb84067cdade500b47301c268c8306d2683ed7f37801975"
+      },
+      "lesson": "Fresh RGB-D, dimensions and complete native paths are mandatory. Contact-height and intrinsic-dimension metrology remain unresolved.",
+      "model": "gpt-6-astra",
+      "model_weights_changed": false,
+      "reuse_scope": "Historical Robo-house task code; inspect and adapt to current scene. PHYSICAL_SUCCESS is a scoped past result, not generic validation.",
+      "source": "sources/bb18f5f693d6c8ccd89a7d580e32b59ea03d0b869366e420a35ec8b11a51933a.py",
+      "source_sha256": "bb18f5f693d6c8ccd89a7d580e32b59ea03d0b869366e420a35ec8b11a51933a",
+      "summary": "Reuse pick_place_block; bind source, destination and support/occupancy inputs.",
+      "task": "Place the green block on the blue chip.",
+      "validation": "FULL_PLAN_ONLY",
+      "validation_history": [
+        {
+          "validation": "FULL_PLAN_ONLY"
+        },
+        {
+          "validation": "FULL_PLAN_ONLY"
+        }
+      ]
+    },
+    {
+      "aspire_commit": "f4c8939aab0af9b97690c561bd80e282940f7886",
+      "evidence": {
+        "availability": "Private deployed development record; not bundled run evidence.",
+        "original_record_sha256": "f0e32fa22b4622c63e2bcad4beaa9d9ca9a467a496e262112c75998b5cacb978"
+      },
+      "lesson": "A missing chip mask must not imply target consistency. Measure visible chip elevation relative to the local table, quantify partial-rim uncertainty, and distinguish uncertain centering from a demonstrated placement error before moving again.",
+      "model": "gpt-6-astra",
+      "model_weights_changed": false,
+      "reuse_scope": "Historical Robo-house task code; inspect and adapt to current scene. PHYSICAL_SUCCESS is a scoped past result, not generic validation.",
+      "source": "sources/c929012c0b3993a784391c1a795bc5e58ceaf436f4726dc12b14ee76d1f17ac3.py",
+      "source_sha256": "c929012c0b3993a784391c1a795bc5e58ceaf436f4726dc12b14ee76d1f17ac3",
+      "summary": "The parked evidence leaves centering unresolved: 13.4 mm versus a 12 mm limit, with no detected chip. Preserves verification thresholds, treats missing target evidence as unknown, and requires fresh measurable geometry before correction. The program submits its complete selected sequence to native planning; it has not been run here.",
+      "task": "place the black block on the green chip",
+      "validation": "FULL_PLAN_ONLY",
+      "validation_history": [
+        {
+          "validation": "FULL_PLAN_ONLY"
+        }
+      ]
+    },
+    {
+      "aspire_commit": "f4c8939aab0af9b97690c561bd80e282940f7886",
+      "evidence": {
+        "availability": "Private deployed development record; not bundled run evidence.",
+        "original_record_sha256": "4b9b94532b0bc8f8c40f224ebe5b511ac97519c509539903e5fb99d7d39a82f7"
+      },
+      "lesson": "Fresh RGB-D, dimensions and complete native paths are mandatory. Contact-height and intrinsic-dimension metrology remain unresolved.",
+      "model": "gpt-6-astra",
+      "model_weights_changed": false,
+      "reuse_scope": "Historical Robo-house task code; inspect and adapt to current scene. PHYSICAL_SUCCESS is a scoped past result, not generic validation.",
+      "source": "sources/d60c9e46ccce5ba122b3acdac80cced037a90bbcc7ee8fefb9b51ecbc069e924.py",
+      "source_sha256": "d60c9e46ccce5ba122b3acdac80cced037a90bbcc7ee8fefb9b51ecbc069e924",
+      "summary": "Reuse pick_place_block; bind source, destination and support/occupancy inputs.",
+      "task": "Place the red block on the red chip.",
+      "validation": "FULL_PLAN_ONLY",
+      "validation_history": []
+    },
+    {
+      "aspire_commit": "f4c8939aab0af9b97690c561bd80e282940f7886",
+      "evidence": {
+        "availability": "Private deployed development record; not bundled run evidence.",
+        "original_record_sha256": "4ef845e7250816e7d0b79a58f7f71248bf5784eb30a8f7a9dcec33c7fc70d05e"
+      },
+      "lesson": "Repeated CAPTURING_SCENE failures with truncated tracebacks do not justify changing robot poses. Determine whether build_task was entered, then obtain the complete failing exception. Diagnostics do not bypass native failures or authorize replay.",
+      "model": "gpt-6-astra",
+      "model_weights_changed": false,
+      "reuse_scope": "Historical Robo-house task code; inspect and adapt to current scene. PHYSICAL_SUCCESS is a scoped past result, not generic validation.",
+      "source": "sources/d90379cae94d2888bde5a6331c3670d991272e0ea59ebbb0009f8dc99a1c579d.py",
+      "source_sha256": "d90379cae94d2888bde5a6331c3670d991272e0ea59ebbb0009f8dc99a1c579d",
+      "summary": "Adds task-entry and tool-phase diagnostics while preserving original exceptions and the complete stacking program. The repeated scene-capture failure remains undiagnosed; no motion occurred.",
+      "task": "Stack the green block on the red block.",
+      "validation": "FULL_PLAN_ONLY",
+      "validation_history": []
+    },
+    {
+      "aspire_commit": "f4c8939aab0af9b97690c561bd80e282940f7886",
+      "evidence": {
+        "availability": "Private deployed development record; not bundled run evidence.",
+        "original_record_sha256": "48d58a7855092b03fcaf4f0531df3a3450f54c0f1a39afe31330632392a33ee5"
+      },
+      "lesson": "The latest placement failure was a native inter-arm collision: left_rf_rot against right_link_4. Reposition the idle arm and replan the complete sequence; changing release height would not address the reported cause.",
+      "model": "gpt-6-astra",
+      "model_weights_changed": false,
+      "reuse_scope": "Historical Robo-house task code; inspect and adapt to current scene. PHYSICAL_SUCCESS is a scoped past result, not generic validation.",
+      "source": "sources/e224870065c232a92053dcc7649c1924f4137a8e75a37802b91dbc19cacdd5be.py",
+      "source_sha256": "e224870065c232a92053dcc7649c1924f4137a8e75a37802b91dbc19cacdd5be",
+      "summary": "Preserves the feasible pickup and transport, then plans the idle arm out of the placement workspace. Fully plans release, withdrawal and both arms\u2019 return before motion.",
+      "task": "Stack the green block on the red block.",
+      "validation": "FULL_PLAN_ONLY",
+      "validation_history": []
+    },
+    {
+      "aspire_commit": "f4c8939aab0af9b97690c561bd80e282940f7886",
+      "evidence": {
+        "availability": "Private deployed development record; not bundled run evidence.",
+        "original_record_sha256": "7d31a236a5d85c5c710c13dc052c6d83060d792964505d6e518f995448798ebf"
+      },
+      "lesson": "Fresh RGB-D, dimensions and complete native paths are mandatory. Contact-height and intrinsic-dimension metrology remain unresolved.",
+      "model": "gpt-6-astra",
+      "model_weights_changed": false,
+      "reuse_scope": "Historical Robo-house task code; inspect and adapt to current scene. PHYSICAL_SUCCESS is a scoped past result, not generic validation.",
+      "source": "sources/e4b1a009b659b1d3d28134bf502fb8a20c180306c8438897bc509237609dfea7.py",
+      "source_sha256": "e4b1a009b659b1d3d28134bf502fb8a20c180306c8438897bc509237609dfea7",
+      "summary": "Reuse pick_place_block; bind source, destination and support/occupancy inputs.",
+      "task": "Place the red block on the red chip.",
+      "validation": "FULL_PLAN_ONLY",
+      "validation_history": []
+    },
+    {
+      "aspire_commit": "f4c8939aab0af9b97690c561bd80e282940f7886",
+      "evidence": {
+        "availability": "Private deployed development record; not bundled run evidence.",
+        "original_record_sha256": "11297f9d4d4434ccfb3138296b6b0ca1a62a5d6c6351de3130e301bb340becb0"
+      },
+      "lesson": "Fresh RGB-D, dimensions and complete native paths are mandatory. Contact-height and intrinsic-dimension metrology remain unresolved.",
+      "model": "gpt-6-astra",
+      "model_weights_changed": false,
+      "reuse_scope": "Historical Robo-house task code; inspect and adapt to current scene. PHYSICAL_SUCCESS is a scoped past result, not generic validation.",
+      "source": "sources/e61f1724fd799031ba535f12b6b3cff6cd25c9669e0b87234ef03fc7e1fd5ed4.py",
+      "source_sha256": "e61f1724fd799031ba535f12b6b3cff6cd25c9669e0b87234ef03fc7e1fd5ed4",
+      "summary": "Reuse pick_place_block; bind source, destination and support/occupancy inputs.",
+      "task": "Place the red block on the towel.",
+      "validation": "PHYSICAL_SUCCESS",
+      "validation_history": [
+        {
+          "validation": "FULL_PLAN_ONLY"
+        },
+        {
+          "validation": "FULL_PLAN_ONLY"
+        },
+        {
+          "validation": "PHYSICAL_SUCCESS"
+        }
+      ]
+    },
+    {
+      "aspire_commit": "f4c8939aab0af9b97690c561bd80e282940f7886",
+      "evidence": {
+        "availability": "Private deployed development record; not bundled run evidence.",
+        "original_record_sha256": "1f1cff02a461cbcd639e9553ab768a90d8270f6b6768fcf3ead35b87df9eb42c"
+      },
+      "lesson": "Operator: \u201cIt fell off the red... while the arm was moving back.\u201d All commands completed, but stacking failed. Infinite support-plane extrapolation raised the modeled overhanging block, and 4 cm withdrawal left the target occluded. These are actionable geometry issues, not confirmed causes of the fall.",
+      "model": "gpt-6-astra",
+      "model_weights_changed": false,
+      "reuse_scope": "Historical Robo-house task code; inspect and adapt to current scene. PHYSICAL_SUCCESS is a scoped past result, not generic validation.",
+      "source": "sources/e8e8fb20f3d074f5f69a99279fba01abca1246df89bb7feefa39664b49827076.py",
+      "source_sha256": "e8e8fb20f3d074f5f69a99279fba01abca1246df89bb7feefa39664b49827076",
+      "summary": "Corrects placement height using the finite red footprint and adds fully planned vertical, lateral and start-pose withdrawal. Evaluates multiple fresh views, including exposed red sides. Reset readiness remains pending; saved-data replay and parking recording require the harness.",
+      "task": "Stack the green block on the red block.",
+      "validation": "FULL_PLAN_ONLY",
+      "validation_history": []
+    },
+    {
+      "aspire_commit": "f4c8939aab0af9b97690c561bd80e282940f7886",
+      "evidence": {
+        "availability": "Private deployed development record; not bundled run evidence.",
+        "original_record_sha256": "51c42d0c3234e8a3c74613932adc8c42e43dc1c5c6b50bc5acc981c144faaaab"
+      },
+      "lesson": "Latest native failure was retreat-goal IK after five successful paths, with right joint 4 at its limit. No physical motion occurred. Adapt the retreat before changing otherwise feasible pickup and placement geometry.",
+      "model": "gpt-6-astra",
+      "model_weights_changed": false,
+      "reuse_scope": "Historical Robo-house task code; inspect and adapt to current scene. PHYSICAL_SUCCESS is a scoped past result, not generic validation.",
+      "source": "sources/f11139f94057abc8d596a27cfb4d9121259d80f2360fbbd0271812158aa9eeae.py",
+      "source_sha256": "f11139f94057abc8d596a27cfb4d9121259d80f2360fbbd0271812158aa9eeae",
+      "summary": "Replaces the failing 8 cm oblique retreat with bounded upward and shorter retreat alternatives, replanning all six paths with open jaws after release.",
+      "task": "Stack the green block on the red block.",
+      "validation": "FULL_PLAN_ONLY",
+      "validation_history": []
+    },
+    {
+      "aspire_commit": "f4c8939aab0af9b97690c561bd80e282940f7886",
+      "evidence": {
+        "availability": "Private deployed development record; not bundled run evidence.",
+        "original_record_sha256": "3249520786d7bf48b538c117a5f09bb85f145e2d44e4b39f052680b49738d113"
+      },
+      "lesson": "Fresh RGB-D, dimensions and complete native paths are mandatory. Contact-height and intrinsic-dimension metrology remain unresolved.",
+      "model": "gpt-6-astra",
+      "model_weights_changed": false,
+      "reuse_scope": "Historical Robo-house task code; inspect and adapt to current scene. PHYSICAL_SUCCESS is a scoped past result, not generic validation.",
+      "source": "sources/f62b0213df233c0173fb90fd4bb699d1a9aadf16491e2d34ecff4bf8c92d55e4.py",
+      "source_sha256": "f62b0213df233c0173fb90fd4bb699d1a9aadf16491e2d34ecff4bf8c92d55e4",
+      "summary": "Reuse pick_place_block; bind source, destination and support/occupancy inputs.",
+      "task": "place green block on green towel",
+      "validation": "FULL_PLAN_ONLY",
+      "validation_history": [
+        {
+          "validation": "FULL_PLAN_ONLY"
+        },
+        {
+          "validation": "FULL_PLAN_ONLY"
+        },
+        {
+          "validation": "FULL_PLAN_ONLY"
+        },
+        {
+          "validation": "FULL_PLAN_ONLY"
+        },
+        {
+          "validation": "FULL_PLAN_ONLY"
+        },
+        {
+          "validation": "FULL_PLAN_ONLY"
+        },
+        {
+          "validation": "FULL_PLAN_ONLY"
+        },
+        {
+          "validation": "FULL_PLAN_ONLY"
+        },
+        {
+          "validation": "FULL_PLAN_ONLY"
+        },
+        {
+          "validation": "FULL_PLAN_ONLY"
+        },
+        {
+          "validation": "FULL_PLAN_ONLY"
+        },
+        {
+          "validation": "FULL_PLAN_ONLY"
+        }
+      ]
+    }
+  ],
+  "schema_version": 1
+}

@@ -3,6 +3,9 @@
 For MakerMods MakerArm setup, its Astra prompt, XYZ IK, and the robot selector,
 see [MakerArm integration](docs/MAKERARM.md).
 
+To try ASPIRE, see the [ASPIRE quick start](docs/aspire/README.md) and its
+[shared skill library](skills/aspire/README.md).
+
 This repository owns the shared local playground. BluPe-specific browser hosting
 lives in `blupe-evals/apps/blupe_web`; see [ownership](../docs/REPOSITORY-OWNERSHIP.md).
 

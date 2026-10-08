@@ -1,0 +1,46 @@
+{
+  "development_evidence": [
+    {
+      "availability": "Private deployed development record.",
+      "scope": "Visible black-on-towel after parking; original metric result UNVERIFIED",
+      "sha256": "89eb95ad9fbc357e5233c3b22b688ca8940ae72a1905fe2f18ca55b963784f50"
+    },
+    {
+      "availability": "Private deployed development record.",
+      "scope": "Visible green-on-blue-chip after parking, recorded task-specific execution",
+      "sha256": "128efdcab65279cfbf8bc8e24d5d8c3f8c72709c15a19d5c7b3b910056a2fd67"
+    },
+    {
+      "availability": "Private deployed development record.",
+      "scope": "Astra red adaptation/repaired syntax; parked-state native planning failed, zero task motion",
+      "sha256": "c6613fa0df14959f6ec5f92064cb56be0ccb54eea841fcee48be2ec3c5105f0e"
+    },
+    {
+      "availability": "Private deployed development record.",
+      "scope": "One red-on-green-towel attended success retained after normal parking; all nine post-parking checks true, original pre-parking UNVERIFIED preserved. No generic color or physical metrology claim.",
+      "sha256": "4c96d0ca13810d90dc80c3fe63eb30f70bd19d39c44ed18d6983e85329c0eec5"
+    }
+  ],
+  "latest_core_revision": {
+    "author": "Current Codex integration agent, shared executable repair",
+    "new_core_sha256": "e305be9033d50ffada4d04bb6b69b28808ed8373f29c52633ba1a1de65be6959",
+    "old_core_sha256": "8b57e080c8402663dfe9d5c8795105acefecd12fe71ec54ba9fc1ba979a388bc",
+    "reason": "Current rod intersects the centered placement footprint and native tip-mesh envelope; bounded offline native proof shows a supported offset/yaw pose on the same chip can clear it."
+  },
+  "local_context_objects": {
+    "green_rod": {
+      "method": "green_elongated_component"
+    }
+  },
+  "occupant_colors": [
+    "red",
+    "green",
+    "black"
+  ],
+  "revision_evidence_count": 3,
+  "skill": "pick_place_block",
+  "source": "pick_place.py",
+  "source_sha256": "e305be9033d50ffada4d04bb6b69b28808ed8373f29c52633ba1a1de65be6959",
+  "validation_scope": "One consolidated executable; inherited recipes have scoped single-task evidence. New composition and alternate colors are not generic physical validation. Fresh full planning and current measurements required; CAD/contact-height/dimension metrology unresolved.",
+  "version": 1
+}
