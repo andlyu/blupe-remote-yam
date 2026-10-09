@@ -23,6 +23,11 @@
   const timer = document.getElementById('runTimer');
   const toggle = document.getElementById('toggle');
   function check() {
+    if (!document.getElementById('stylesheet').sheet) {
+      document.getElementById('result').textContent = 'FAIL: playground stylesheet did not load';
+      document.body.dataset.result = 'fail';
+      return;
+    }
     const owner = viewer.classList.contains('yourRunLive');
     toggle.textContent = owner ? 'Switch to spectator' : 'Switch to run owner';
     const visible = timer.getClientRects().length > 0 && timer.getBoundingClientRect().height > 0;
