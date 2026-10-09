@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Playground timer visibility regression</title>
+<link id="stylesheet" rel="stylesheet">
+<script>document.getElementById('stylesheet').href = '../static/hosted.css?visibility-check=' + Date.now();</script>
+<main>
+  <h1>Run timer visibility</h1>
+  <p>Uses the real playground stylesheet. No robot or API connection.</p>
+  <button id="toggle" type="button">Switch to spectator</button>
+  <p id="result" role="status"></p>
+  <div class="watchLayout"><div class="watchVisuals"><div class="videoPanel">
+    <section id="liveViewer" class="cameras yourRunLive" aria-label="Camera fixture">
+      <div class="viewerCue"><div id="liveRunControls"><span id="ownRunTimer">04:58</span></div></div>
+      <figure class="syncTile"><div class="syncTilePicture"><canvas width="640" height="360"></canvas></div><figcaption>Camera fixture</figcaption></figure>
+      <div class="liveStopwatch"><span aria-hidden="true">⏱</span><span id="runTimer" role="timer" aria-label="Current run time remaining">04:58</span></div>
+    </section>
+  </div></div></div>
+</main>
+<script>
+  const viewer = document.getElementById('liveViewer');
+  const timer = document.getElementById('runTimer');
+  const toggle = document.getElementById('toggle');
+  function check() {
+    if (!document.getElementById('stylesheet').sheet) {
+      document.getElementById('result').textContent = 'FAIL: playground stylesheet did not load';
+      document.body.dataset.result = 'fail';
+      return;
+    }
+    const owner = viewer.classList.contains('yourRunLive');
+    toggle.textContent = owner ? 'Switch to spectator' : 'Switch to run owner';
+    const visible = timer.getClientRects().length > 0 && timer.getBoundingClientRect().height > 0;
+    const label = owner ? 'run owner' : 'spectator';
+    document.getElementById('result').textContent = `${visible ? 'PASS' : 'FAIL'}: ${label} can see the countdown`;
+    document.body.dataset.result = visible ? 'pass' : 'fail';
+  }
+  toggle.addEventListener('click', () => { viewer.classList.toggle('yourRunLive'); check(); });
+  addEventListener('load', check);
+  addEventListener('resize', check);
+</script>
+</html>

@@ -268,7 +268,7 @@ main > .coffeeSupport{grid-column:1 / -1;margin-top:4px;width:100%}
 
 #liveRunControls{align-items:center;gap:14px}
 .viewerCue #ownRunTimer,.watchLayout .viewerCue #ownRunTimer{display:inline;font-size:20px;font-weight:700;font-variant-numeric:tabular-nums}
-#liveViewer.yourRunLive .liveStopwatch{display:none}
+/* Keep the camera countdown visible when the compact layout hides the owner banner. */
 
 /* Badges use the backend's model camera selection, not viewer availability. */
 .modelCameraPicture{position:relative}
