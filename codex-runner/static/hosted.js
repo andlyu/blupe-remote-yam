@@ -1936,7 +1936,7 @@ function createRunLaunchGuard() {
         if (session.claude) {
           claudeModel = session.claude_model || claudeModel;
           const option = document.createElement('option');
-          option.value = 'claude'; option.textContent = 'Claude subscription · Opus';
+          option.value = 'claude'; option.textContent = 'Claude subscription · Opus'; option.dataset.model = claudeModel;
           if (!$('provider').querySelector('[value=claude]')) $('provider').prepend(option);
           $('claudeStatus').textContent = session.claude.message;
         }
@@ -2113,14 +2113,40 @@ window.yamRecordingView = function(video, roles) {
   const archive = $('past-runs'), dataset = $('dataset');
   if (archive && dataset) dataset.before(archive);
   const provider = $('provider'), model = $('composerModel'), send = $('composerSend');
+  function modelChoice(option) {
+    const defaults = {openai:'gpt-6-astra',codex:'gpt-6-astra',guest_astra:'gpt-6-astra',
+      anthropic:'claude-opus-5-5',claude:'claude-opus-5-5',
+      aspire:'gpt-6-astra',hosted_aspire:'gpt-6-astra',astra:'astra-default',groot:'groot-reviewed-step10000'};
+    if (!option || !defaults[option.value]) return null;
+    const id = option.value === provider.value && $('model').value.trim()
+      ? $('model').value.trim() : option.dataset.model || defaults[option.value];
+    const astra = /^gpt-(\d+(?:\.\d+)?)-astra$/.exec(id);
+    const claude = /^claude-(opus|sonnet|haiku|fable)-(\d+)(?:-(\d+))?$/.exec(id);
+    let label = astra ? 'Astra ' + astra[1] : claude
+      ? claude[1][0].toUpperCase() + claude[1].slice(1) + ' ' + claude[2] + (claude[3] ? '.' + claude[3] : '') : id;
+    if (['codex','claude'].includes(option.value)) label += ' · subscription';
+    if (['aspire','hosted_aspire'].includes(option.value)) label = 'ASPIRE · ' + label;
+    return {id,label};
+  }
   function updateComposer() {
+    // Hosted funding hooks rebuild these options; preserve their provider values.
+    for (const option of provider.options) {
+      const choice = modelChoice(option);
+      if (!choice) continue;
+      if (option.textContent !== choice.label) option.textContent = choice.label;
+      if (!option.disabled && option.title !== choice.id) option.title = choice.id;
+    }
     const options = [...provider.options].filter(option => !option.hidden && !option.disabled);
-    const signature = options.map(option => option.value + ':' + option.textContent).join('|');
+    const signature = options.map(option => option.value + ':' + option.textContent + ':' + option.title).join('|');
     if (model.dataset.options !== signature) {
-      model.replaceChildren(...options.map(option => new Option(option.textContent, option.value)));
+      model.replaceChildren(...options.map(option => {
+        const item = new Option(option.textContent, option.value); item.title = option.title; return item;
+      }));
       model.dataset.options = signature;
     }
     model.value = provider.value;
+    const choice = modelChoice(provider.selectedOptions[0]);
+    model.title = choice?.id || '';
     if (model.disabled !== provider.disabled) model.disabled = provider.disabled;
     const running = $('runForm').classList.contains('runActive');
     const queued = !$('leaveQueue').hidden && !$('leaveQueue').disabled;
