@@ -1980,11 +1980,11 @@ function createRunLaunchGuard() {
     open.setAttribute('aria-expanded', String(visible));
     close.setAttribute('aria-expanded', String(visible));
     if (userAction) {
-      try { localStorage.setItem("yam-chat-open", String(visible)); } catch (_) {}
       (visible ? close : open).focus();
     }
   }
-  try { toggle(localStorage.getItem("yam-chat-open") === "true", false); } catch (_) { toggle(false, false); }
+  // A popup starts closed, including for visitors with an older saved drawer state.
+  toggle(false, false);
   close.addEventListener('click', () => toggle(false));
   open.addEventListener('click', () => toggle(panel.hidden));
   document.addEventListener('keydown', event => {
