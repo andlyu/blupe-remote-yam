@@ -8,7 +8,7 @@ def video_stream(robot_id):
     streams = json.loads(os.environ.get('YAM_VIDEO_STREAMS', '{}'))
     if not isinstance(streams, dict):
         raise ValueError('YAM_VIDEO_STREAMS must map robot IDs to streams')
-    value = streams.get(robot_id, {'path':'synchronized', 'cameras':['top','observer','left','right']} if robot_id == 'yam-1' else None)
+    value = streams.get(robot_id, {'path':'synchronized-hd', 'cameras':['top','observer','left','right']} if robot_id == 'yam-1' else None)
     if value is None:
         return None
     if not isinstance(value, dict):

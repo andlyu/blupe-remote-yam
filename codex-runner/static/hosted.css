@@ -1,6 +1,7 @@
 :root{color-scheme:light;--ink:#18251e;--muted:#626c64;--paper:#f5f2e9;--line:#cecfc4;--lime:#d1f653}*{box-sizing:border-box}body{margin:0;background:var(--paper);color:var(--ink);font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}main{max-width:1180px;margin:auto;padding:26px 28px 40px}header,.statusHeader{display:flex;align-items:center;justify-content:space-between;gap:16px}header{padding-bottom:24px;border-bottom:1px solid var(--line)}a{color:inherit;text-underline-offset:3px}.brand{font-weight:750;text-decoration:none}.tag{font-size:12px;padding:7px 12px;background:#e7eadf;border-radius:30px}.intro{padding:36px 0 28px;max-width:680px}.eyebrow{font-size:12px;text-transform:uppercase;letter-spacing:.13em;color:var(--muted)}h1{font-size:clamp(44px,7vw,76px);letter-spacing:-.065em;line-height:1;margin:14px 0}p{line-height:1.55}.intro>p:last-child{font-size:17px;color:var(--muted)}.cameras{display:grid;grid-template-columns:repeat(2,1fr);gap:12px;margin-bottom:24px}figure{margin:0;border:1px solid var(--line);border-radius:10px;overflow:hidden;background:#e4e6dc}figure img,figure canvas{display:block;width:100%;aspect-ratio:16/10;object-fit:contain;color:var(--muted);font-size:13px}figcaption{display:flex;justify-content:space-between;padding:10px 12px;font-size:12px}figcaption span{color:var(--muted)}.layout{display:grid;grid-template-columns:1.2fr 1fr;gap:24px}.panel{border:1px solid var(--line);border-radius:12px;background:#fffdf6;padding:26px}h2{font-size:20px;letter-spacing:-.025em;margin:0 0 22px}.statusHeader h2{margin:0}.statusHeader{margin-bottom:20px}label{display:block;font-size:13px;font-weight:650;margin:19px 0 8px}input,select,textarea{width:100%;background:#fff;border:1px solid #b9beb3;border-radius:6px;padding:12px;font:inherit;color:var(--ink)}textarea{resize:vertical;min-height:110px}.help,.disclosure{font-size:12px;color:var(--muted)}.disclosure{padding:12px;background:#f0f1e7;border-radius:6px}button{font:650 13px system-ui;border:1px solid #b9beb3;border-radius:6px;background:transparent;color:var(--ink);padding:11px 14px;cursor:pointer}button:hover:not(:disabled){background:#edf1e3}button:disabled{opacity:.45;cursor:default}.primary{width:100%;background:var(--lime);border-color:#a9c845;font-size:15px;padding:14px}.primary:hover:not(:disabled){background:#bfe83b}.danger{color:#a72c24;border-color:#d5a29c}.actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:16px}#message{font-size:13px;min-height:22px}.error{color:#a72c24}dl{display:grid;grid-template-columns:120px 1fr;font-size:13px;gap:14px;margin:24px 0}dt{color:var(--muted)}dd{margin:0;overflow-wrap:anywhere}#queue,#events{padding-left:22px;font-size:13px;line-height:1.6}#queue li{padding:5px 0}.history{margin-top:24px}.history select{max-width:330px;font-size:13px}#events{max-height:380px;overflow:auto}#events li{padding:10px 0;border-bottom:1px solid #ecece5}#events time{display:block;color:var(--muted);font-size:11px}video{width:100%;margin-top:14px;background:#111;border-radius:8px}footer{padding-top:24px;font-size:12px;color:var(--muted)}[hidden]{display:none!important}:focus-visible{outline:3px solid #6e9633;outline-offset:3px}@media(max-width:740px){main{padding:18px 16px}.layout{grid-template-columns:1fr}.panel{padding:20px}.intro{padding-top:22px}.cameras{gap:6px}figcaption{padding:7px;font-size:10px;display:block}figcaption span{display:block}.history .statusHeader{align-items:start;flex-direction:column}.history select{max-width:none}dl{grid-template-columns:95px 1fr}}
 :root .unavailable{visibility:hidden}
 
+
 main{max-width:1540px;display:grid;grid-template-columns:minmax(0,1fr) 300px;gap:24px;align-items:start}.runnerContent{min-width:0}.visitorChat{position:sticky;top:20px;padding:20px}.visitorChat h2{margin-bottom:12px}#chatMessages{padding:0;list-style:none;height:340px;overflow:auto;overflow-wrap:anywhere;font-size:13px}#chatMessages li{padding:10px 0;border-bottom:1px solid var(--line);white-space:pre-wrap}#chatMessages strong{display:block}#chatSend{margin-top:12px;width:100%}@media(max-width:1050px){main{grid-template-columns:1fr}.visitorChat{position:static}#chatMessages{height:260px}}
 
 #chatMessages time{font-weight:400;color:var(--muted);font-size:12px;white-space:nowrap}
@@ -642,4 +643,122 @@ body.cameraExpanded{overflow:hidden}
   .watchInteraction .runLaunchActions>*{max-width:100%}
   .watchInteraction #openLocalRun{min-height:32px;padding:6px 8px;font-size:11px}
   .watchInteraction #openSubscriptionInstructions{padding:6px 8px;font-size:11px}
+}
+
+/* The operating console fits the first screen; the archive continues below. */
+.playgroundConsole{--paper:#f7f8f5;--line:#e1e5dc;--muted:#737b70;--lime:#d4ef8b;font-size:13px}
+.playgroundConsole main,.playgroundConsole main.chatClosed{display:block;max-width:none;padding:12px 18px 32px}
+.playgroundConsole .playgroundHeader{height:44px;flex-wrap:nowrap;gap:18px;margin-bottom:12px}
+.playgroundConsole .playgroundHeader h1{font-size:19px;letter-spacing:-.04em}
+.playgroundConsole .playgroundHeader .intro{flex:1}
+.playgroundConsole .robotNavigation{width:auto;flex-wrap:nowrap}
+.playgroundConsole .robotNavigation label{font-size:11px;font-weight:500;margin:0}
+.playgroundConsole .robotNavigation select{width:auto;max-width:220px;padding:6px 10px;background:transparent;border:0}
+.playgroundConsole #robotSelectorStatus:empty{display:none}
+.playgroundConsole .playgroundIntro{display:none}
+.playgroundConsole .openVisitorChat{position:static;flex:none;box-shadow:none;background:white;border-color:var(--line);padding:8px 12px;border-radius:9px;font-size:12px}
+.playgroundConsole .watchLayout,.playgroundConsole .watchLayout.conversationClosed{display:grid;grid-template-columns:minmax(0,var(--console-camera-width,70%)) minmax(0,1fr);grid-template-areas:"video chat";gap:16px;height:calc(100dvh - 86px);min-height:0;margin-bottom:40px}
+.playgroundConsole .watchLayout>.watchVisuals{grid-area:video;display:grid;grid-template-rows:minmax(0,1fr) auto auto;gap:6px;min-height:0}
+.playgroundConsole .watchVisuals>.videoPanel{grid-area:auto;min-height:0;align-self:start;height:var(--console-camera-height,100%)}
+.playgroundConsole .watchVisuals>.cameraStatusLine{grid-area:auto;display:flex;align-items:center;flex-wrap:wrap;gap:6px 12px;font-size:11px;min-height:20px}
+.playgroundConsole .cameraStatusLine p{margin:0}
+.playgroundConsole .watchVisuals>#yourQueue{grid-area:auto;display:flex;align-items:center;flex-wrap:wrap;gap:8px;padding:0 0 8px;border:0;border-radius:0;background:none;font-size:11px}
+.playgroundConsole .queuePlace{display:flex;align-items:center;gap:8px;margin:0}
+.playgroundConsole .queuePlace h3{font-size:11px;font-weight:500;margin:0}
+.playgroundConsole .queuePlace #position{font-size:13px}
+.playgroundConsole .queuePlace p{margin:0;font-size:11px}
+.playgroundConsole #leaveQueue{padding:4px 8px;font-size:11px}
+.playgroundConsole .watchLayout .videoPanel .cameras{display:grid;position:relative;top:auto;z-index:auto;width:100%;height:100%;max-width:none;margin:0;padding:0;gap:6px;grid-template-columns:repeat(2,minmax(0,1fr));grid-template-rows:repeat(2,minmax(0,1fr));border-radius:12px;overflow:hidden;background:#17221b}
+.playgroundConsole #liveViewer[data-layout="observer-focus"]{grid-template-columns:repeat(3,minmax(0,1fr));grid-template-rows:minmax(0,3fr) minmax(0,1fr)}
+.playgroundConsole #liveViewer[data-layout="observer-focus"] [data-camera-role="observer"]{grid-column:1/-1;grid-row:1}
+.playgroundConsole #liveViewer[data-layout="observer-focus"] figure[data-camera-role="left"]{grid-column:1;grid-row:2}
+.playgroundConsole #liveViewer[data-layout="observer-focus"] figure[data-camera-role="top"]{grid-column:2;grid-row:2}
+.playgroundConsole #liveViewer[data-layout="observer-focus"] figure[data-camera-role="right"]{grid-column:3;grid-row:2}
+.playgroundConsole #liveViewer[data-detail-layout="side"][data-layout="observer-focus"]{grid-template-columns:minmax(0,3fr) minmax(0,1fr);grid-template-rows:repeat(3,minmax(0,1fr))}
+.playgroundConsole #liveViewer[data-detail-layout="side"] figure[data-camera-role="observer"]{grid-column:1;grid-row:1/-1}
+.playgroundConsole #liveViewer[data-detail-layout="side"] figure[data-camera-role="left"]{grid-column:2;grid-row:1}
+.playgroundConsole #liveViewer[data-detail-layout="side"] figure[data-camera-role="top"]{grid-column:2;grid-row:2}
+.playgroundConsole #liveViewer[data-detail-layout="side"] figure[data-camera-role="right"]{grid-column:2;grid-row:3}
+.playgroundConsole #liveViewer[data-layout="single"]{grid-template:1fr/1fr}
+.playgroundConsole #liveViewer figure:not(.syncSource){min-width:0;min-height:0;border:0;border-radius:6px;background:#17221b}
+.playgroundConsole #liveViewer figure>figcaption,.playgroundConsole #liveViewer>.liveStopwatch,.playgroundConsole #liveViewer #liveRunControls{display:none}
+.playgroundConsole #liveViewer .syncTilePicture,.playgroundConsole #liveViewer .modelCameraPicture{height:100%;overflow:hidden}
+.playgroundConsole #liveViewer canvas,.playgroundConsole #liveViewer .modelCameraPicture img{width:100%;height:111.111%;max-height:none;aspect-ratio:auto;object-fit:fill;transform:translateY(-10%)}
+.playgroundConsole #liveViewer .modelCameraBadge{display:none}
+.playgroundConsole .expandCamera{opacity:0;transition:opacity .15s;border-radius:6px}
+.playgroundConsole .syncTile:hover .expandCamera,.playgroundConsole .syncTile:focus-within .expandCamera{opacity:1}
+.playgroundConsole .watchInteraction{grid-area:chat;contain:none;display:flex;flex-direction:column;min-width:0;min-height:0;height:100%;border:1px solid var(--line);border-radius:12px;background:white;overflow:hidden}
+.playgroundConsole .taskChatHeading{flex:none;padding:14px 16px 8px}
+.playgroundConsole .taskChatHeading h2{font-size:13px;line-height:20px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin:0}
+.playgroundConsole #taskHeaderPrompt{font-weight:400}
+.playgroundConsole .watchToolbar{flex:none;order:0;padding:0 12px 8px;margin:0;gap:6px}
+.playgroundConsole .conversationModes{border:0;background:none;padding:0;gap:2px}
+.playgroundConsole .conversationModes button{padding:4px 7px;font-size:10px;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.playgroundConsole #videoDelayNotice{font-size:10px;margin:0}
+.playgroundConsole .watchInteraction>#liveConversationPanel,.playgroundConsole .watchInteraction>#liveConversationPanel:has(.aspireTaskPanel:not([hidden])){width:100%;flex:1;min-height:0;height:auto;max-height:none;margin:0;padding:4px 16px 12px;contain:none;border:0;border-radius:0;background:white;overflow-y:auto;overscroll-behavior:contain}
+.playgroundConsole #liveConversationPanel>.statusHeader,.playgroundConsole #sideRunner,.playgroundConsole #liveConversationPanel>.runPrompt{display:none}
+.playgroundConsole .watchLayout #sideConversationMessages{flex:none;overflow:visible;padding:0;max-height:none;font-size:12px}
+.playgroundConsole #sideConversationMessages li.conversationTurn{width:100%;max-width:none;margin:8px 0;padding:10px 12px;border:0;border-radius:9px;box-shadow:none}
+.playgroundConsole #sideConversationMessages .astraResponse{font:12px/1.6 system-ui}
+.playgroundConsole #sideConversationMessages .conversationHeading{font-size:11px;margin-bottom:5px}
+.playgroundConsole .videoOverlays{position:static;max-height:none;pointer-events:auto;margin:0 0 10px;gap:0}
+.playgroundConsole .watchLayout .videoOverlays .astraStream{height:auto;max-height:none;margin:0;padding:8px 0;border:0;background:transparent;color:var(--ink);box-shadow:none;backdrop-filter:none}
+.playgroundConsole .videoOverlays .astraStream .statusHeader{display:none}
+.playgroundConsole .watchLayout .videoOverlays #astraStreamOutput,.playgroundConsole .watchLayout .videoOverlays #runOutcomeDetail{color:var(--muted);font-size:11px;max-height:4.5em;line-height:1.5}
+.playgroundConsole .videoOverlays .runOutcomeHeading strong{color:var(--ink);font-size:12px}
+.playgroundConsole .videoOverlays .runOutcomeHeading span{color:var(--muted)}
+.playgroundConsole .watchInteraction .runSetup>.panel{padding:10px 12px 12px;border:0;background:white}
+.playgroundConsole .watchInteraction .promptRow{display:block;padding:10px 10px 7px;border:1px solid #d9dfd2;border-radius:16px;background:#f6f7f3}
+.playgroundConsole .watchInteraction #prompt{display:block;width:100%;min-height:24px;max-height:120px;resize:none;overflow-y:auto;padding:0 3px;font-size:12px;line-height:20px}
+.playgroundConsole .composerToolbar{display:flex;align-items:center;gap:8px;margin-top:8px}
+.playgroundConsole .composerToolbar button{width:30px;height:30px;padding:0;border:0;border-radius:50%;font-size:23px;font-weight:400}
+.playgroundConsole #composerModel{flex:1;width:0;min-width:0;padding:5px 8px;border:0;background:transparent;font-size:11px}
+.playgroundConsole #composerSend{flex:none;background:var(--ink);color:white;font-size:21px}
+.playgroundConsole #composerSend[data-running="true"]{font-size:14px}
+.playgroundConsole .promptRow>.runLaunchActions,.playgroundConsole .promptRow>#runButtons{display:none}
+.playgroundConsole .watchInteraction #message{min-height:0;font-size:10px;line-height:1.45;margin:6px 2px 0}
+.playgroundConsole .visitorChat{position:fixed;z-index:30;top:68px;right:18px;bottom:18px;width:min(350px,calc(100vw - 24px));display:flex;flex-direction:column;padding:18px;border-color:var(--line);border-radius:14px;background:white;box-shadow:0 12px 45px #18251e29}
+.playgroundConsole .visitorChatHeading h2{font-size:14px}
+.playgroundConsole .visitorChatHeading button{font-size:11px;padding:5px 8px}
+.playgroundConsole #chatMessages{flex:1;height:auto;min-height:60px;margin:8px 0;overscroll-behavior:contain}
+.playgroundConsole #chatMessages strong{display:inline;font-size:12px}
+.playgroundConsole #chatMessages li{font-size:12px;padding:8px 0;border:0}
+.playgroundConsole .visitorChat label{font-size:11px;margin:7px 0 4px}
+.playgroundConsole .visitorChat input,.playgroundConsole .visitorChat textarea{padding:9px;font-size:12px}
+.playgroundConsole #chatText{min-height:52px;max-height:100px}
+.playgroundConsole .visitorChat>.help:last-child{display:none}
+.playgroundConsole .playgroundResources{max-width:1500px;margin:0 auto 24px;padding:24px 0;border:0;border-top:1px solid var(--line);border-radius:0;background:transparent;scroll-margin-top:24px}
+.playgroundConsole .playgroundResources h2{font-size:18px;margin-bottom:12px}
+.playgroundConsole #pastRunsList{grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:24px 18px;max-height:none;overflow:visible;margin:18px 0}
+.playgroundConsole .pastRunCard{display:flex;flex-direction:column;border:0;border-radius:10px;background:transparent}
+.playgroundConsole .pastRunCard>video,.playgroundConsole .pastRunCard>.pastRunComposite{order:-1;aspect-ratio:960/654;width:100%;margin:0 0 9px;border-radius:10px;background:#17221b}
+.playgroundConsole .pastRunCard .pastRunPrompt{padding:0;font-size:13px;line-height:1.5;font-weight:600;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden}
+.playgroundConsole .pastRunCard .pastRunLabel{padding:2px 0;font-size:10px;line-height:1.5;color:var(--muted)}
+.playgroundConsole #pastRunsList>li>button{font-size:10px;padding:4px 7px;margin-top:5px}
+.playgroundConsole #pastRunsList details{margin-top:5px}
+.playgroundConsole .playgroundSteps{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:24px;padding:0;list-style:none;font-size:12px;line-height:1.7}
+.playgroundConsole .playgroundSteps strong{display:block;color:var(--ink);margin-bottom:4px}
+.playgroundConsole .resourceLinks{display:flex;flex-wrap:wrap;gap:24px;font-size:12px;margin-top:24px}
+.pastRunCard>.recordingSource{position:absolute!important;width:1px!important;height:1px!important;opacity:.001;pointer-events:none}
+.recordedPlayer{position:relative}
+.recordedPlayer:has(>.pastRunComposite:not([hidden])){padding-bottom:44px;background:#17221b;border-radius:10px;overflow:hidden}
+.recordedPlayer>.pastRunComposite{display:block;width:100%;height:auto}
+.recordedPlayer>.recordingSource{position:absolute;inset:0;width:100%;height:100%;margin:0;clip-path:inset(calc(100% - 44px) 0 0 0);border-radius:0;object-fit:none;object-position:-10000px -10000px;background:#101612}
+.recordedPlayer>.recordingSource:fullscreen{clip-path:none;object-fit:contain;object-position:center}
+.playgroundConsole #liveViewer .syncTile:fullscreen canvas{height:100%;transform:none;object-fit:contain}
+@media(max-width:740px){
+  .playgroundConsole main{padding:8px 10px 24px}
+  .playgroundConsole .playgroundHeader{height:40px;gap:8px;margin-bottom:8px}
+  .playgroundConsole .playgroundHeader h1{font-size:16px}
+  .playgroundConsole .robotNavigation label,.playgroundConsole #robotSelectorStatus{display:none}
+  .playgroundConsole .robotNavigation select{max-width:110px;padding:5px;font-size:11px}
+  .playgroundConsole .openVisitorChat{font-size:11px;padding:6px 8px}
+  .playgroundConsole .watchLayout,.playgroundConsole .watchLayout.conversationClosed{display:flex;flex-direction:column;height:auto;gap:12px;margin-bottom:28px}
+  .playgroundConsole .watchLayout>.watchVisuals{display:grid;grid-template-rows:auto auto auto;gap:5px;order:0}
+  .playgroundConsole .watchVisuals>.videoPanel{height:var(--console-camera-height,260px);order:0}
+  .playgroundConsole .watchInteraction{order:1;height:min(520px,65dvh);min-height:300px}
+  .playgroundConsole .expandCamera{opacity:1;font-size:14px}
+  .playgroundConsole .playgroundSteps{grid-template-columns:1fr;gap:14px}
+  .playgroundConsole #pastRunsList{grid-template-columns:repeat(auto-fill,minmax(min(250px,100%),1fr))}
+  .playgroundConsole .visitorChat{top:56px;right:10px;bottom:10px}
 }

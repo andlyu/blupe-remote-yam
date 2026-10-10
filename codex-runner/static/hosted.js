@@ -193,6 +193,7 @@ function createRunLaunchGuard() {
   const zeroSecondVideo = duration => typeof duration === 'number' && Number.isFinite(duration) && duration >= 0 && duration < 1;
   let selectedRun = null;
   let preview = null;
+  const previewViews = [];
   function stopPreview() {
     if (preview) preview.pause();
     preview = null;
@@ -226,13 +227,18 @@ function createRunLaunchGuard() {
     renderRunMetrics($('pastRunMetricsSummary'), run.run_metrics, 'stopped');
     const source = playbackSource(run, live);
     player.pause();
+    player.yamRecordingView?.();
+    if (!live) player.yamRecordingView = window.yamRecordingView?.(player, run.camera_order);
     player.src = source.url;
     player.defaultPlaybackRate = player.playbackRate = source.rate;
     if (!dialog.open) dialog.showModal();
     player.play().catch(() => {});
   }
   $('closePastRun').addEventListener('click', () => dialog.close());
-  dialog.addEventListener('close', () => { player.pause(); player.removeAttribute('src'); player.load(); });
+  dialog.addEventListener('close', () => {
+    player.pause(); player.yamRecordingView?.(); player.yamRecordingView = null;
+    player.removeAttribute('src'); player.load();
+  });
   dialog.addEventListener('click', event => { if (event.target === dialog) {
     const r = dialog.getBoundingClientRect();
     if (event.clientX < r.left || event.clientX > r.right || event.clientY < r.top || event.clientY > r.bottom) dialog.close();
@@ -248,20 +254,23 @@ function createRunLaunchGuard() {
       if (!response.ok) throw new Error('Past runs are temporarily unavailable. Select Refresh to retry.');
       const data = await response.json();
       if (generation !== historyGeneration) return;
-      if (reset) { stopPreview(); $('pastRunsList').replaceChildren(); }
+      if (reset) { stopPreview(); previewViews.splice(0).forEach(dispose => dispose()); $('pastRunsList').replaceChildren(); }
       for (const run of data.runs) {
         const li = document.createElement('li'), button = document.createElement('button');
         button.type = 'button'; button.className = 'pastRunCard';
         button.setAttribute('aria-label', `Watch run ${run.episode_index}: ${run.prompt}`);
         const video = document.createElement('video');
         video.preload = 'metadata'; video.muted = true; video.playsInline = true; video.loop = true;
-        button.addEventListener('pointerenter', event => {
-          if (event.pointerType !== 'mouse' || dialog.open || zeroSecondVideo(run.video_duration_s)) return;
+        function startPreview() {
+          if (dialog.open || zeroSecondVideo(run.video_duration_s) || window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return;
           stopPreview();
           preview = video;
           video.defaultPlaybackRate = video.playbackRate = playbackSource(run, false).rate;
           video.play().catch(() => {});
-        });
+        }
+        button.addEventListener('pointerenter', event => { if (event.pointerType === 'mouse') startPreview(); });
+        button.addEventListener('focus', () => { if (button.matches(':focus-visible')) startPreview(); });
+        button.addEventListener('blur', () => { if (preview === video) stopPreview(); });
         button.addEventListener('pointerleave', () => { if (preview === video) stopPreview(); });
         video.addEventListener('loadedmetadata', () => {
           if (zeroSecondVideo(video.duration)) { showEmptyRun(); return; }
@@ -293,6 +302,8 @@ function createRunLaunchGuard() {
         reasonDetails.append(reasonSummary, ending);
         if (run.errors) reasonDetails.append(errors);
         button.append(title, prompt, video, watch); button.addEventListener('click', () => openRun(run)); li.append(button); window.yamAspireLineage?.history(li, run);
+        const disposeView = window.yamRecordingView?.(video, run.camera_order);
+        if (disposeView) previewViews.push(disposeView);
         const liveButton = document.createElement('button');
         liveButton.type = 'button';
         liveButton.disabled = run.original_available === false;
@@ -1112,6 +1123,12 @@ function createRunLaunchGuard() {
     const text = (id,value) => {if($(id).textContent !== value) $(id).textContent=value;};
     text('currentRunner','Runner: ' + (live?.runner_name || '—'));
     text('currentPrompt',live?.task || 'Waiting for someone to run a policy.');
+    const header = $('taskHeaderPrompt');
+    if (header) {
+      const prompt = ['queued', 'preparing', 'running'].includes(live?.status) ? live.task || '' : '';
+      header.textContent = prompt ? ': ' + prompt : '';
+      if (header.parentElement) header.parentElement.title = prompt;
+    }
     applyModelName(live || (state.provider?.launch_route ? {
       model_name:state.provider.launch_route.actual_policy === 'astra' ? 'Astra' : 'ASPIRE · Codex/Astra'} : null));
     const result = renderModelRunResult(live);
@@ -1436,6 +1453,33 @@ function createRunLaunchGuard() {
     });
     let callback, lastMediaTime = -1, stopped = false, frame = 0;
     const stopSnapshots = [];
+    const latency = document.querySelector?.('#streamLatency'), latencySamples = [];
+    function measureLatency(hd) {
+      if (!latency || !hd || typeof context.getImageData !== 'function') return;
+      try {
+        const pixels = context.getImageData(0, 6, 512, 1).data, bytes = new Uint8Array(8);
+        for (let bit = 0; bit < 64; bit++) {
+          const pixel = (bit*8+4)*4;
+          bytes[Math.floor(bit/8)] |= (pixels[pixel]+pixels[pixel+1]+pixels[pixel+2] > 384 ? 1 : 0) << (7-bit%8);
+        }
+        let crc = 0;
+        for (const byte of bytes.slice(0,7)) {
+          crc ^= byte;
+          for (let bit = 0; bit < 8; bit++) crc = crc & 128 ? ((crc << 1)^7)&255 : (crc << 1)&255;
+        }
+        if (bytes[0] !== 0xD5 || crc !== bytes[7]) return;
+        const captured = bytes.slice(1,7).reduce((stamp,byte) => stamp*256+byte,0);
+        if (latencySamples[latencySamples.length-1]?.captured === captured) return;
+        const rendered = Date.now(), age = rendered-captured;
+        if (age < -1000 || age > 60000) return;
+        latencySamples.push({captured,rendered,age});
+        if (latencySamples.length > 300) latencySamples.shift();
+        latency.dataset.samples = JSON.stringify(latencySamples);
+        latency.textContent = ' · ~' + Math.round(Math.max(0,age)) + ' ms video delay';
+        latency.hidden = false;
+      } catch { /* Cross-origin or invalid diagnostics do not interrupt video. */ }
+    }
+
     // A bounded still-image request gives each panel a real picture while the
     // WebRTC/HLS handshake runs. It is a preview, never synchronized live video.
     const snapshotRobot = selectedRobot;
@@ -1457,7 +1501,9 @@ function createRunLaunchGuard() {
           try {
             await snapshot.decode();
             if (!pending || stopped || frame || document.hidden || selectedRobot !== snapshotRobot) return;
-            contexts[i].drawImage(snapshot, 0, 0, 640, 360);
+            const width = snapshot.naturalWidth || 640, height = snapshot.naturalHeight || 360;
+            tile.width = width; tile.height = height;
+            contexts[i].drawImage(snapshot, 0, 0, width, height);
             tile.dataset.frameSource = 'snapshot';
           } catch { /* Let the live stream finish connecting if the still fails. */ }
           finally { stop(); }
@@ -1472,11 +1518,21 @@ function createRunLaunchGuard() {
       if (!document.hidden && !stale && video.readyState >= 2 && (frame === 0 || (!video.paused && video.currentTime !== lastMediaTime))) {
         // Snapshot ONCE, then crop all panels from that immutable canvas frame.
         // MDN drawImage nine-argument contract: docs/refs/canvas.
-        context.drawImage(video, 0, 0, 1280, 720);
+        const hd = video.videoWidth === 2560 && video.videoHeight === 1080;
+        const width = video.videoWidth || 1280, height = video.videoHeight || 720;
+        if (atlas.width !== width) atlas.width = width;
+        if (atlas.height !== height) atlas.height = height;
+        context.drawImage(video, 0, 0, width, height);
+        measureLatency(hd);
         frame++;
         if (frame === 1) stopSnapshots.forEach(stop => stop());
         tiles.forEach((tile, i) => {
-          contexts[i].drawImage(atlas, (i%2)*640, Math.floor(i/2)*360, 640, 360, 0, 0, 640, 360);
+          const role = tile.dataset.cameraRole;
+          const rect = hd ? ({observer:[0,0,1920,1080],left:[1920,0,640,360],top:[1920,360,640,360],right:[1920,720,640,360]})[role]
+            : [(i%2)*width/2, Math.floor(i/2)*height/2, width/2, height/2];
+          if (tile.width !== rect[2]) tile.width = rect[2];
+          if (tile.height !== rect[3]) tile.height = rect[3];
+          contexts[i].drawImage(atlas, ...rect, 0, 0, rect[2], rect[3]);
           tile.dataset.presentedFrame = String(frame);
           tile.dataset.frameSource = 'video';
         });
@@ -1486,6 +1542,7 @@ function createRunLaunchGuard() {
         const status = stale ? 'Stream stalled' : sourceLabel.textContent;
         label.textContent = tiles[i]?.dataset.frameSource === 'snapshot' ? 'Still image · ' + status : status;
       });
+      if (latency && stale) latency.hidden = true;
       callback = requestAnimationFrame(paint);
     }
     document.querySelectorAll('[data-expand-camera]').forEach(button => {
@@ -1498,6 +1555,7 @@ function createRunLaunchGuard() {
     video.yamStopPainting = () => {
       stopped = true; cancelAnimationFrame(callback);
       stopSnapshots.forEach(stop => stop());
+      if (latency) { latency.hidden = true; delete latency.dataset.samples; }
     };
     window.addEventListener('pagehide', video.yamStopPainting);
     paint();
@@ -1664,7 +1722,7 @@ function createRunLaunchGuard() {
     const roles = videoStream?.cameras || names;
     const topWithGrippers = selectedRobot === 'robot-ba8413962083809c'
       && roles.length === 3 && ['top', 'left', 'right'].every(role => roles.includes(role));
-    $('liveViewer').dataset.layout = topWithGrippers ? 'top-with-grippers' : names.length === 1 ? 'single' : 'multi';
+    $('liveViewer').dataset.layout = roles.includes('observer') && roles.length === 4 ? 'observer-focus' : topWithGrippers ? 'top-with-grippers' : names.length === 1 ? 'single' : 'multi';
     const cameraLabel = role => topWithGrippers && role !== 'top'
       ? `${role[0].toUpperCase() + role.slice(1)} wrist` : role[0].toUpperCase() + role.slice(1);
     if (camerasDisconnected) {
@@ -1917,7 +1975,7 @@ function createRunLaunchGuard() {
   if (!panel || !open || !close) return;
   function toggle(visible, userAction = true) {
     panel.hidden = !visible;
-    open.hidden = visible;
+    open.hidden = false;
     panel.closest('main').classList.toggle('chatClosed', !visible);
     open.setAttribute('aria-expanded', String(visible));
     close.setAttribute('aria-expanded', String(visible));
@@ -1926,14 +1984,150 @@ function createRunLaunchGuard() {
       (visible ? close : open).focus();
     }
   }
-  try { toggle(localStorage.getItem("yam-chat-open") !== "false", false); } catch (_) {}
+  try { toggle(localStorage.getItem("yam-chat-open") === "true", false); } catch (_) { toggle(false, false); }
   close.addEventListener('click', () => toggle(false));
-  open.addEventListener('click', () => toggle(true));
+  open.addEventListener('click', () => toggle(panel.hidden));
+  document.addEventListener('keydown', event => {
+    if (event.key === 'Escape' && !panel.hidden) toggle(false);
+  });
 })();
 
 /* ASPIRE LOCAL SNAPSHOT START */
 window.yamAspireLineageSnapshot = null;
 /* ASPIRE LOCAL SNAPSHOT END */
+
+// Display archived four-view recordings in the same camera hierarchy as live.
+window.yamRecordingView = function(video, roles) {
+  if (!Array.isArray(roles) || roles.length !== 4 || !['observer','left','top','right'].every(role => roles.includes(role))) return;
+  const canvas = document.createElement('canvas');
+  canvas.className = 'pastRunComposite'; canvas.width = 960; canvas.height = 654;
+  canvas.setAttribute('aria-hidden', 'true'); canvas.hidden = true;
+  video.after(canvas);
+  const context = canvas.getContext('2d', {alpha:false});
+  let callback, stopped = false;
+  function paint() {
+    if (stopped || video.readyState < 2 || !video.videoWidth) return;
+    const w = video.videoWidth/2, h = video.videoHeight/2;
+    const draw = (role, x, y, width, height) => {
+      const index = roles.indexOf(role);
+      // Viewing exports add a 24px header above each 360px camera image.
+      context.drawImage(video, (index%2)*w, Math.floor(index/2)*h + h*60/384,
+        w, h*324/384, x,y,width,height);
+    };
+    draw('observer',0,0,960,486);
+    ['left','top','right'].forEach((role,index) => draw(role,index*323,495,314,159));
+    canvas.hidden = false;
+    video.classList.add('recordingSource');
+    if (!video.paused && !document.hidden) callback = video.requestVideoFrameCallback
+      ? video.requestVideoFrameCallback(paint) : requestAnimationFrame(paint);
+  }
+  function cancel() {
+    if (video.cancelVideoFrameCallback) video.cancelVideoFrameCallback(callback);
+    else cancelAnimationFrame(callback);
+    callback = undefined;
+  }
+  function start() { cancel(); paint(); }
+  for (const event of ['loadeddata','seeked','play']) video.addEventListener(event, start);
+  video.addEventListener('pause', cancel);
+  const visibility = () => { if (document.hidden) video.pause(); };
+  document.addEventListener('visibilitychange', visibility);
+  const observer = new IntersectionObserver(entries => { if (!entries[0].isIntersecting && !video.controls) video.pause(); });
+  observer.observe(canvas);
+  return () => {
+    stopped = true; cancel(); observer.disconnect(); canvas.remove();
+    video.classList.remove('recordingSource');
+    for (const event of ['loadeddata','seeked','play']) video.removeEventListener(event, start);
+    video.removeEventListener('pause', cancel);
+    document.removeEventListener('visibilitychange', visibility);
+  };
+};
+
+// Compact controls delegate to the existing run lifecycle and settings dialog.
+(() => {
+  const $ = id => document.getElementById(id);
+  if (!$('composerSend')) return;
+  const chat = $('liveConversationPanel'), heading = document.querySelector('.taskChatHeading');
+  const toolbar = document.querySelector('.watchToolbar');
+  heading.after(toolbar);
+  chat.prepend(document.querySelector('.videoOverlays'));
+  document.querySelector('.cameraStatusLine').append($('videoDelayNotice'));
+  const archive = $('past-runs'), dataset = $('dataset');
+  if (archive && dataset) dataset.before(archive);
+  const provider = $('provider'), model = $('composerModel'), send = $('composerSend');
+  function updateComposer() {
+    const options = [...provider.options].filter(option => !option.hidden && !option.disabled);
+    const signature = options.map(option => option.value + ':' + option.textContent).join('|');
+    if (model.dataset.options !== signature) {
+      model.replaceChildren(...options.map(option => new Option(option.textContent, option.value)));
+      model.dataset.options = signature;
+    }
+    model.value = provider.value;
+    if (model.disabled !== provider.disabled) model.disabled = provider.disabled;
+    const running = $('runForm').classList.contains('runActive');
+    const queued = !$('leaveQueue').hidden && !$('leaveQueue').disabled;
+    send.dataset.running = String(running);
+    const disabled = running ? (queued ? $('leaveQueue').disabled : $('stop').disabled) : $('run').disabled;
+    if (send.disabled !== disabled) send.disabled = disabled;
+    send.setAttribute('aria-label', running ? (queued ? 'Leave queue' : 'Stop run') : 'Send task');
+    send.title = send.getAttribute('aria-label');
+    const icon = running ? '■' : '↑';
+    if (send.firstElementChild.textContent !== icon) send.firstElementChild.textContent = icon;
+    const settingsDisabled = running || $('openLocalRun').disabled;
+    if ($('composerSettings').disabled !== settingsDisabled) $('composerSettings').disabled = settingsDisabled;
+  }
+  model.addEventListener('change', () => {
+    provider.value = model.value;
+    provider.dispatchEvent(new Event('change', {bubbles:true}));
+  });
+  $('composerSettings').addEventListener('click', () => $('openLocalRun').click());
+  send.addEventListener('click', () => {
+    if ($('runForm').classList.contains('runActive')) {
+      (!$('leaveQueue').hidden && !$('leaveQueue').disabled ? $('leaveQueue') : $('stop')).click();
+    } else if (!$('runForm').checkValidity()) $('openLocalRun').click();
+    else $('run').click();
+  });
+  const prompt = $('prompt');
+  function sizePrompt() { prompt.style.height = 'auto'; prompt.style.height = Math.min(120, Math.max(24, prompt.scrollHeight)) + 'px'; }
+  prompt.addEventListener('input', sizePrompt);
+  prompt.addEventListener('keydown', event => {
+    if (event.key === 'Enter' && !event.shiftKey && !event.isComposing) {
+      event.preventDefault(); if (!send.disabled) send.click();
+    }
+  });
+  new MutationObserver(updateComposer).observe($('runForm'), {subtree:true, childList:true, attributes:true, attributeFilter:['disabled','hidden','class']});
+  new MutationObserver(updateComposer).observe($('liveRunControls'), {subtree:true, attributes:true, attributeFilter:['disabled','hidden']});
+  new MutationObserver(updateComposer).observe($('leaveQueue'), {attributes:true, attributeFilter:['disabled','hidden']});
+  const workspace = document.querySelector('.watchLayout'), visuals = document.querySelector('.watchVisuals');
+  function fitCameras() {
+    const viewer = $('liveViewer'), four = viewer.dataset.layout === 'observer-focus';
+    const aspect = four ? 640/324 : 16/9;
+    if (window.innerWidth <= 740) {
+      const width = visuals.clientWidth;
+      workspace.style.removeProperty('height');
+      workspace.style.removeProperty('--console-camera-width');
+      workspace.style.setProperty('--console-camera-height', (four ? width/aspect + (width-12)/aspect/3 + 6 : width/aspect) + 'px');
+      viewer.dataset.detailLayout = 'below'; return;
+    }
+    const documentTop = workspace.getBoundingClientRect().top + window.scrollY;
+    workspace.style.height = Math.max(160, window.innerHeight - documentTop - 18) + 'px';
+    const height = Math.max(100, workspace.clientHeight - document.querySelector('.cameraStatusLine').offsetHeight - $('yourQueue').offsetHeight - 12);
+    const available = Math.max(100, workspace.clientWidth - Math.max(320, workspace.clientWidth*.25) - 16);
+    const side = four && available/height > 2.35;
+    const ideal = four ? side ? (height*4/3 - 4)*aspect + 6 : (height-6+4/aspect)*aspect*3/4 : height*aspect;
+    const width = Math.min(available, ideal);
+    const cameraHeight = four ? side ? ((width-6)/aspect + 4)*3/4 : width/aspect + (width-12)/aspect/3 + 6 : width/aspect;
+    workspace.style.setProperty('--console-camera-width', width + 'px');
+    workspace.style.setProperty('--console-camera-height', cameraHeight + 'px');
+    viewer.dataset.detailLayout = side ? 'side' : 'below';
+  }
+  const sizing = new ResizeObserver(fitCameras);
+  sizing.observe(workspace); sizing.observe($('yourQueue')); sizing.observe(document.querySelector('.cameraStatusLine'));
+  if ($('collectionProgress')) sizing.observe($('collectionProgress'));
+  new MutationObserver(fitCameras).observe($('liveViewer'), {attributes:true,attributeFilter:['data-layout']});
+  provider.addEventListener('change', updateComposer);
+  window.addEventListener('resize', fitCameras);
+  updateComposer(); sizePrompt(); fitCameras();
+})();
 
 // Keep routing feedback visible alongside the actual provider's normal notes.
 window.yamPolicyRoute = function(route) {
