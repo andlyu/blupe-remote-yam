@@ -2079,11 +2079,24 @@ window.yamRecordingView = function(video, roles) {
     provider.value = model.value;
     provider.dispatchEvent(new Event('change', {bubbles:true}));
   });
-  $('composerSettings').addEventListener('click', () => $('openLocalRun').click());
+  function openComposerSettings() {
+    const launch = $('openLocalRun'), dialog = $('localRunDialog');
+    if (launch.disabled) return;
+    launch.click();
+    // Hosted model hooks can replace the launch button's original handler.
+    // Keep the shared settings accessible without submitting the form.
+    if (!dialog.open) {
+      const settings = $('runSettings');
+      if (settings.parentElement !== $('localRunDialogBody')) $('localRunDialogBody').append(settings);
+      settings.open = true;
+      dialog.showModal(); provider.focus();
+    }
+  }
+  $('composerSettings').addEventListener('click', openComposerSettings);
   send.addEventListener('click', () => {
     if ($('runForm').classList.contains('runActive')) {
       (!$('leaveQueue').hidden && !$('leaveQueue').disabled ? $('leaveQueue') : $('stop')).click();
-    } else if (!$('runForm').checkValidity()) $('openLocalRun').click();
+    } else if (!$('runForm').checkValidity()) openComposerSettings();
     else $('run').click();
   });
   const prompt = $('prompt');
