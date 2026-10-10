@@ -2192,6 +2192,7 @@ window.yamRecordingView = function(video, roles) {
       event.preventDefault(); if (!send.disabled) send.click();
     }
   });
+  new MutationObserver(updateComposer).observe(provider, {subtree:true, childList:true, attributes:true, attributeFilter:['disabled','hidden']});
   new MutationObserver(updateComposer).observe($('runForm'), {subtree:true, childList:true, attributes:true, attributeFilter:['disabled','hidden','class']});
   new MutationObserver(updateComposer).observe($('liveRunControls'), {subtree:true, attributes:true, attributeFilter:['disabled','hidden']});
   new MutationObserver(updateComposer).observe($('leaveQueue'), {attributes:true, attributeFilter:['disabled','hidden']});
