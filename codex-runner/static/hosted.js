@@ -1125,7 +1125,7 @@ function createRunLaunchGuard() {
     text('currentPrompt',live?.task || 'Waiting for someone to run a policy.');
     const header = $('taskHeaderPrompt');
     if (header) {
-      const prompt = ['queued', 'preparing', 'running'].includes(live?.status) ? live.task || '' : '';
+      const prompt = live?.task || live?.task_progress?.task || '';
       header.textContent = prompt ? ': ' + prompt : '';
       if (header.parentElement) header.parentElement.title = prompt;
     }
