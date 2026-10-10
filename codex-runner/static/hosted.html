@@ -89,7 +89,7 @@
   <div class="runSetup">
     <section class="panel">
       <form id="runForm" autocomplete="off">
-        <div class="promptRow"><textarea id="prompt" aria-label="Task prompt" placeholder="Ask the robot to do something…" rows="1" maxlength="4000" required>place green block on plate</textarea>
+        <div class="promptRow"><textarea id="prompt" aria-label="Task prompt" placeholder="Give the arms a prompt" rows="1" maxlength="4000" required></textarea>
           <div class="composerToolbar"><button id="composerSettings" type="button" aria-label="Run settings" title="Run settings" aria-haspopup="dialog" aria-controls="localRunDialog">+</button><select id="composerModel" aria-label="Choose model" disabled><option>Connecting…</option></select><button id="composerSend" type="button" class="primary" aria-label="Send task" title="Send task" disabled><span aria-hidden="true">↑</span></button></div>
           <div class="runLaunchActions"><button id="openLocalRun" class="primary" type="button" hidden disabled>Select model and run</button><button id="openSubscriptionInstructions" type="button" aria-haspopup="dialog" aria-controls="codexInstructions">Run via own LLM subscription</button></div><div id="runButtons"><button class="primary" id="run" type="submit" disabled>Run online</button><button type="button" id="openCodexInstructions">Run Locally through Subscription</button><button type="button" id="runAstra" hidden disabled>Run with Astra</button><button type="button" id="runClaude" hidden disabled>Run with Opus</button><button type="button" id="runGroot" hidden disabled>Run GR00T</button></div></div>
         <div id="taskRunFailure" class="taskFailureNotice" role="alert" aria-atomic="true" hidden></div>
