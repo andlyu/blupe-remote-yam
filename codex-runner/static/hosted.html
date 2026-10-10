@@ -9,13 +9,14 @@
   <script src="/static/stream-health.js" defer></script>
   <script src="/static/hosted.js" defer></script>
 </head>
-<body><main><div class="runnerContent">
+<body class="playgroundConsole"><main><div class="runnerContent">
   <div class="playgroundHeader">
     <section class="intro">
       <h1>BluPe Playground</h1>
       <p id="simulationNotice" class="eyebrow" hidden>Local simulation · no physical robot connected</p>
     </section>
     <nav class="robotNavigation" aria-label="Robot selection"><label for="robotSelector">Robot / Env</label><select id="robotSelector" disabled><option>YAM</option></select><span id="robotSelectorStatus" class="help" role="status"></span></nav>
+    <button id="openVisitorChat" class="openVisitorChat" type="button" aria-controls="visitorChatPanel" aria-expanded="false">Visitors <span aria-hidden="true">↗</span></button>
   </div>
   <p class="playgroundIntro">Control real robot arms with AI. Watch, prompt, and run. <a href="https://github.com/andlyu/blupe-remote-yam/blob/main/docs/API.md" target="_blank" rel="noopener noreferrer">API docs</a> · <a href="https://github.com/andlyu/blupe-remote-yam#run-the-blupe-playground-locally" target="_blank" rel="noopener noreferrer">Run locally</a> · <a href="https://github.com/andlyu/blupe-remote-yam/blob/main/codex-runner/docs/aspire/README.md" target="_blank" rel="noopener noreferrer">ASPIRE README</a></p>
   <dialog id="codexInstructions" aria-labelledby="codexInstructionsTitle">
@@ -31,7 +32,7 @@
     <button type="button" data-conversation-mode="conversation" aria-pressed="false" aria-controls="liveConversationPanel">Convo mode</button>
     <button type="button" data-conversation-mode="hide" aria-pressed="false" aria-controls="liveConversationPanel">Hide</button>
   </div>
-    <p class="help" id="videoDelayNotice">Live views, synchronized. <span id="streamHealth" class="streamHealth" role="status">Checking stream</span> <span id="streamHealthDetail" aria-live="off"></span></p>
+    <p class="help" id="videoDelayNotice">Live views, synchronized. <span id="streamHealth" class="streamHealth" role="status">Checking stream</span> <span id="streamHealthDetail" aria-live="off"></span> <span id="streamLatency" hidden title="Approximate age from the relay’s post-read capture timestamp to this browser canvas; assumes synchronized clocks."></span></p>
   </div>
 <div class="watchVisuals">
   <section class="panel" aria-label="What’s running" hidden>
@@ -76,6 +77,7 @@
     </aside>
   </div>
   <div class="watchInteraction">
+  <div class="taskChatHeading"><h2>Task chat<span id="taskHeaderPrompt"></span></h2></div>
   <section id="liveConversationPanel" data-mode="reasoning" class="panel liveConversation" aria-label="Current run conversation">
     <div class="statusHeader"><h2 id="conversationModeTitle">Astra decision notes</h2></div>
     <p id="sideRunner" class="help">Runner: —</p>
@@ -87,7 +89,9 @@
   <div class="runSetup">
     <section class="panel">
       <form id="runForm" autocomplete="off">
-        <div class="promptRow"><textarea id="prompt" aria-label="Task prompt" rows="2" maxlength="4000" required>place green block on plate</textarea><div class="runLaunchActions"><button id="openLocalRun" class="primary" type="button" hidden disabled>Select model and run</button><button id="openSubscriptionInstructions" type="button" aria-haspopup="dialog" aria-controls="codexInstructions">Run via own LLM subscription</button></div><div id="runButtons"><button class="primary" id="run" type="submit" disabled>Run online</button><button type="button" id="openCodexInstructions">Run Locally through Subscription</button><button type="button" id="runAstra" hidden disabled>Run with Astra</button><button type="button" id="runClaude" hidden disabled>Run with Opus</button><button type="button" id="runGroot" hidden disabled>Run GR00T</button></div></div>
+        <div class="promptRow"><textarea id="prompt" aria-label="Task prompt" placeholder="Ask the robot to do something…" rows="1" maxlength="4000" required>place green block on plate</textarea>
+          <div class="composerToolbar"><button id="composerSettings" type="button" aria-label="Run settings" title="Run settings" aria-haspopup="dialog" aria-controls="localRunDialog">+</button><select id="composerModel" aria-label="Choose model" disabled><option>Connecting…</option></select><button id="composerSend" type="button" class="primary" aria-label="Send task" title="Send task" disabled><span aria-hidden="true">↑</span></button></div>
+          <div class="runLaunchActions"><button id="openLocalRun" class="primary" type="button" hidden disabled>Select model and run</button><button id="openSubscriptionInstructions" type="button" aria-haspopup="dialog" aria-controls="codexInstructions">Run via own LLM subscription</button></div><div id="runButtons"><button class="primary" id="run" type="submit" disabled>Run online</button><button type="button" id="openCodexInstructions">Run Locally through Subscription</button><button type="button" id="runAstra" hidden disabled>Run with Astra</button><button type="button" id="runClaude" hidden disabled>Run with Opus</button><button type="button" id="runGroot" hidden disabled>Run GR00T</button></div></div>
         <div id="taskRunFailure" class="taskFailureNotice" role="alert" aria-atomic="true" hidden></div>
         <details id="runSettings"><summary>Settings</summary>
         <label for="provider">Model</label>
@@ -175,7 +179,7 @@
     </section>
     <ol id="events"><li>Your model decisions and robot feedback will appear here.</li></ol>
   </section>
-  <section class="panel playgroundResources" aria-labelledby="allEpisodesTitle">
+  <section id="dataset" class="panel playgroundResources" aria-labelledby="allEpisodesTitle">
     <h2 id="allEpisodesTitle">All episodes</h2>
     <details class="episodeViewer">
       <summary>View Dataset in HF</summary>
@@ -184,34 +188,31 @@
     <p><a id="datasetLink" href="https://huggingface.co/spaces/lerobot/visualize_dataset?path=%2Fandlyu%2FPublic-YAM-runs%2Fepisode_0%3Ft%3D156" target="_blank" rel="noopener noreferrer">Open dataset here</a></p>
 
   </section>
-  <section class="panel playgroundResources pastRuns" aria-labelledby="pastRunsTitle">
+  <section id="past-runs" class="panel playgroundResources pastRuns" aria-labelledby="pastRunsTitle">
         <div class="statusHeader"><h2 id="pastRunsTitle">Past runs</h2><button id="refreshPastRuns" type="button">Refresh</button></div>
-        <p class="help">Videos from all robots and environments, newest first. Select a video to watch it larger.</p>
+        <p class="help">Hover for a quick preview. Select a recording to watch the full run.</p>
         <p id="pastRunsStatus" class="help" role="status">Loading past runs…</p>
         <ol id="pastRunsList"></ol>
         <button id="morePastRuns" type="button" hidden>Load more</button>
       </section>
-  <section class="panel playgroundResources" aria-labelledby="tryForYourselfTitle">
+  <section id="playground-guide" class="panel playgroundResources" aria-labelledby="tryForYourselfTitle">
     <h2 id="tryForYourselfTitle">How to use the playground</h2>
-    <p>We built this playground to help people understand how well robotics actually works in the real world—and what it takes to make it work. It’s one thing to see a sped-up demo, and another to watch an arm complete a task.</p>
-    <p>You can run LLMs online using an API key or pay through Stripe. For more flexibility, we recommend <a href="https://github.com/andlyu/blupe-remote-yam#run-the-blupe-playground-locally" target="_blank" rel="noopener noreferrer">cloning the repository</a> and running it locally with your Codex or Claude subscription. This makes it easier to experiment and change how the model interacts with the arms.</p>
-    <p>We also encourage you to experiment with the <a href="https://github.com/andlyu/blupe-remote-yam/blob/main/docs/API.md" target="_blank" rel="noopener noreferrer">robot API</a>, customize how the LLM is used, or train your own models. We’ve collected five hours of block-moving and stacking demonstrations, and we’d love to see what you train with them.</p>
-    <p>Task wise, we intentionally open it up as a playground with a variety of objects to see what people like to play with. However, if there is a specific task that you would like to try, we would love to set it up for you.</p>
+    <ol class="playgroundSteps"><li><strong>Choose a robot and model.</strong> Open + to set up your connection and run duration.</li><li><strong>Describe the task.</strong> Send your prompt to join the queue. Watch the cameras and follow the robot’s progress in task chat.</li><li><strong>Review the run.</strong> Browse recordings below, or open the dataset to explore the camera and action data.</li></ol>
+    <p class="resourceLinks"><a href="https://github.com/andlyu/blupe-remote-yam/blob/main/docs/API.md" target="_blank" rel="noopener noreferrer">API docs ↗</a><a href="https://github.com/andlyu/blupe-remote-yam#run-the-blupe-playground-locally" target="_blank" rel="noopener noreferrer">Run locally ↗</a><a href="https://github.com/NVlabs/ASPIRE" target="_blank" rel="noopener noreferrer">ASPIRE README ↗</a></p>
   </section>
   <footer>Keys stay out of logs. Robot controls stay with your session.<!-- application-operator --></footer>
 </div>
 <dialog id="pastRunDialog" aria-labelledby="pastRunTitle">
   <div class="statusHeader"><h2 id="pastRunTitle">Past run</h2><button id="closePastRun" type="button" aria-label="Close video">Close</button></div>
-  <video id="pastRunVideo" controls playsinline preload="none"></video>
+  <div class="recordedPlayer"><video id="pastRunVideo" controls playsinline preload="none"></video></div>
   <p id="pastRunError" role="status"></p>
   <p id="pastRunPrompt"></p><p id="pastRunDetails" class="help"></p>
   <h3>Run totals</h3><p id="pastRunMetricsSummary" class="help"></p>
   <div id="pastRunMetricsChart"></div>
 </dialog>
-<button id="openVisitorChat" class="openVisitorChat" type="button" aria-controls="visitorChatPanel" aria-expanded="false" hidden>Open chat</button>
-<aside id="visitorChatPanel" class="panel visitorChat" aria-label="Visitor chat">
+<aside id="visitorChatPanel" class="panel visitorChat" aria-label="Visitor chat" hidden>
   <div class="visitorChatHeading"><h2>Visitor chat</h2><button id="closeVisitorChat" type="button" aria-label="Close visitor chat" aria-controls="visitorChatPanel" aria-expanded="true">Close</button></div>
-  <p class="help">Talk with everyone watching. Messages are public; don’t share API keys or private information. Names are chosen by visitors.</p>
+  <p class="help">Chat with other people watching. Messages are public.</p>
   <ol id="chatMessages" role="log" aria-live="polite" aria-relevant="additions"><li>No messages yet. Say hello!</li></ol>
   <form id="chatForm" autocomplete="off">
     <label for="chatName">Your name</label><input id="chatName" maxlength="32" required placeholder="Choose a name">
