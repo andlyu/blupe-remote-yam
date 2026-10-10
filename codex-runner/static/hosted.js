@@ -626,7 +626,7 @@ function createRunLaunchGuard() {
   }
   function providerChanged() {
     if ($('provider').value !== 'local_raise_lower' && $('prompt').value === 'Raise and lower both arms.') {
-      $('prompt').value = $('prompt').dataset?.defaultPrompt || 'place green block on plate';
+      $('prompt').value = $('prompt').dataset?.defaultPrompt || '';
     }
     const aspireChoice = $('provider').value === 'aspire';
     $('aspireRetrySettings').hidden=!aspireChoice;
@@ -703,7 +703,7 @@ function createRunLaunchGuard() {
     $('apiKey').required = !builtIn; updateSavedKey();
     $('apiKey').value = '';
     if (builtIn) $('prompt').value = 'Raise and lower both arms.';
-    else if (!$('prompt').value.trim()) $('prompt').value = $('prompt').dataset?.defaultPrompt || 'place green block on plate';
+    else if (!$('prompt').value.trim()) $('prompt').value = $('prompt').dataset?.defaultPrompt || '';
     $('policyHelp').textContent = builtIn ? 'The built-in policy performs three raise/lower cycles. No model calls or API key are needed.' : 'The model observes the cameras, chooses a move, and waits for robot feedback before deciding again.';
   }
   $('provider').addEventListener('change', () => { providerChanged(); updateAspireSetupGuidance(); applyModelName(lastLive); window.yamAnalytics?.selected($('provider').value, $('model').value.trim()); });
