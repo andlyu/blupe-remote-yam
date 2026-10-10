@@ -717,15 +717,19 @@ body.cameraExpanded{overflow:hidden}
 .playgroundConsole #composerSend[data-running="true"]{font-size:14px}
 .playgroundConsole .promptRow>.runLaunchActions,.playgroundConsole .promptRow>#runButtons{display:none}
 .playgroundConsole .watchInteraction #message{min-height:0;font-size:10px;line-height:1.45;margin:6px 2px 0}
-.playgroundConsole .visitorChat{position:fixed;z-index:30;top:68px;right:18px;bottom:18px;width:min(350px,calc(100vw - 24px));display:flex;flex-direction:column;padding:18px;border-color:var(--line);border-radius:14px;background:white;box-shadow:0 12px 45px #18251e29}
+.playgroundConsole .visitorChat{position:fixed;z-index:30;top:auto;right:18px;bottom:18px;width:min(320px,calc(100vw - 24px));height:min(440px,calc(100dvh - 96px));max-height:calc(100dvh - 96px);overflow:auto;overscroll-behavior:contain;display:flex;flex-direction:column;padding:14px;border-color:var(--line);border-radius:14px;background:white;box-shadow:0 12px 45px #18251e29}
+.playgroundConsole .visitorChatHeading{flex:none;margin-bottom:8px}
+.playgroundConsole .visitorChat>p,.playgroundConsole .visitorChat form{flex:none}
+.playgroundConsole .visitorChat>.help{font-size:11px;line-height:1.4;margin:0 0 8px}
+.playgroundConsole .visitorChat #chatStatus{margin:8px 0 0}
 .playgroundConsole .visitorChatHeading h2{font-size:14px}
 .playgroundConsole .visitorChatHeading button{font-size:11px;padding:5px 8px}
-.playgroundConsole #chatMessages{flex:1;height:auto;min-height:60px;margin:8px 0;overscroll-behavior:contain}
+.playgroundConsole #chatMessages{flex:1;height:auto;min-height:0;margin:8px 0;overscroll-behavior:contain}
 .playgroundConsole #chatMessages strong{display:inline;font-size:12px}
 .playgroundConsole #chatMessages li{font-size:12px;padding:8px 0;border:0}
 .playgroundConsole .visitorChat label{font-size:11px;margin:7px 0 4px}
 .playgroundConsole .visitorChat input,.playgroundConsole .visitorChat textarea{padding:9px;font-size:12px}
-.playgroundConsole #chatText{min-height:52px;max-height:100px}
+.playgroundConsole #chatText{min-height:44px;max-height:72px;resize:none}
 .playgroundConsole .visitorChat>.help:last-child{display:none}
 .playgroundConsole .playgroundResources{max-width:1500px;margin:0 auto 24px;padding:24px 0;border:0;border-top:1px solid var(--line);border-radius:0;background:transparent;scroll-margin-top:24px}
 .playgroundConsole .playgroundResources h2{font-size:18px;margin-bottom:12px}
@@ -760,5 +764,5 @@ body.cameraExpanded{overflow:hidden}
   .playgroundConsole .expandCamera{opacity:1;font-size:14px}
   .playgroundConsole .playgroundSteps{grid-template-columns:1fr;gap:14px}
   .playgroundConsole #pastRunsList{grid-template-columns:repeat(auto-fill,minmax(min(250px,100%),1fr))}
-  .playgroundConsole .visitorChat{top:56px;right:10px;bottom:10px}
+  .playgroundConsole .visitorChat{top:auto;right:10px;bottom:10px;height:min(420px,55dvh)}
 }
