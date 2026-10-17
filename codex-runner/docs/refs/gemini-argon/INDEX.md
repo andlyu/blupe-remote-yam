@@ -5,6 +5,11 @@ References fetched October 13, 2026 (America/Los_Angeles). Source URL, API
 version and fetch time are recorded in each file. Google docs are CC BY 4.0;
 examples are Apache 2.0.
 
+The saved pages include Google DevSite scripts. Public API keys embedded in those
+scripts have been replaced with `REDACTED_GOOGLE_DEVSITE_API_KEY` to avoid secret
+scanner alerts. Apply the same redaction when refreshing these snapshots; preserve
+the reference text and source metadata.
+
 | Use case | Authoritative reference |
 | --- | --- |
 | Stateless storage and system instructions | `interactions.txt`: https://ai.google.dev/gemini-api/docs/interactions |
