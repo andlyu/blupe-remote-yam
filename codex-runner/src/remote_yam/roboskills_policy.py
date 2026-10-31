@@ -35,29 +35,32 @@ ROTATION_TOLERANCE_DEG = 2.
 
 
 def _tracking_offset(history, axes):
-    """Bounded false-position step when completed feedback brackets an axis.
+    """Bounded false-position step on the current measured response branch.
 
     Full residual accumulation can oscillate across actuator deadband. Retain
-    the measured bracket rather than integrating through it again. This is
+    the measured bracket only while its response remains consistent. This is
     command planning after confirmed completion, never dispatch reconciliation.
     """
     current,error=history[-1]
     result=current.copy()
     for j in axes:
         candidate=current[j]-error[j]
-        stalled=False
-        if len(history)>1:
-            previous,previous_error=history[-2]
-            # Measured transfer feedback stayed nearly unchanged while small
-            # reverse commands shrank toward an obsolete pre-friction bracket.
-            # A bounded half-residual step avoids repeatedly shrinking that
-            # ineffective bracket. This changes no success threshold.
-            stalled=(abs(current[j]-previous[j])>.00025
-                     and abs(error[j]-previous_error[j])<.0001)
-            if stalled:candidate=current[j]-.5*error[j]
-        opposite=[(offset[j],residual[j]) for offset,residual in history[:-1]
+        first=0
+        for k in range(1,len(history)):
+            previous,previous_error=history[k-1]
+            observed,observed_error=history[k]
+            step=observed[j]-previous[j]
+            response=observed_error[j]-previous_error[j]
+            # Retain the existing0.25mm command /0.1mm response deadband
+            # thresholds. A reversed measured response also invalidates older
+            # brackets: static secant interpolation is not valid across it.
+            if abs(step)>.00025 and (step*response<=0 or abs(response)<.0001):
+                first=k
+        if first==len(history)-1 and first>0:
+            candidate=current[j]-.5*error[j]
+        opposite=[(offset[j],residual[j]) for offset,residual in history[first:-1]
                   if residual[j]*error[j]<0 and abs(offset[j]-current[j])>1e-9]
-        if opposite and not stalled:
+        if opposite:
             old_offset,old_error=min(opposite,key=lambda value:abs(value[0]-current[j]))
             candidate=(current[j]*old_error-old_offset*error[j])/(old_error-error[j])
         result[j]=np.clip(candidate,-.008,.008)
@@ -325,6 +328,12 @@ class RobotTools:
         p._check_cancelled()
         if self.motion_failure:raise RuntimeError(self.motion_failure)
         state=p._feedback()
+        return self._plan_move(targets,state,attitude=attitude,rotation=rotation)
+
+    def _plan_move(self, targets, state, *, attitude=None, rotation=None):
+        """Validate one candidate against a supplied read-only batch snapshot."""
+        p=self.policy;p._check_cancelled()
+        if self.motion_failure:raise RuntimeError(self.motion_failure)
         # Copy the entire geometry, including station-constrained joint bounds,
         # measured references and MuJoCo state. Planning cannot adopt an attitude
         # reference, consume a cursor/budget, or mutate the active solver.
@@ -354,6 +363,10 @@ class RobotTools:
             world=[points[arm]+p._geometry.bases[i] for i,arm in enumerate(('left','right'))]
             if not np.allclose(world[0],world[1],rtol=0,atol=1e-8):
                 raise ValueError('Left/right approach points must identify the same point in the configured base geometry')
+        # All candidates are a read-only comparison at this one fresh settled
+        # state. Re-fetching it per candidate adds network latency, not evidence
+        # of motion. move_to still obtains fresh feedback before preparation.
+        state=p._feedback()
         candidates=[];rejected=[]
         for degrees in (0,35,45,55):
             angle=np.deg2rad(degrees)
@@ -365,7 +378,7 @@ class RobotTools:
                 frame=np.column_stack((opening,np.cross(approach,opening),approach))
                 targets={arm+'_'+axis:float(value) for axis,value in zip('xyz',point-approach*clearance)}
                 rotation={arm:frame.tolist()}
-                result=self.plan_move(**targets,rotation=rotation)
+                result=self._plan_move(targets,state,rotation=rotation)
                 if result['reachable']:
                     candidates.append(dict(arm=arm,tilt_deg=degrees,targets=targets,rotation=rotation,
                                            waypoint_count=result['waypoint_count'],from_step_id=result['from_step_id']))

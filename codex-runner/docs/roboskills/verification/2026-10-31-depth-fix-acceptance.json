@@ -1,16 +1,16 @@
 {
-  "reviewedAt": "2026-10-31T11:38:45.719002+00:00",
+  "reviewedAt": "2026-10-31T12:37:29.309509+00:00",
   "website": "https://blupe-bimanual-skills.andlyu.chatgpt.site/#physical-yam",
   "siteVersion": 19,
   "siteSource": "4d76cfb3df3a4feceaef0ed07ce7e63458dc51df",
-  "runtimeSource": "aada98c2632e6cdd0dcdd362b58984ed61b04e8e",
+  "runtimeSource": "ebfaf697208f82dbd4ab1012bb1d5b35923984bc",
   "sourceRepository": "https://github.com/andlyu/blupe-remote-bots",
   "requirements": [
     {
       "number": 1,
       "requirement": "Website and associated source",
       "status": "PASS",
-      "evidence": "Public Site19 source4d76cfb3df3a4feceaef0ed07ce7e63458dc51df, production succeeded11:22:50.305695Z; runtimeaada98c; public source PR193 d65a0a2 adds object marks. Mirrored worker progress now matches liveaada source."
+      "evidence": "Public Site19 source4d76cfb; native SDK ebfaf69 via merged PR195/669abc9, all six release checks passed. Genuine upstream agent unchanged. Candidate correction repair not yet deployed."
     },
     {
       "number": 2,
@@ -22,7 +22,7 @@
       "number": 3,
       "requirement": "Actual method clearly named",
       "status": "PASS",
-      "evidence": "RoboSkills core.agent.run/Repl pinned8a286... unchanged; actual underlyinggpt-6-sol, firstnone/latermedium, configuration receipt retained."
+      "evidence": "RoboSkills pinned core.agent.run/Repl8a286 unchanged; gpt-6-sol, initialnone/subsequentlow, actual public configuration and dedicated51test CI receipt verified."
     },
     {
       "number": 4,
@@ -46,7 +46,7 @@
       "number": 7,
       "requirement": "Method runs on physical YAMs",
       "status": "OPEN",
-      "evidence": "Site19/currentaada runfae84cbc executed measured approach, grasp/close, retained lift, transfer and final alignment,128submitted waypoints/13packets;300.360s timeout before supported release/withdrawal/stable stack. Full manipulation remains unqualified."
+      "evidence": "Latest63f792 on runtimeebfaf69 sent67waypoints/6completed packets, failed first approach5.876mm against3mm; no grasp/stack. Earlierfae retained grasp/lift/transfer but timed out before release/withdrawal."
     },
     {
       "number": 8,
@@ -58,7 +58,7 @@
       "number": 9,
       "requirement": "Immediate just-completed replay",
       "status": "PASS",
-      "evidence": "Site19 just-completed2437 real replay played to13.5s; finalfae real replay loaded198s and advanced to131.930s with pausedfalse/readyState4 through normal native player. Honest timeout/result and task marks retained."
+      "evidence": "Latest63f792 matching32s actual physical replay played and sought to16s through normal website player; native camera05:25:16.8PDT visible, honest failed outcome retained."
     },
     {
       "number": 10,
@@ -82,7 +82,7 @@
       "number": 13,
       "requirement": "Every-run startup timing",
       "status": "OPEN: new historical miss outside accepted exceptions",
-      "evidence": "Nine recent measured startup passes, includingfae84cbc upper 12.527s postHome/24.876s fullRun. Exact seven prior owner exceptions remain accepted. Later900123 postHome26.163\u201327.163s fails15s (initialqueue10.291855s; adjustedRun29.156\u201330.508s unverified);2437 refused afterHome with0packets/no onset. Both are outside accepted exceptions."
+      "evidence": "Nine prior measured startup passes preserved. Exact seven accepted historical exceptions unchanged. Later900123 postHome miss,2437/e15b afterHome no-motion and63f792 postHome21.737\u201322.737s miss remain outside that acceptance. Latest queue-adjusted upper25.559s passes30s but does not excuse15s."
     },
     {
       "number": 14,
@@ -94,7 +94,7 @@
       "number": 15,
       "requirement": "Final normal-UI physical verification",
       "status": "OPEN",
-      "evidence": "Final normalSite19 UI testfae84cbc has correct method/runner, actual recorded motion, startup pass, honest progress/camera recovery and nativepark/torqueoff, but no release/withdrawal/stable stack before300s. This advertised capability remains open."
+      "evidence": "Latest normalSite19 run63f792 verifies actual method/name, admission/preparation/model/motion stages, live/timedUIcapture, honest failed result, actual replay/seeking and native park/torque-off. Full stack remains unqualified."
     }
   ],
   "checked": 12,
@@ -134,7 +134,9 @@
   ],
   "pendingHistoricalTimingExceptions": [
     "900123781dec40b49bb223e6c91a4283",
-    "2437a5f1acf84da090bb360ecc1d756a: zero-packet refusal after Home; no motion onset to qualify"
+    "2437a5f1acf84da090bb360ecc1d756a: zero-packet refusal after Home; no motion onset to qualify",
+    "e15b4276205b41f082f0c0303e1a21fe: afterHome zero-packet vertical-only refusal; Run-click not measured",
+    "63f7924023834731b5afce3e066a59a0: postHome21.737\u201322.737s FAIL; queue-adjusted24.512\u201325.559s PASS"
   ],
   "notApplicableStartup": [
     "540a8e90829340d99038076309fd48ea: cancelled before admission, no Home/episode/model/packet"
@@ -150,5 +152,5 @@
     "cd7316b5a15847a49769a456c300c54d",
     "fae84cbc177940b9a5e0eec76c5e2121"
   ],
-  "candidateRuntimeSource": null
+  "candidateRuntimeSource": "working correction repair, not deployed"
 }

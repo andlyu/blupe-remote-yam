@@ -1,0 +1,108 @@
+{
+  "runId": "63f7924023834731b5afce3e066a59a0",
+  "siteVersion": 19,
+  "siteSource": "4d76cfb3df3a4feceaef0ed07ce7e63458dc51df",
+  "runtimeSource": "ebfaf697208f82dbd4ab1012bb1d5b35923984bc",
+  "runClickHostEpochBounds": [
+    1793449483.209,
+    1793449483.246
+  ],
+  "robotMinusHostBounds": [
+    0.09148073196411133,
+    0.10135984420776367
+  ],
+  "matchedSettledHomeRobotEpoch": 1793449496.662971,
+  "queueJoinHostEpoch": 1793449486.0374029,
+  "queueAdmissionHostEpoch": 1793449496.57819,
+  "excludedInitialQueueSeconds": 10.54078722000122,
+  "chosenPriorCameraClock": "2026-10-31 05:25:18.4 PDT",
+  "firstClearlyMovedCameraClock": "2026-10-31 05:25:19.3 PDT",
+  "visualPrecisionUpperSeconds": 0.1,
+  "firstMotionRobotEpochBounds": [
+    1793449518.4,
+    1793449519.4
+  ],
+  "postHomeSecondsBounds": [
+    21.73702907562256,
+    22.73702907562256
+  ],
+  "fullRunSecondsBounds": [
+    35.052640199661255,
+    36.0995192527771
+  ],
+  "queueAdjustedRunSecondsBounds": [
+    24.511852979660034,
+    25.55873203277588
+  ],
+  "postHomeStatus": "FAIL: actual method motion after21.737\u201322.737s, above15s",
+  "queueAdjustedRunStatus": "PASS: upper25.559s below30s",
+  "nativeOutcome": "First approach failed measured Cartesian accuracy; no grasp/lift/stack",
+  "submittedWaypoints": 67,
+  "submittedPackets": 6,
+  "modelCalls": 1,
+  "firstModelSeconds": 8.11153700000068,
+  "nativeExecutionSeconds": 44.5374188423,
+  "finalPositionErrorsM": {
+    "left": 0.00587602790354897,
+    "right": 0.002752824935227348
+  },
+  "finalOrientationErrorsDeg": {
+    "left": 0.6629389966348843,
+    "right": 0.5464234713610151
+  },
+  "nativePark": {
+    "ok": true,
+    "command": "status",
+    "mode": "DISABLED",
+    "parked": true,
+    "torque_off_verified": true,
+    "feedback_available": true,
+    "auto_queue_enabled": true,
+    "event": "Both physical arms parked at joint zero and torque-disabled",
+    "disconnected": false,
+    "elapsed_s": 0.016
+  },
+  "clockProbe": [
+    {
+      "before": 1793449388.101593,
+      "robot": 1793449388.2029529,
+      "after": 1793449388.1114721,
+      "lower": 0.09148073196411133,
+      "upper": 0.10135984420776367
+    },
+    {
+      "before": 1793449388.11149,
+      "robot": 1793449388.2173471,
+      "after": 1793449388.131202,
+      "lower": 0.08614516258239746,
+      "upper": 0.10585713386535645
+    },
+    {
+      "before": 1793449388.131207,
+      "robot": 1793449388.2397096,
+      "after": 1793449388.148332,
+      "lower": 0.09137749671936035,
+      "upper": 0.10850262641906738
+    },
+    {
+      "before": 1793449388.1483352,
+      "robot": 1793449388.2514422,
+      "after": 1793449388.160836,
+      "lower": 0.0906062126159668,
+      "upper": 0.10310697555541992
+    },
+    {
+      "before": 1793449388.160843,
+      "robot": 1793449388.274212,
+      "after": 1793449388.193216,
+      "lower": 0.08099579811096191,
+      "upper": 0.11336898803710938
+    }
+  ],
+  "evidence": "Original embedded physical camera wall clock, matched Home, actual UIclick bounds and five trusted robot clock samples. Playback time is not wall time. UI captured via native CUA; contact field blank before/after every retained frame; variable capture cadence retained in manifest.",
+  "replayUrl": "https://blupe-bimanual-skills.andlyu.chatgpt.site/api/physical/runs/63f7924023834731b5afce3e066a59a0/assets/physical.mp4",
+  "replayVerification": "Matching32s actual recording played and sought to midpoint16s in normal website player; actual camera05:25:16.8PDT frame and honest failure shown.",
+  "timedUiRecording": "2026-10-31-tilted-timed-ui.mp4",
+  "timedUiManifest": "2026-10-31-tilted-ui-frames.json",
+  "historicalException": "none: outside the exact accepted seven"
+}

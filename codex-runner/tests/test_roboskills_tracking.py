@@ -6,6 +6,8 @@ from unittest import TestCase, skipUnless
 from unittest.mock import patch
 import numpy as np
 from remote_yam.robocurve_trajectory import RoboCurveTrajectory
+from remote_yam.roboskills_trajectory import RoboSkillsTrajectory
+from remote_yam.roboskills_policy import _tracking_offset
 import test_roboskills_commands as contract
 from test_roboskills_policy import observation
 
@@ -18,6 +20,47 @@ class TrackingTests(TestCase):
 
     def test_recorded_approach_residual_converges_within_original_bounds(self):
         self.exercise_fixture('roboskills-approach-tracking.json')
+
+    def test_recorded_reverse_response_discards_obsolete_bracket(self):
+        fixture=json.loads((Path(__file__).parent/'fixtures/roboskills-tilted-tracking.json').read_text())
+        rows=fixture['samples'][:3]
+        history=[(np.array(r['command_offset_m']),np.array(r['measured_error_m'])) for r in rows]
+        # Actual X/Z responses reversed sign relative to the completed command.
+        # An older opposite residual no longer describes this travel branch.
+        correction=_tracking_offset(history,range(3))
+        for axis in (0,2):
+            self.assertLess(correction[axis],history[-1][0][axis]-.49*history[-1][1][axis])
+        self.assertLessEqual(np.max(np.abs(correction)),.008)
+
+    def test_recorded_tilted_approach_with_explicit_reverse_travel_model(self):
+        fixture=json.loads((Path(__file__).parent/'fixtures/roboskills-tilted-tracking.json').read_text())
+        self.p._geometry=RoboSkillsTrajectory(base_spacing_m=.5,preserve_uninstructed=True)
+        self.p._geometry.observe(fixture['reference']);self.p._state={**fixture['reference'],'episode_id':'ep_unit','lease_id':'lease_unit'}
+        samples=fixture['samples'];goal=None;commands=[]
+        # Past completed samples are measured. Subsequent unit-gain bias is an
+        # explicit model of the changed travel branch, not a physical forecast.
+        bias=np.array(samples[2]['measured_error_m'])-samples[2]['command_offset_m']
+        def measured_plant(points):
+            nonlocal goal
+            wire_end=self.plant(points)
+            _,cmd,_=self.p._geometry.observe(wire_end)
+            if goal is None:goal=cmd[:3].copy()
+            offset=cmd[:3]-goal;commands.append(offset)
+            index=len(commands)-1
+            if index<3:
+                measured=samples[index]['measured']
+            else:
+                xyz=goal+offset+bias
+                synthetic=self.p._geometry.build(dict(zip(('left_x','left_y','left_z'),xyz.tolist())),self.p._state,self.p._state['step_id'])
+                measured={k:synthetic[-1][k] for k in ('left_joints_deg','right_joints_deg')}
+            return {**wire_end,**measured,'settled':True}
+        with patch.object(self.p,'_execute',side_effect=measured_plant):
+            self.bot.move_to(**fixture['targets'],rotation=fixture['rotation'])
+        self.assertLessEqual(len(commands),6)
+        self.assertLessEqual(np.max(np.abs(commands)),.008+1e-7)
+        self.assertLessEqual(self.p._last_move['position_error_m']['left'],.003)
+        self.assertLessEqual(self.p._last_move['orientation_error_deg']['left'],2.)
+        self.assertIsNone(self.bot.motion_failure)
 
     def exercise_fixture(self, name, deadband_breakout=None):
         fixture=json.loads((Path(__file__).parent/'fixtures'/name).read_text())

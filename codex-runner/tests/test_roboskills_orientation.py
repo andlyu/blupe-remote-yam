@@ -139,6 +139,20 @@ class OrientationContract(TestCase):
             self.assertGreater(row['targets'][row['arm']+'_z'],FIXTURE['sourcePoints'][row['arm']][2])
         self.assertEqual(cursor,self.p._state['step_id'])
         for a,b in zip(before,self.p._geometry.start_rotations):np.testing.assert_array_equal(a,b)
+
+    def test_approach_batch_uses_one_fresh_snapshot_and_move_rechecks(self):
+        state=deepcopy(self.p._state)
+        with patch.object(self.p,'_feedback',return_value=state) as feedback,patch.object(self.p,'_execute') as execute:
+            options=self.bot.plan_approach(FIXTURE['sourcePoints'])
+            self.assertTrue(options['candidates'])
+            feedback.assert_called_once()
+            execute.assert_not_called()
+        chosen=options['candidates'][0]
+        with patch.object(self.p,'_feedback',side_effect=RuntimeError('fresh motion feedback required')) as feedback,patch.object(self.p,'_execute') as execute:
+            with self.assertRaisesRegex(RuntimeError,'fresh motion feedback required'):
+                self.bot.move_to(**chosen['targets'],rotation=chosen['rotation'])
+            feedback.assert_called_once()
+            execute.assert_not_called()
     def test_approach_clearance_endpoints_and_invalid_neighbours(self):
         for value in (.01,.10):
             result=self.bot.plan_approach(FIXTURE['sourcePoints'],clearance=value)
